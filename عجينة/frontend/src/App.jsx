@@ -38,6 +38,7 @@ const AdminOffersPage    = lazy(() => import('./pages/admin/OffersPage'))
 const CashPage           = lazy(() => import('./pages/admin/CashPage'))
 const ReportsPage        = lazy(() => import('./pages/admin/ReportsPage'))
 const FinancePage        = lazy(() => import('./pages/admin/FinancePage'))
+const AmericansManagementPage = lazy(() => import('./pages/admin/AmericansManagementPage'))
 const DailyClosingPage   = lazy(() => import('./pages/admin/DailyClosingPage'))
 const SettingsPage       = lazy(() => import('./pages/admin/SettingsPage'))
 const ReviewsPage        = lazy(() => import('./pages/admin/ReviewsPage'))
@@ -70,7 +71,7 @@ function AdminOnlyRoute({ children }) {
 
 const ROLE_HOME = {
   admin: '/admin/dashboard', supervisor: '/admin/dashboard', viewer: '/admin/dashboard',
-  cashier: '/admin/pos', kitchen: '/admin/kitchen',
+  cashier: '/admin/pos', kitchen: '/admin/kitchen', americans_manager: '/admin/americans',
 }
 
 function RoleRoute({ roles, children }) {
@@ -118,6 +119,7 @@ export default function App() {
           <Route path="/admin" element={<PrivateRoute><AdminLayout /></PrivateRoute>}>
             <Route index element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="dashboard" element={<RoleRoute roles={['admin', 'supervisor', 'viewer']}><DashboardPage /></RoleRoute>} />
+            <Route path="americans" element={<RoleRoute roles={['admin', 'americans_manager']}><AmericansManagementPage /></RoleRoute>} />
             <Route path="products" element={<RoleRoute roles={['admin', 'supervisor']}><ProductsPage /></RoleRoute>} />
             <Route path="categories" element={<RoleRoute roles={['admin', 'supervisor']}><CategoriesPage /></RoleRoute>} />
             <Route path="products/new" element={<RoleRoute roles={['admin', 'supervisor']}><ProductFormPage /></RoleRoute>} />
