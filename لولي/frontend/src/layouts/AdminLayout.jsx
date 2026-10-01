@@ -7,13 +7,9 @@ import {
   Menu, LayoutDashboard, Croissant, Wheat, ShoppingCart, CookingPot,
   Banknote, Trash2, Store, ClipboardList, Tag, Landmark, TrendingUp,
   Lock, Users, Wallet, Star, Settings, LogOut, Bell, ChefHat,
-  Fingerprint, UserCog, Receipt, WifiOff, UploadCloud, Grid3x3,
+  Fingerprint, UserCog, Receipt, WifiOff, UploadCloud, Grid3x3, BadgePercent,
 } from 'lucide-react'
 
-/**
- * Connection pill — tells staff whether their work is landing on the server
- * or being parked locally, so nobody closes the tab mid-shift assuming it saved.
- */
 function ConnectionStatus() {
   const [online, setOnline]  = useState(typeof navigator === 'undefined' || navigator.onLine)
   const [pending, setPending] = useState(0)
@@ -26,8 +22,6 @@ function ConnectionStatus() {
 
     queueSize().then(setPending)
     const unsubscribe = onQueueChange(setPending)
-
-    // The queue also drains on reconnect without a local event — poll gently.
     const poll = setInterval(() => queueSize().then(setPending), 15000)
 
     return () => {
@@ -52,11 +46,6 @@ function ConnectionStatus() {
   )
 }
 
-/* `adminOnly` items are hidden from supervisors — the backend enforces the
-   same rule, this just keeps the sidebar honest about what they can reach.
-   `cashierVisible` is the opposite kind of flag: cashier is the narrowest
-   role in the system, so instead of marking everything it CAN'T see, only
-   the couple of items it CAN are marked — see SidebarContent below. */
 const NAV_ITEMS = [
   { path: '/admin/dashboard',     Icon: LayoutDashboard, label: 'لوحة التحكم' },
   { path: '/admin/pos',           Icon: Receipt,         label: 'طلب داخلي',   cashierVisible: true },
@@ -72,9 +61,8 @@ const NAV_ITEMS = [
   { path: '/admin/offers',        Icon: Tag,             label: 'العروض' },
   { path: '/admin/cash',          Icon: Landmark,        label: 'الكاش' },
   { path: '/admin/reports',       Icon: TrendingUp,      label: 'التقارير' },
+  { path: '/admin/finance',       Icon: BadgePercent,    label: 'المالية والضرائب' },
   { path: '/admin/daily-closing', Icon: Lock,            label: 'الجرد اليومي' },
-  /* Supervisors need this one to read: they work out each day's wages from
-     the clocked hours. The page itself renders read-only for them. */
   { path: '/admin/attendance',    Icon: Fingerprint,     label: 'الحضور والبصمة' },
   { path: '/admin/employees',     Icon: Users,           label: 'الموظفين',       adminOnly: true },
   { path: '/admin/payroll',       Icon: Wallet,          label: 'الرواتب',        adminOnly: true },
@@ -83,9 +71,6 @@ const NAV_ITEMS = [
   { path: '/admin/settings',      Icon: Settings,        label: 'الإعدادات',      adminOnly: true },
 ]
 
-/* Bottom tab bar — the 4 things staff reach for constantly on a phone.
-   Everything else lives one tap away behind "المزيد", which opens the same
-   drawer as the hamburger so there's only one source of truth for nav. */
 const BOTTOM_NAV_ITEMS = [
   { path: '/admin/dashboard', Icon: LayoutDashboard, label: 'الرئيسية' },
   { path: '/admin/pos',       Icon: Receipt,         label: 'طلب' },
@@ -102,7 +87,6 @@ function SidebarContent({ user, onLogout, onLinkClick }) {
 
   return (
     <div className="w-64 h-full min-h-0 flex flex-col" style={{ background: 'linear-gradient(180deg, #20160F 0%, #6A4422 60%, #20160F 100%)' }}>
-      {/* Logo */}
       <div className="p-5 border-b border-white/10">
         <div className="flex items-center gap-3">
           <img src="/brand/luliz-logo-round.png" alt="لوليز" className="h-12 w-12 rounded-full shadow-lg" draggable={false} />
@@ -113,13 +97,10 @@ function SidebarContent({ user, onLogout, onLinkClick }) {
         </div>
       </div>
 
-      {/* User */}
       <div className="px-4 py-3 border-b border-white/10">
         <div className="flex items-center gap-3">
-          <div
-            className="w-9 h-9 rounded-full flex items-center justify-center"
-            style={{ background: 'rgba(246,185,26,0.2)', border: '1.5px solid rgba(246,185,26,0.4)' }}
-          >
+          <div className="w-9 h-9 rounded-full flex items-center justify-center"
+            style={{ background: 'rgba(246,185,26,0.2)', border: '1.5px solid rgba(246,185,26,0.4)' }}>
             <ChefHat size={17} style={{ color: '#F6B91A' }} />
           </div>
           <div>
@@ -131,7 +112,6 @@ function SidebarContent({ user, onLogout, onLinkClick }) {
         </div>
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 min-h-0 py-3 overflow-y-auto overscroll-contain admin-sidebar-scroll">
         {items.map(({ path, Icon, label }) => (
           <NavLink
@@ -157,7 +137,6 @@ function SidebarContent({ user, onLogout, onLinkClick }) {
         ))}
       </nav>
 
-      {/* Logout */}
       <div className="p-4 border-t border-white/10">
         <motion.button
           whileHover={{ x: -3 }}
@@ -165,8 +144,7 @@ function SidebarContent({ user, onLogout, onLinkClick }) {
           onClick={onLogout}
           className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-sm font-bold text-white/60 hover:text-white hover:bg-white/8 transition-all"
         >
-          <LogOut size={16} />
-          تسجيل الخروج
+          <LogOut size={16} /> تسجيل الخروج
         </motion.button>
       </div>
     </div>
@@ -184,10 +162,6 @@ export default function AdminLayout() {
     navigate('/admin/login')
   }
 
-  /* Cashier sells at the POS and records incoming purchases — nothing else.
-     Kitchen sits outside this layout entirely (its own top-level route), so
-     inside AdminLayout those two pages are the only ones it may land on;
-     anything else bounces back, matching what the API already refuses. */
   const CASHIER_PATHS = ['/admin/pos', '/admin/purchases']
   if (user?.role === 'cashier' && !CASHIER_PATHS.includes(location.pathname)) {
     return <Navigate to="/admin/pos" replace />
@@ -195,46 +169,26 @@ export default function AdminLayout() {
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: '#F6EFE6' }} dir="rtl">
-      {/* Desktop sidebar */}
       <div className="hidden lg:flex flex-shrink-0 h-screen shadow-2xl">
         <SidebarContent user={user} onLogout={handleLogout} onLinkClick={() => {}} />
       </div>
 
-      {/* Mobile sidebar */}
       <AnimatePresence>
         {sidebarOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 lg:hidden"
-          >
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 lg:hidden">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
-            <motion.div
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="absolute right-0 top-0 h-full shadow-2xl"
-            >
+            <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="absolute right-0 top-0 h-full shadow-2xl">
               <SidebarContent user={user} onLogout={handleLogout} onLinkClick={() => setSidebarOpen(false)} />
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header
-          className="h-14 lg:h-16 flex items-center justify-between px-4 lg:px-6 flex-shrink-0 border-b sticky top-0 z-30"
-          style={{ background: '#FFFFFF', borderColor: '#EAD9C2', boxShadow: '0 1px 12px rgba(32,22,15,0.07)' }}
-        >
+        <header className="h-14 lg:h-16 flex items-center justify-between px-4 lg:px-6 flex-shrink-0 border-b sticky top-0 z-30"
+          style={{ background: '#FFFFFF', borderColor: '#EAD9C2', boxShadow: '0 1px 12px rgba(32,22,15,0.07)' }}>
           <div className="flex items-center gap-2 min-w-0">
-            <button
-              className="lg:hidden p-2 -mr-1 rounded-xl transition-colors flex-shrink-0"
-              style={{ background: '#F6EFE6' }}
-              onClick={() => setSidebarOpen(true)}
-            >
+            <button className="lg:hidden p-2 -mr-1 rounded-xl transition-colors flex-shrink-0" style={{ background: '#F6EFE6' }} onClick={() => setSidebarOpen(true)}>
               <Menu className="w-5 h-5" style={{ color: '#20160F' }} />
             </button>
             <div className="min-w-0">
@@ -249,51 +203,27 @@ export default function AdminLayout() {
 
           <div className="flex items-center gap-2 flex-shrink-0">
             <ConnectionStatus />
-            <motion.div
-              whileHover={{ scale: 1.08 }}
-              className="w-9 h-9 rounded-full flex items-center justify-center cursor-pointer transition-colors flex-shrink-0"
-              style={{ background: '#FDF4EA', border: '1.5px solid #EAD9C2' }}
-            >
+            <motion.div whileHover={{ scale: 1.08 }} className="w-9 h-9 rounded-full flex items-center justify-center cursor-pointer transition-colors flex-shrink-0"
+              style={{ background: '#FDF4EA', border: '1.5px solid #EAD9C2' }}>
               <Bell size={17} style={{ color: '#C18A4A' }} />
             </motion.div>
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6">
-          <Outlet />
-        </main>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6"><Outlet /></main>
       </div>
 
-      {/* Mobile bottom tab bar — the app-like primary nav on phones */}
       {user?.role !== 'cashier' && (
-        <nav
-          className="lg:hidden fixed bottom-0 inset-x-0 z-40 flex items-stretch shadow-[0_-4px_20px_rgba(32,22,15,0.1)]"
-          style={{ background: '#FFFFFF', borderTop: '1px solid #EAD9C2', paddingBottom: 'env(safe-area-inset-bottom)' }}
-        >
+        <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 flex items-stretch shadow-[0_-4px_20px_rgba(32,22,15,0.1)]"
+          style={{ background: '#FFFFFF', borderTop: '1px solid #EAD9C2', paddingBottom: 'env(safe-area-inset-bottom)' }}>
           {BOTTOM_NAV_ITEMS.map(({ path, Icon, label }) => (
-            <NavLink
-              key={path}
-              to={path}
-              className={({ isActive }) =>
-                `flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 text-[11px] font-black transition-colors ${
-                  isActive ? 'text-fuchsia' : 'text-brand-gray'
-                }`
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  <Icon size={22} strokeWidth={isActive ? 2.3 : 1.9} />
-                  {label}
-                </>
-              )}
+            <NavLink key={path} to={path}
+              className={({ isActive }) => `flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 text-[11px] font-black transition-colors ${isActive ? 'text-fuchsia' : 'text-brand-gray'}`}>
+              {({ isActive }) => <><Icon size={22} strokeWidth={isActive ? 2.3 : 1.9} />{label}</>}
             </NavLink>
           ))}
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 text-[11px] font-black text-brand-gray"
-          >
-            <Grid3x3 size={22} strokeWidth={1.9} />
-            المزيد
+          <button onClick={() => setSidebarOpen(true)} className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 text-[11px] font-black text-brand-gray">
+            <Grid3x3 size={22} strokeWidth={1.9} /> المزيد
           </button>
         </nav>
       )}
