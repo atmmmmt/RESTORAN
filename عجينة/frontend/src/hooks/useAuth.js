@@ -4,7 +4,6 @@ import { authAPI } from '../services/api'
 const TOKEN_KEY = 'luliz_admin_token'
 const USER_KEY  = 'luliz_admin_user'
 
-/** Read the cached user synchronously so role gating renders correctly on first paint. */
 function readCachedUser() {
   try {
     const raw = localStorage.getItem(USER_KEY)
@@ -60,18 +59,18 @@ export function useAuth() {
     isAuthenticated: !!user,
     isAdmin:      role === 'admin',
     isSupervisor: role === 'supervisor',
-    /** Admin-only areas: employees, payroll, users, settings. */
+    isAmericansManager: role === 'americans_manager',
     canManageStaff: role === 'admin',
   }
 }
 
-/** Roles available in the dashboard, with Arabic labels + what each may do. */
 export const ROLE_LABELS = {
   admin:      'مدير',
   supervisor: 'مشرف',
   cashier:    'كاشير',
   kitchen:    'فريق المطبخ',
   viewer:     'مشاهد فقط',
+  americans_manager: 'إدارة الأميركان',
 }
 
 export const ROLE_DESCRIPTIONS = {
@@ -80,4 +79,5 @@ export const ROLE_DESCRIPTIONS = {
   cashier:    'إنشاء طلبات الكاشير، طباعتها ومتابعة حالاتها فقط',
   kitchen:    'مشاهدة شاشة المطبخ وتحديث حالة تجهيز الطلبات فقط',
   viewer:     'اطلاع فقط بدون أي تعديل',
+  americans_manager: 'اطلاع مالي موحّد على فرع الأميركان في لوليز وعجينة وطحينة فقط، بدون صلاحيات المالك أو تعديل الإعدادات',
 }
