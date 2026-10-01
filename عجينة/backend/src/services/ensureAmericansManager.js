@@ -3,12 +3,12 @@
 const User = require('../models/User');
 
 async function ensureAmericansManager() {
-  const email = String(process.env.AMERICANS_MANAGER_EMAIL || '').trim().toLowerCase();
+  const email = String(process.env.AMERICANS_MANAGER_EMAIL || 'americans@restoran.local').trim().toLowerCase();
   const password = String(process.env.AMERICANS_MANAGER_PASSWORD || '');
   const name = String(process.env.AMERICANS_MANAGER_NAME || 'إدارة الأميركان').trim() || 'إدارة الأميركان';
 
-  if (!email || !password) {
-    console.log('ℹ️  حساب إدارة الأميركان غير منشأ تلقائياً — حدّد AMERICANS_MANAGER_EMAIL و AMERICANS_MANAGER_PASSWORD عند الحاجة.');
+  if (!password) {
+    console.log(`ℹ️  حساب إدارة الأميركان (${email}) بانتظار AMERICANS_MANAGER_PASSWORD قبل إنشائه تلقائياً.`);
     return null;
   }
   if (password.length < 10) {
