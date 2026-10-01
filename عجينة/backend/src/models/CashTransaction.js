@@ -38,47 +38,52 @@ const cashTransactionSchema = new mongoose.Schema(
       },
       required: [true, 'اتجاه المعاملة مطلوب'],
     },
-    description: {
-      type: String,
-      trim: true,
-    },
-    referenceType: {
-      type: String,
-      trim: true,
-    },
-    referenceId: {
-      type: mongoose.Schema.Types.ObjectId,
-    },
-    transactionDate: {
-      type: Date,
-      default: Date.now,
-    },
+    description: { type: String, trim: true },
+    referenceType: { type: String, trim: true },
+    referenceId: { type: mongoose.Schema.Types.ObjectId },
+    transactionDate: { type: Date, default: Date.now },
     reversedAt: { type: Date, default: null },
     reversalOfId: { type: mongoose.Schema.Types.ObjectId, ref: 'CashTransaction', default: null },
     reversalTransactionId: { type: mongoose.Schema.Types.ObjectId, ref: 'CashTransaction', default: null },
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
-// Indexes
+/* Order-linked cash entries must always use the amount actually owed by the
+   customer AFTER the configured invoice levy. This is intentionally enforced
+   here as a last line of defence, because old routes may still pass the
+   pre-tax order amount. Full order reversals use the same gross amount. */
+cashTransactionSchema.pre('validate', async function (next) {
+  try {
+    if (!this.isNew || !this.referenceId || !['sale_income', 'adjustment'].includes(this.type)) return next();
+
+    let gross = null;
+    if (this.referenceType === 'InternalOrder') {
+      const InternalOrder = require('./InternalOrder');
+      const order = await InternalOrder.findById(this.referenceId).select('total');
+      gross = order?.total;
+    } else if (this.referenceType === 'CustomerOrder') {
+      const CustomerOrder = require('./CustomerOrder');
+      const order = await CustomerOrder.findById(this.referenceId).select('totalPrice');
+      gross = order?.totalPrice;
+    }
+
+    const amount = Number(gross);
+    if (Number.isFinite(amount) && amount > 0) this.amount = amount;
+    return next();
+  } catch (err) {
+    return next(err);
+  }
+});
+
 cashTransactionSchema.index({ transactionDate: -1 });
 cashTransactionSchema.index({ type: 1 });
 cashTransactionSchema.index({ direction: 1 });
 cashTransactionSchema.index({ centerId: 1 });
 
-/**
- * Static: get current cash balance (IN - OUT)
- */
 cashTransactionSchema.statics.getCurrentBalance = async function () {
   const result = await this.aggregate([
-    {
-      $group: {
-        _id: '$direction',
-        total: { $sum: '$amount' },
-      },
-    },
+    { $group: { _id: '$direction', total: { $sum: '$amount' } } },
   ]);
 
   let balance = 0;
