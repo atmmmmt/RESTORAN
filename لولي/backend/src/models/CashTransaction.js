@@ -38,44 +38,45 @@ const cashTransactionSchema = new mongoose.Schema(
       },
       required: [true, 'اتجاه المعاملة مطلوب'],
     },
-    description: {
-      type: String,
-      trim: true,
-    },
-    referenceType: {
-      type: String,
-      trim: true,
-    },
-    referenceId: {
-      type: mongoose.Schema.Types.ObjectId,
-    },
-    transactionDate: {
-      type: Date,
-      default: Date.now,
-    },
+    description: { type: String, trim: true },
+    referenceType: { type: String, trim: true },
+    referenceId: { type: mongoose.Schema.Types.ObjectId },
+    transactionDate: { type: Date, default: Date.now },
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
-// Indexes
+cashTransactionSchema.pre('validate', async function (next) {
+  try {
+    if (!this.isNew || !this.referenceId || !['sale_income', 'adjustment'].includes(this.type)) return next();
+
+    let gross = null;
+    if (this.referenceType === 'InternalOrder') {
+      const InternalOrder = require('./InternalOrder');
+      const order = await InternalOrder.findById(this.referenceId).select('total');
+      gross = order?.total;
+    } else if (this.referenceType === 'CustomerOrder') {
+      const CustomerOrder = require('./CustomerOrder');
+      const order = await CustomerOrder.findById(this.referenceId).select('totalPrice totalAmount');
+      gross = order?.totalPrice || order?.totalAmount;
+    }
+
+    const amount = Number(gross);
+    if (Number.isFinite(amount) && amount > 0) this.amount = amount;
+    return next();
+  } catch (err) {
+    return next(err);
+  }
+});
+
 cashTransactionSchema.index({ transactionDate: -1 });
 cashTransactionSchema.index({ type: 1 });
 cashTransactionSchema.index({ direction: 1 });
 cashTransactionSchema.index({ centerId: 1 });
 
-/**
- * Static: get current cash balance (IN - OUT)
- */
 cashTransactionSchema.statics.getCurrentBalance = async function () {
   const result = await this.aggregate([
-    {
-      $group: {
-        _id: '$direction',
-        total: { $sum: '$amount' },
-      },
-    },
+    { $group: { _id: '$direction', total: { $sum: '$amount' } } },
   ]);
 
   let balance = 0;
