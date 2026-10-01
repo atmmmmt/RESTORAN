@@ -1,0 +1,59 @@
+name: Validate restaurant projects
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - name: luliz-frontend
+            dir: "لولي/frontend"
+            kind: frontend
+          - name: ajeena-frontend
+            dir: "عجينة/frontend"
+            kind: frontend
+          - name: luliz-backend
+            dir: "لولي/backend"
+            kind: backend
+          - name: ajeena-backend
+            dir: "عجينة/backend"
+            kind: backend
+
+    name: ${{ matrix.project.name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ${{ matrix.project.dir }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.project.dir }}
+        run: npm ci
+
+      - name: Build frontend
+        if: matrix.project.kind == 'frontend'
+        working-directory: ${{ matrix.project.dir }}
+        run: npm run build
+
+      - name: Check backend syntax
+        if: matrix.project.kind == 'backend'
+        working-directory: ${{ matrix.project.dir }}
+        run: |
+          node --check src/server.js
+          node --check src/seed/runSeed.js
