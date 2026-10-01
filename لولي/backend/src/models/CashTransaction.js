@@ -19,6 +19,7 @@ const cashTransactionSchema = new mongoose.Schema(
           'purchase_expense',
           'manual_expense',
           'manual_income',
+          'tax_payment',
           'adjustment',
         ],
         message: 'نوع المعاملة المالية غير صالح',
