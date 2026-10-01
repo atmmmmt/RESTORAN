@@ -19,6 +19,7 @@ const cashTransactionSchema = new mongoose.Schema(
           'purchase_expense',
           'manual_expense',
           'manual_income',
+          'tax_payment',
           'adjustment',
         ],
         message: 'نوع المعاملة المالية غير صالح',
@@ -49,10 +50,6 @@ const cashTransactionSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-/* Order-linked cash entries must always use the amount actually owed by the
-   customer AFTER the configured invoice levy. This is intentionally enforced
-   here as a last line of defence, because old routes may still pass the
-   pre-tax order amount. Full order reversals use the same gross amount. */
 cashTransactionSchema.pre('validate', async function (next) {
   try {
     if (!this.isNew || !this.referenceId || !['sale_income', 'adjustment'].includes(this.type)) return next();
