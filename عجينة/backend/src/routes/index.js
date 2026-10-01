@@ -17,6 +17,7 @@ const reportRoutes = require('./reportRoutes');
 const closingRoutes = require('./closingRoutes');
 const settingsRoutes     = require('./settingsRoutes');
 const financeRoutes      = require('./financeRoutes');
+const americansManagementRoutes = require('./americansManagementRoutes');
 const shiftRoutes        = require('./shiftRoutes');
 const siteSettingsRoutes = require('./siteSettingsRoutes');
 const uploadRoutes       = require('./uploadRoutes');
@@ -53,6 +54,7 @@ module.exports = function mountRoutes(app) {
   app.use('/api/daily-closing', closingRoutes);
   app.use('/api/settings',      settingsRoutes);
   app.use('/api/finance',       financeRoutes);
+  app.use('/api/americans-management', americansManagementRoutes);
   app.use('/api/site-settings', siteSettingsRoutes);
   app.use('/api/upload',        uploadRoutes);
   app.use('/api/nutrition',     nutritionRoutes);
@@ -63,8 +65,6 @@ module.exports = function mountRoutes(app) {
   app.use('/api/center-portal', centerPortalRoutes);
   app.use('/api/setup',        setupRoutes);
   app.use('/api/users',        userRoutes);
-  /* Agents authenticate with a device key, not a JWT — mounted on its own
-     path so the dashboard's auth middleware never sees them. */
   app.use('/api/categories',   categoryRoutes);
   app.use('/api/attendance-agent', attendanceAgentRoutes);
   app.use('/api/attendance',   attendanceRoutes);
