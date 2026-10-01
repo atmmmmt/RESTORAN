@@ -1,0 +1,24 @@
+{
+  "id": "/admin/",
+  "name": "لوليز — لوحة التحكم",
+  "short_name": "لوليز الإدارة",
+  "description": "لوحة تحكم لوليز: الطلبات، الكاشير، المخزون والتقارير.",
+  "start_url": "/admin/dashboard?source=pwa",
+  "scope": "/admin/",
+  "display": "standalone",
+  "orientation": "any",
+  "dir": "rtl",
+  "lang": "ar",
+  "background_color": "#20160F",
+  "theme_color": "#20160F",
+  "icons": [
+    { "src": "/pwa/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/pwa/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/pwa/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "طلب داخلي", "short_name": "الكاشير", "url": "/admin/pos", "icons": [{ "src": "/pwa/icon-192.png", "sizes": "192x192" }] },
+    { "name": "شاشة المطبخ", "short_name": "المطبخ", "url": "/admin/kitchen", "icons": [{ "src": "/pwa/icon-192.png", "sizes": "192x192" }] },
+    { "name": "المنتجات", "short_name": "المنتجات", "url": "/admin/products", "icons": [{ "src": "/pwa/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

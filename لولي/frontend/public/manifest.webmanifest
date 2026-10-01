@@ -1,0 +1,28 @@
+{
+  "id": "/menu",
+  "name": "لوليز — المنيو والطلب",
+  "short_name": "لوليز",
+  "description": "تصفّح منيو لوليز واطلب أصنافك المفضلة بسرعة.",
+  "start_url": "/menu?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "portrait-primary",
+  "dir": "rtl",
+  "lang": "ar",
+  "background_color": "#F6EFE6",
+  "theme_color": "#C18A4A",
+  "categories": ["food", "shopping", "lifestyle"],
+  "icons": [
+    { "src": "/pwa/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/pwa/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/pwa/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "فتح المنيو", "short_name": "المنيو", "url": "/menu", "icons": [{ "src": "/pwa/icon-192.png", "sizes": "192x192" }] },
+    { "name": "متابعة الطلب", "short_name": "السلة", "url": "/order", "icons": [{ "src": "/pwa/icon-192.png", "sizes": "192x192" }] },
+    { "name": "لوحة التحكم", "short_name": "الإدارة", "url": "/admin/dashboard", "icons": [{ "src": "/pwa/icon-192.png", "sizes": "192x192" }] },
+    { "name": "الكاشير", "short_name": "الكاشير", "url": "/admin/pos", "icons": [{ "src": "/pwa/icon-192.png", "sizes": "192x192" }] },
+    { "name": "شاشة المطبخ", "short_name": "المطبخ", "url": "/admin/kitchen", "icons": [{ "src": "/pwa/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#C18A4A" />
+    <meta name="description" content="لوليز — أكل بيتي شهي بحب وطعم يفرح القلب" />
+    <link id="app-manifest" rel="manifest" href="/manifest.webmanifest" />
+    <script>
+      /* The dashboard installs as its own app (opens on /admin), separate
+         from the customer site's app. Pick the manifest before install. */
+      if (location.pathname.indexOf('/admin') === 0 || location.pathname.indexOf('/center-portal') === 0) {
+        document.getElementById('app-manifest').setAttribute('href', '/manifest-admin.webmanifest')
+      }
+    </script>
+    <link rel="apple-touch-icon" href="/pwa/icon-192.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Lalezar&family=Tajawal:wght@400;500;700;800;900&family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+    <title>لوليز | Luliz</title>
+    <style>
+      /* Splash shown while the app bundle loads — plain CSS so it paints instantly */
+      #luliz-splash {
+        position: fixed; inset: 0; z-index: 99999;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px;
+        background: radial-gradient(circle at 50% 38%, #fffaf2 0%, #f6ecdf 55%, #eadbc6 100%);
+        transition: opacity .45s ease, visibility .45s ease;
+      }
+      #luliz-splash.is-done { opacity: 0; visibility: hidden; }
+      #luliz-splash .splash-spinner {
+        position: relative; width: 168px; height: 168px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+      }
+      #luliz-splash .splash-spinner::before {
+        content: ''; position: absolute; inset: -9px; border-radius: 50%;
+        border: 3px solid rgba(184,120,53,.18); border-top-color: #b87835;
+        animation: luliz-spin 1s linear infinite;
+      }
+      #luliz-splash .logo {
+        width: 150px; height: 150px; border-radius: 50%; overflow: hidden;
+        box-shadow: 0 18px 40px rgba(55,31,17,.22);
+        animation: luliz-breathe 1.8s ease-in-out infinite;
+        background: #f8efe3;
+      }
+      #luliz-splash .logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+      #luliz-splash .tag { font-family: Cairo, Tajawal, sans-serif; font-weight: 800; color: #8f5824; font-size: 15px; letter-spacing: .02em; }
+      #luliz-splash .dots { display: flex; gap: 6px; }
+      #luliz-splash .dots span { width: 7px; height: 7px; border-radius: 50%; background: #b87835; animation: luliz-dot 1.2s ease-in-out infinite; }
+      #luliz-splash .dots span:nth-child(2) { animation-delay: .15s }
+      #luliz-splash .dots span:nth-child(3) { animation-delay: .3s }
+      @keyframes luliz-spin { to { transform: rotate(360deg) } }
+      @keyframes luliz-breathe { 0%,100% { transform: scale(1) } 50% { transform: scale(1.04) } }
+      @keyframes luliz-dot { 0%,80%,100% { opacity: .25; transform: translateY(0) } 40% { opacity: 1; transform: translateY(-4px) } }
+      @media (prefers-reduced-motion: reduce) { #luliz-splash * { animation: none !important } }
+    </style>
+  </head>
+  <body>
+    <div id="luliz-splash" role="status" aria-label="جاري التحميل">
+      <div class="splash-spinner"><div class="logo"><img src="/brand/luliz-logo-round.png" alt="لوليز" /></div></div>
+      <div class="tag">طعم البيت، بلمسة لوليز</div>
+      <div class="dots"><span></span><span></span><span></span></div>
+    </div>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

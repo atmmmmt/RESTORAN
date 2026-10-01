@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>لوليز | Luliz — أكل بيتي لذيذ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --fuchsia: #D72B6A;
+  --fuchsia-dark: #B01E55;
+  --fuchsia-glow: rgba(215,43,106,0.18);
+  --deep-pink: #C2185B;
+  --yellow: #F6B91A;
+  --yellow-dark: #E09810;
+  --yellow-bg: #FFF8DC;
+  --mint: #78C8A6;
+  --mint-bg: #E6F9F1;
+  --soft-pink: #F7A7C4;
+  --pink-bg: #FFF0F7;
+  --white: #FFFFFF;
+  --off-white: #FFF7F4;
+  --bg: #FBF2F5;
+  --dark: #3A2630;
+  --gray: #7A6570;
+  --light-gray: #F0E6EC;
+  --border: #EDD8E4;
+  --shadow-sm: 0 2px 12px rgba(58,38,48,0.07);
+  --shadow-md: 0 4px 24px rgba(215,43,106,0.12);
+  --shadow-lg: 0 8px 40px rgba(58,38,48,0.14);
+  --r-xl: 24px;
+  --r-lg: 18px;
+  --r-md: 12px;
+  --r-sm: 8px;
+  --ease: cubic-bezier(0.4,0,0.2,1);
+}
+
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{font-size:16px;scroll-behavior:smooth}
+body{font-family:'Cairo','Segoe UI',Arial,sans-serif;background:#E8D0DA;min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:0}
+
+/* ── Phone Frame ── */
+.phone-frame{
+  width:100%;max-width:430px;min-height:100vh;
+  background:var(--off-white);
+  position:relative;overflow:hidden;
+  box-shadow:0 0 80px rgba(0,0,0,0.3);
+}
+
+/* ── Screens ── */
+.screen{display:none;min-height:100vh;padding-bottom:85px;animation:fadeUp .28s var(--ease)}
+.screen.active{display:block}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── Header ── */
+.app-header{
+  background:var(--white);
+  padding:14px 18px;
+  display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:200;
+  box-shadow:0 2px 16px rgba(58,38,48,0.06);
+}
+.logo-wrap{display:flex;align-items:center;gap:9px}
+.logo-mark{
+  width:42px;height:42px;border-radius:14px;
+  background:linear-gradient(135deg,var(--fuchsia),var(--deep-pink));
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;box-shadow:0 4px 14px var(--fuchsia-glow);
+}
+.logo-name{font-size:23px;font-weight:900;color:var(--fuchsia);letter-spacing:-0.5px}
+.logo-name em{color:var(--yellow);font-style:normal}
+.hdr-actions{display:flex;gap:8px}
+.hdr-btn{
+  width:38px;height:38px;border-radius:50%;border:none;
+  background:var(--pink-bg);color:var(--fuchsia);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;font-size:17px;transition:all .2s var(--ease);
+}
+.hdr-btn:hover{background:var(--fuchsia);color:#fff}
+
+/* ── Bottom Nav ── */
+.bottom-nav{
+  position:fixed;bottom:0;right:0;left:0;
+  max-width:430px;margin:0 auto;
+  background:var(--white);
+  border-radius:22px 22px 0 0;
+  box-shadow:0 -4px 28px rgba(58,38,48,0.10);
+  padding:10px 8px 22px;
+  display:flex;justify-content:space-around;
+  z-index:300;
+}
+.nav-btn{
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:6px 10px;border-radius:14px;border:none;background:none;
+  color:var(--gray);cursor:pointer;transition:all .2s var(--ease);
+  font-family:'Cairo',sans-serif;min-width:58px;
+}
+.nav-btn.active{color:var(--fuchsia)}
+.nav-ico{
+  width:36px;height:36px;border-radius:12px;
+  display:flex;align-items:center;justify-content:center;font-size:19px;
+  transition:background .2s;
+}
+.nav-btn.active .nav-ico{background:var(--pink-bg)}
+.nav-lbl{font-size:11px;font-weight:700;white-space:nowrap}
+
+/* ── Sticky WA ── */
+.wa-float{
+  position:fixed;bottom:95px;left:16px;z-index:250;
+}
+.wa-float-btn{
+  width:52px;height:52px;border-radius:50%;border:none;
+  background:#25D366;color:#fff;font-size:26px;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;box-shadow:0 4px 20px rgba(37,211,102,0.5);
+  animation:waPulse 2.5s infinite;
+}
+@keyframes waPulse{0%,100%{box-shadow:0 4px 20px rgba(37,211,102,0.5)}50%{box-shadow:0 4px 32px rgba(37,211,102,0.8)}}
+
+/* ── Back Header ── */
+.back-hdr{
+  background:var(--white);padding:14px 18px;
+  display:flex;align-items:center;gap:12px;
+  position:sticky;top:0;z-index:200;
+  box-shadow:0 2px 16px rgba(58,38,48,0.06);
+}
+.back-btn{
+  width:38px;height:38px;border-radius:12px;border:none;
+  background:var(--pink-bg);color:var(--fuchsia);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;font-size:20px;font-weight:900;
+}
+.back-ttl{font-size:18px;font-weight:800;color:var(--dark)}
+
+/* ════════════════ HERO ════════════════ */
+.hero{
+  background:linear-gradient(148deg,#D72B6A 0%,#E91E8C 55%,#C2185B 100%);
+  padding:28px 20px 36px;position:relative;overflow:hidden;
+}
+.hero-blob1{position:absolute;top:-50px;left:-40px;width:180px;height:180px;border-radius:50%;background:rgba(255,255,255,0.07)}
+.hero-blob2{position:absolute;bottom:-60px;right:-30px;width:200px;height:200px;border-radius:50%;background:rgba(246,185,26,0.12)}
+.hero-blob3{position:absolute;top:30px;right:-20px;width:100px;height:100px;border-radius:50%;background:rgba(255,255,255,0.05)}
+.hero-content{position:relative;z-index:1}
+.hero-pill{
+  display:inline-flex;align-items:center;gap:6px;
+  background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.28);
+  color:#fff;padding:5px 14px;border-radius:20px;
+  font-size:12px;font-weight:700;margin-bottom:18px;
+  backdrop-filter:blur(8px);
+}
+.hero-h1{font-size:27px;font-weight:900;color:#fff;line-height:1.38;margin-bottom:12px}
+.hero-h1 .hl{color:var(--yellow)}
+.hero-sub{font-size:13.5px;color:rgba(255,255,255,0.82);line-height:1.75;margin-bottom:24px}
+.hero-btns{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:28px}
+.btn-white{
+  background:#fff;color:var(--fuchsia);
+  padding:12px 20px;border-radius:14px;border:none;
+  font-family:'Cairo',sans-serif;font-weight:800;font-size:14px;
+  cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.14);
+  transition:all .2s var(--ease);display:flex;align-items:center;gap:6px;
+}
+.btn-white:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,0.2)}
+.btn-wa{
+  background:#25D366;color:#fff;
+  padding:12px 20px;border-radius:14px;border:none;
+  font-family:'Cairo',sans-serif;font-weight:800;font-size:14px;
+  cursor:pointer;box-shadow:0 4px 16px rgba(37,211,102,0.32);
+  transition:all .2s var(--ease);display:flex;align-items:center;gap:6px;
+}
+.hero-float-card{
+  background:#fff;border-radius:20px;padding:16px;
+  box-shadow:0 12px 44px rgba(0,0,0,0.22);
+  display:flex;align-items:center;gap:14px;
+  position:relative;animation:floatCard 3.5s ease-in-out infinite;
+}
+@keyframes floatCard{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+.fc-badge{
+  position:absolute;top:-10px;right:-8px;
+  background:var(--yellow);color:var(--dark);
+  font-weight:900;font-size:11px;padding:4px 10px;border-radius:8px;
+  box-shadow:0 2px 8px rgba(246,185,26,0.4);
+}
+.fc-img{
+  width:72px;height:72px;border-radius:14px;
+  background:linear-gradient(135deg,#FFF0F7,#FFECD4);
+  display:flex;align-items:center;justify-content:center;font-size:38px;flex-shrink:0;
+}
+.fc-name{font-weight:900;font-size:16px;color:var(--dark);margin-bottom:3px}
+.fc-desc{font-size:12px;color:var(--gray);margin-bottom:7px}
+.fc-price{font-weight:900;font-size:19px;color:var(--fuchsia)}
+
+/* ── Trust Badges ── */
+.trust-strip{background:#fff;padding:14px 0;border-bottom:1px solid var(--light-gray)}
+.trust-scroll{display:flex;gap:8px;padding:0 16px;overflow-x:auto;scrollbar-width:none}
+.trust-scroll::-webkit-scrollbar{display:none}
+.trust-badge{
+  display:flex;align-items:center;gap:6px;white-space:nowrap;
+  background:var(--pink-bg);border:1px solid var(--border);
+  padding:7px 13px;border-radius:20px;
+}
+.trust-ico{font-size:14px}
+.trust-txt{font-size:12px;font-weight:700;color:var(--fuchsia)}
+
+/* ── Section ── */
+.sect{padding:22px 16px}
+.sect-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.sect-ttl{font-size:20px;font-weight:900;color:var(--dark)}
+.sect-ttl .ac{color:var(--fuchsia)}
+.sect-link{
+  color:var(--fuchsia);font-size:13px;font-weight:700;
+  background:none;border:none;cursor:pointer;font-family:'Cairo',sans-serif;
+}
+.divider{height:8px;background:var(--bg)}
+
+/* ── Product Card ── */
+.products-grid{display:grid;grid-template-columns:1fr;gap:14px}
+.pcard{
+  background:#fff;border-radius:var(--r-lg);
+  overflow:hidden;box-shadow:var(--shadow-sm);
+  transition:all .25s var(--ease);
+}
+.pcard:hover{transform:translateY(-3px);box-shadow:var(--shadow-md)}
+.pcard-img{
+  width:100%;height:178px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:82px;position:relative;
+}
+.disc-badge{
+  position:absolute;top:12px;right:12px;
+  background:var(--yellow);color:var(--dark);
+  font-weight:900;font-size:12px;padding:4px 10px;
+  border-radius:8px;box-shadow:0 2px 8px rgba(246,185,26,0.4);
+}
+.qty-badge{
+  position:absolute;top:12px;left:12px;
+  background:rgba(255,255,255,0.92);color:var(--fuchsia);
+  font-weight:700;font-size:11px;padding:4px 10px;
+  border-radius:8px;border:1px solid var(--border);
+  backdrop-filter:blur(4px);
+}
+.pcard-body{padding:14px}
+.pcard-name{font-size:17px;font-weight:900;color:var(--dark);margin-bottom:4px}
+.pcard-desc{font-size:13px;color:var(--gray);line-height:1.55;margin-bottom:10px}
+.pcard-price{display:flex;align-items:baseline;gap:7px;margin-bottom:10px}
+.p-new{font-size:21px;font-weight:900;color:var(--fuchsia)}
+.p-old{font-size:14px;color:var(--gray);text-decoration:line-through}
+.p-cur{font-size:12px;color:var(--gray);font-weight:600}
+.nutri-row{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.nutri-mini{
+  background:var(--mint-bg);color:#2D9970;
+  padding:4px 8px;border-radius:8px;font-size:11px;font-weight:700;
+  display:flex;align-items:center;gap:2px;
+}
+.pcard-actions{display:flex;gap:8px}
+.btn-detail{
+  flex:1;padding:10px;border:2px solid var(--fuchsia);
+  background:transparent;color:var(--fuchsia);border-radius:12px;
+  font-weight:700;font-size:13px;cursor:pointer;
+  font-family:'Cairo',sans-serif;transition:all .2s;
+}
+.btn-detail:hover{background:var(--pink-bg)}
+.btn-order-now{
+  flex:1;padding:10px;background:var(--fuchsia);color:#fff;border:none;
+  border-radius:12px;font-weight:700;font-size:13px;cursor:pointer;
+  font-family:'Cairo',sans-serif;transition:all .2s;
+}
+.btn-order-now:hover{background:var(--fuchsia-dark)}
+
+/* ── Offers Scroll ── */
+.offers-scroll{display:flex;gap:14px;overflow-x:auto;scrollbar-width:none;padding-bottom:4px}
+.offers-scroll::-webkit-scrollbar{display:none}
+.offer-scroll-card{
+  min-width:250px;border-radius:var(--r-lg);padding:16px;
+  color:#fff;position:relative;overflow:hidden;flex-shrink:0;
+}
+.offer-scroll-card::after{
+  content:'';position:absolute;bottom:-30px;left:-30px;
+  width:110px;height:110px;border-radius:50%;background:rgba(255,255,255,0.08);
+}
+.osc-emoji{font-size:56px;margin-bottom:8px;display:block}
+.osc-disc{
+  background:var(--yellow);color:var(--dark);
+  font-weight:900;font-size:20px;padding:5px 12px;border-radius:9px;
+  display:inline-block;margin-bottom:8px;
+}
+.osc-name{font-weight:800;font-size:15px;margin-bottom:6px}
+.osc-prices{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.osc-new{font-size:19px;font-weight:900;color:var(--yellow)}
+.osc-old{font-size:13px;text-decoration:line-through;opacity:.7}
+.osc-until{font-size:12px;opacity:.78;margin-bottom:12px}
+.btn-osc{
+  background:#fff;color:var(--fuchsia);border:none;
+  padding:9px 20px;border-radius:11px;font-weight:700;font-size:13px;
+  cursor:pointer;font-family:'Cairo',sans-serif;width:100%;
+  transition:all .2s;
+}
+
+/* ── Nutrition Section ── */
+.nutri-sect{
+  background:linear-gradient(135deg,var(--mint-bg) 0%,#fff 100%);
+  border-radius:var(--r-xl);padding:20px;margin:0 16px;
+}
+.nutri-today-lbl{
+  background:var(--yellow);color:var(--dark);
+  padding:4px 12px;border-radius:7px;font-size:12px;font-weight:800;
+  display:inline-block;margin-bottom:10px;
+}
+.nutri-sect-ttl{font-size:17px;font-weight:900;color:var(--dark);margin-bottom:2px}
+.nutri-sect-sub{font-size:12px;color:var(--gray);margin-bottom:14px}
+.nutri-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.ncard{background:#fff;border-radius:13px;padding:13px;text-align:center;box-shadow:var(--shadow-sm)}
+.ncard-ico{font-size:26px;margin-bottom:5px}
+.ncard-val{font-size:21px;font-weight:900;margin-bottom:2px}
+.ncard-lbl{font-size:11px;color:var(--gray);font-weight:600}
+.ncard.cal .ncard-val{color:#E53935}
+.ncard.pro .ncard-val{color:#1565C0}
+.ncard.crb .ncard-val{color:#E65100}
+.ncard.fat .ncard-val{color:#6A1B9A}
+
+/* ── About Snippet ── */
+.about-card{
+  background:#fff;border-radius:var(--r-xl);padding:22px;
+  margin:16px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden;
+}
+.about-card::before{content:'🍳';position:absolute;bottom:-15px;left:-10px;font-size:90px;opacity:.04}
+.about-tag{
+  background:var(--pink-bg);color:var(--fuchsia);
+  padding:5px 14px;border-radius:20px;font-size:12px;font-weight:700;
+  display:inline-block;margin-bottom:12px;
+}
+.about-h{font-size:21px;font-weight:900;color:var(--dark);margin-bottom:10px}
+.about-h .ac{color:var(--fuchsia)}
+.about-p{font-size:13.5px;color:var(--gray);line-height:1.8;margin-bottom:14px}
+.about-chips{display:flex;flex-wrap:wrap;gap:7px}
+.chip{
+  background:var(--off-white);border:1px solid var(--border);
+  padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600;
+  color:var(--dark);display:flex;align-items:center;gap:4px;
+}
+
+/* ════════════════ MENU SCREEN ════════════════ */
+.search-bar{
+  margin:12px 16px;display:flex;align-items:center;gap:10px;
+  background:#fff;border-radius:14px;padding:11px 15px;
+  box-shadow:var(--shadow-sm);border:2px solid var(--border);
+}
+.search-bar input{
+  flex:1;border:none;background:none;font-family:'Cairo',sans-serif;
+  font-size:14px;color:var(--dark);direction:rtl;text-align:right;
+}
+.search-bar input:focus{outline:none}
+.search-ico{color:var(--gray);font-size:17px}
+.cat-tabs{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:0 16px 14px}
+.cat-tabs::-webkit-scrollbar{display:none}
+.cat-tab{
+  padding:8px 16px;border-radius:20px;border:2px solid var(--border);
+  background:#fff;color:var(--gray);font-weight:700;font-size:13px;
+  cursor:pointer;white-space:nowrap;transition:all .2s;
+  font-family:'Cairo',sans-serif;
+}
+.cat-tab.active{border-color:var(--fuchsia);background:var(--fuchsia);color:#fff}
+
+/* ════════════════ PRODUCT DETAIL ════════════════ */
+.pd-hero-img{
+  width:100%;height:270px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:120px;position:relative;
+}
+.pd-back-abs{
+  position:absolute;top:16px;right:16px;
+  width:40px;height:40px;border-radius:12px;border:none;
+  background:rgba(255,255,255,0.88);color:var(--dark);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;font-size:19px;backdrop-filter:blur(6px);
+  box-shadow:var(--shadow-sm);
+}
+.pd-body{
+  background:#fff;border-radius:24px 24px 0 0;
+  margin-top:-20px;padding:22px 16px;
+}
+.pd-disc-pill{
+  background:var(--yellow);color:var(--dark);
+  font-weight:900;font-size:13px;padding:4px 12px;border-radius:8px;
+  display:inline-block;margin-bottom:10px;
+}
+.pd-name{font-size:24px;font-weight:900;color:var(--dark);margin-bottom:6px}
+.pd-price{font-size:27px;font-weight:900;color:var(--fuchsia)}
+.pd-old-price{font-size:15px;color:var(--gray);text-decoration:line-through;margin-bottom:10px}
+.pd-desc{font-size:13.5px;color:var(--gray);line-height:1.78;margin-bottom:18px}
+.pd-sect-ttl{font-size:15px;font-weight:800;color:var(--dark);margin-bottom:9px;display:flex;align-items:center;gap:5px}
+.nutri-pills{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:18px}
+.npill{border-radius:12px;padding:10px 4px;text-align:center}
+.npill-v{font-size:15px;font-weight:900;margin-bottom:2px}
+.npill-l{font-size:10px;color:var(--gray);font-weight:600}
+.npill.c{background:#FFEBEE}.npill.c .npill-v{color:#E53935}
+.npill.p{background:#E3F2FD}.npill.p .npill-v{color:#1565C0}
+.npill.k{background:#FFF3E0}.npill.k .npill-v{color:#E65100}
+.npill.f{background:#F3E5F5}.npill.f .npill-v{color:#6A1B9A}
+.ing-tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px}
+.ing-tag{background:var(--mint-bg);color:#2D9970;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600}
+.allergy-box{
+  background:var(--yellow-bg);border:1px solid #F0D060;
+  border-radius:12px;padding:12px;font-size:13px;color:var(--dark);
+  margin-bottom:16px;display:flex;gap:8px;align-items:flex-start;
+}
+.avail-bar{margin-bottom:16px}
+.avail-row{display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px}
+.avail-row span:last-child{color:var(--fuchsia);font-weight:700}
+.avail-track{height:6px;background:var(--light-gray);border-radius:3px;overflow:hidden}
+.avail-fill{height:100%;background:linear-gradient(90deg,var(--mint),#4CAF50);border-radius:3px}
+.qty-sel{display:flex;align-items:center;gap:16px;margin-bottom:16px}
+.qty-btn{
+  width:40px;height:40px;border-radius:12px;border:2px solid var(--fuchsia);
+  background:none;color:var(--fuchsia);font-size:22px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:all .2s;
+}
+.qty-btn:hover{background:var(--fuchsia);color:#fff}
+.qty-num{font-size:22px;font-weight:900;color:var(--dark);min-width:30px;text-align:center}
+.qty-total{font-size:14px;color:var(--gray);font-weight:600}
+.notes-ta{
+  width:100%;padding:12px 14px;border:2px solid var(--border);border-radius:14px;
+  font-family:'Cairo',sans-serif;font-size:14px;color:var(--dark);
+  background:var(--off-white);resize:none;margin-bottom:18px;
+  transition:border .2s;text-align:right;direction:rtl;
+}
+.notes-ta:focus{outline:none;border-color:var(--fuchsia);background:#fff}
+.btn-wa-full{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  width:100%;padding:15px;background:#25D366;color:#fff;border:none;
+  border-radius:16px;font-weight:800;font-size:16px;cursor:pointer;
+  font-family:'Cairo',sans-serif;
+  box-shadow:0 4px 20px rgba(37,211,102,0.38);transition:all .2s;
+}
+.btn-wa-full:hover{background:#128C7E;transform:translateY(-2px)}
+
+/* ════════════════ ORDER FORM ════════════════ */
+.order-form{padding:18px 16px}
+.ord-summary{
+  background:var(--pink-bg);border:1px solid var(--border);
+  border-radius:14px;padding:16px;margin-bottom:18px;
+}
+.ord-sum-ttl{font-weight:800;font-size:15px;margin-bottom:10px;color:var(--dark)}
+.ord-row{display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;color:var(--gray)}
+.ord-total{
+  display:flex;justify-content:space-between;font-size:16px;font-weight:900;
+  color:var(--fuchsia);border-top:1px solid var(--border);padding-top:10px;margin-top:4px;
+}
+.form-grp{margin-bottom:16px}
+.form-lbl{display:block;font-weight:700;font-size:14px;color:var(--dark);margin-bottom:6px}
+.form-lbl .req{color:var(--fuchsia)}
+.form-inp{
+  width:100%;padding:13px 14px;border:2px solid var(--border);
+  border-radius:14px;font-family:'Cairo',sans-serif;font-size:14px;
+  color:var(--dark);background:#fff;transition:border .2s;
+  text-align:right;direction:rtl;
+}
+.form-inp:focus{outline:none;border-color:var(--fuchsia);box-shadow:0 0 0 3px rgba(215,43,106,0.08)}
+.pickup-opts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pickup-opt{
+  padding:14px;border:2px solid var(--border);border-radius:14px;
+  text-align:center;cursor:pointer;transition:all .2s;font-weight:700;
+  font-size:14px;color:var(--gray);background:#fff;
+}
+.pickup-opt.sel{border-color:var(--fuchsia);background:var(--pink-bg);color:var(--fuchsia)}
+.pickup-ico{font-size:26px;margin-bottom:4px}
+.wa-note{text-align:center;margin-top:12px;font-size:12px;color:var(--gray)}
+
+/* ════════════════ OFFERS PAGE ════════════════ */
+.offers-ph{
+  background:linear-gradient(135deg,var(--fuchsia),var(--deep-pink));
+  padding:26px 18px 42px;position:relative;overflow:hidden;
+}
+.offers-ph::after{
+  content:'🏷️';position:absolute;left:12px;top:50%;transform:translateY(-50%);
+  font-size:72px;opacity:.22;
+}
+.offers-ph-ttl{font-size:26px;font-weight:900;color:#fff;margin-bottom:4px}
+.offers-ph-sub{font-size:14px;color:rgba(255,255,255,0.78)}
+.offers-list{padding:0 16px;margin-top:-16px}
+.ocard{background:#fff;border-radius:var(--r-lg);overflow:hidden;box-shadow:var(--shadow-sm);margin-bottom:14px}
+.ocard-img{height:155px;display:flex;align-items:center;justify-content:center;font-size:80px;position:relative}
+.ocard-badge{
+  position:absolute;top:12px;right:12px;
+  background:var(--yellow);color:var(--dark);font-weight:900;font-size:17px;
+  padding:6px 12px;border-radius:9px;
+}
+.ocard-body{padding:14px}
+.ocard-name{font-size:18px;font-weight:800;margin-bottom:4px}
+.ocard-until{font-size:12px;color:var(--gray);margin-bottom:10px;display:flex;align-items:center;gap:3px}
+.ocard-prices{display:flex;align-items:baseline;gap:8px;margin-bottom:14px}
+.btn-fuchsia{
+  background:var(--fuchsia);color:#fff;padding:13px;border-radius:14px;
+  border:none;font-weight:800;font-size:14px;cursor:pointer;
+  font-family:'Cairo',sans-serif;transition:all .2s;width:100%;
+}
+.btn-fuchsia:hover{background:var(--fuchsia-dark)}
+
+/* ════════════════ ABOUT PAGE ════════════════ */
+.about-hero{
+  background:linear-gradient(135deg,var(--soft-pink),var(--fuchsia));
+  padding:40px 20px;text-align:center;position:relative;overflow:hidden;
+}
+.about-hero-emoji{font-size:72px;margin-bottom:14px;display:block;animation:spin 6s linear infinite}
+@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+.about-hero-ttl{font-size:30px;font-weight:900;color:#fff;margin-bottom:8px}
+.about-hero-sub{font-size:14px;color:rgba(255,255,255,0.82);line-height:1.65}
+.about-values{padding:20px 16px}
+.val-card{
+  background:#fff;border-radius:var(--r-lg);padding:18px;
+  margin-bottom:12px;display:flex;align-items:flex-start;gap:14px;
+  box-shadow:var(--shadow-sm);
+}
+.val-ico{
+  width:50px;height:50px;border-radius:14px;background:var(--pink-bg);
+  display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;
+}
+.val-ttl{font-size:15px;font-weight:800;margin-bottom:3px}
+.val-txt{font-size:13px;color:var(--gray);line-height:1.62}
+
+/* ════════════════ CONTACT PAGE ════════════════ */
+.contact-hero{
+  background:linear-gradient(135deg,#25D366,#128C7E);
+  padding:30px 20px;text-align:center;color:#fff;
+}
+.contact-hero-ttl{font-size:24px;font-weight:900;margin-bottom:6px}
+.contact-hero-sub{font-size:14px;opacity:.82}
+.contact-opts{padding:18px 16px}
+.copt{
+  background:#fff;border-radius:var(--r-lg);padding:18px;
+  margin-bottom:12px;display:flex;align-items:center;gap:14px;
+  box-shadow:var(--shadow-sm);cursor:pointer;transition:all .22s;
+}
+.copt:hover{transform:translateY(-2px);box-shadow:var(--shadow-md)}
+.copt-ico{
+  width:50px;height:50px;border-radius:16px;
+  display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;
+}
+.ci-wa{background:#E8FFF3}.ci-ig{background:#FFF0F7}.ci-ph{background:#EFF3FF}
+.copt-lbl{font-size:15px;font-weight:800;margin-bottom:2px}
+.copt-val{font-size:13px;color:var(--gray)}
+.copt-arr{margin-right:auto;color:var(--gray);font-size:18px}
+.hours-card{
+  background:#fff;border-radius:var(--r-lg);padding:22px;
+  box-shadow:var(--shadow-sm);text-align:center;margin-bottom:14px;
+}
+.hours-ico{font-size:46px;margin-bottom:10px}
+.hours-ttl{font-weight:800;font-size:16px;margin-bottom:6px}
+.hours-txt{color:var(--gray);font-size:14px;line-height:1.7}
+.hours-highlight{color:var(--fuchsia);font-weight:700}
+</style>
+</head>
+<body>
+<div class="phone-frame">
+
+<!-- ══════════════ HOME SCREEN ══════════════ -->
+<div id="s-home" class="screen active">
+  <header class="app-header">
+    <div class="logo-wrap">
+      <div class="logo-mark">🍳</div>
+      <span class="logo-name">Luliz<em>♡</em></span>
+    </div>
+    <div class="hdr-actions">
+      <button class="hdr-btn">🔔</button>
+      <button class="hdr-btn" onclick="go('order')">🛒</button>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-blob1"></div>
+    <div class="hero-blob2"></div>
+    <div class="hero-blob3"></div>
+    <div class="hero-content">
+      <div class="hero-pill">✨ منيو اليوم متاح الآن</div>
+      <h1 class="hero-h1">أكل بيتي…<br>بطعم <span class="hl">بيفرح القلب</span> 🤍</h1>
+      <p class="hero-sub">وجبات يومية طازجة من Luliz، مرتبة وبتشهي.<br>اطلبي بسهولة عبر واتساب.</p>
+      <div class="hero-btns">
+        <button class="btn-white" onclick="go('menu')">🍽️ وجبات اليوم</button>
+        <button class="btn-wa" onclick="openWA()">💬 اطلب الآن</button>
+      </div>
+      <div class="hero-float-card">
+        <div class="fc-badge">عرض اليوم</div>
+        <div class="fc-img">🍝</div>
+        <div>
+          <div class="fc-name">باستا كريمية</div>
+          <div class="fc-desc">دجاج • كريمة • جبنة فريش</div>
+          <div class="fc-price">8,500 ل.س</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Trust -->
+  <div class="trust-strip">
+    <div class="trust-scroll">
+      <div class="trust-badge"><span class="trust-ico">🌿</span><span class="trust-txt">طازج يومياً</span></div>
+      <div class="trust-badge"><span class="trust-ico">🏠</span><span class="trust-txt">أكل بيتي</span></div>
+      <div class="trust-badge"><span class="trust-ico">⏰</span><span class="trust-txt">كميات محدودة</span></div>
+      <div class="trust-badge"><span class="trust-ico">📊</span><span class="trust-txt">قيم غذائية</span></div>
+      <div class="trust-badge"><span class="trust-ico">💬</span><span class="trust-txt">طلب بواتساب</span></div>
+    </div>
+  </div>
+
+  <!-- Featured Meals -->
+  <div class="sect">
+    <div class="sect-hdr">
+      <h2 class="sect-ttl">وجبات <span class="ac">اليوم</span> 🍽️</h2>
+      <button class="sect-link" onclick="go('menu')">عرض الكل</button>
+    </div>
+    <div class="products-grid" id="home-prods"></div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Offers Preview -->
+  <div class="sect">
+    <div class="sect-hdr">
+      <h2 class="sect-ttl">🏷️ <span class="ac">عروض</span> Luliz</h2>
+      <button class="sect-link" onclick="go('offers')">كل العروض</button>
+    </div>
+    <div class="offers-scroll" id="home-offers"></div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Nutrition Preview -->
+  <div class="sect" style="padding-top:0">
+    <div class="nutri-sect">
+      <div class="nutri-today-lbl">اعرفي أكلك 📊</div>
+      <div class="nutri-sect-ttl">لازانيا دجاج</div>
+      <div class="nutri-sect-sub">حجم الحصة: 400g</div>
+      <div class="nutri-grid">
+        <div class="ncard cal"><div class="ncard-ico">🔥</div><div class="ncard-val">580</div><div class="ncard-lbl">سعرة</div></div>
+        <div class="ncard pro"><div class="ncard-ico">💪</div><div class="ncard-val">35g</div><div class="ncard-lbl">بروتين</div></div>
+        <div class="ncard crb"><div class="ncard-ico">🌾</div><div class="ncard-val">48g</div><div class="ncard-lbl">كارب</div></div>
+        <div class="ncard fat"><div class="ncard-ico">🫒</div><div class="ncard-val">22g</div><div class="ncard-lbl">دهون</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- About Snippet -->
+  <div class="sect" style="padding-top:0">
+    <div class="about-card">
+      <div class="about-tag">✨ من نحن</div>
+      <h2 class="about-h">مشروع <span class="ac">Luliz</span>… أكثر من وجبة</h2>
+      <p class="about-p">Luliz مشروع أكل بيتي بيقدم وجبات يومية طازجة، محضّرة بعناية وبمكونات مرتبة، ليجمع بين طعم البيت وتنظيم وجودة المطاعم.</p>
+      <div class="about-chips">
+        <div class="chip">🌿 مكونات طازجة</div>
+        <div class="chip">💕 صنع بحب</div>
+        <div class="chip">📊 قيم غذائية</div>
+        <div class="chip">🏠 أكل بيتي</div>
+      </div>
+    </div>
+  </div>
+  <div style="height:10px"></div>
+</div><!-- /home -->
+
+<!-- ══════════════ MENU SCREEN ══════════════ -->
+<div id="s-menu" class="screen">
+  <div class="back-hdr">
+    <button class="back-btn" onclick="go('home')">→</button>
+    <span class="back-ttl">وجبات اليوم 🍽️</span>
+  </div>
+  <div class="search-bar">
+    <span class="search-ico">🔍</span>
+    <input type="text" placeholder="ابحثي عن وجبتك..." />
+  </div>
+  <div class="cat-tabs">
+    <button class="cat-tab active" onclick="filterCat(this,'all')">الكل</button>
+    <button class="cat-tab" onclick="filterCat(this,'pasta')">باستا</button>
+    <button class="cat-tab" onclick="filterCat(this,'chicken')">دجاج</button>
+    <button class="cat-tab" onclick="filterCat(this,'veggies')">خضار</button>
+    <button class="cat-tab" onclick="filterCat(this,'potato')">بطاطا</button>
+  </div>
+  <div class="sect" style="padding-top:0">
+    <div class="products-grid" id="menu-prods"></div>
+  </div>
+</div><!-- /menu -->
+
+<!-- ══════════════ PRODUCT DETAIL SCREEN ══════════════ -->
+<div id="s-product" class="screen">
+  <div id="pd-content"></div>
+</div>
+
+<!-- ══════════════ ORDER FORM SCREEN ══════════════ -->
+<div id="s-order" class="screen">
+  <div class="back-hdr">
+    <button class="back-btn" onclick="go('product')">→</button>
+    <span class="back-ttl">تفاصيل الطلب</span>
+  </div>
+  <div class="order-form">
+    <div class="ord-summary">
+      <div class="ord-sum-ttl">📦 ملخص طلبك</div>
+      <div class="ord-row"><span id="ord-name">باستا كريمية</span><span id="ord-price">8,500 ل.س</span></div>
+      <div class="ord-row"><span>الكمية</span><span id="ord-qty">1</span></div>
+      <div class="ord-total"><span>الإجمالي</span><span id="ord-total">8,500 ل.س</span></div>
+    </div>
+    <div class="form-grp">
+      <label class="form-lbl">الاسم <span class="req">*</span></label>
+      <input id="inp-name" type="text" class="form-inp" placeholder="اكتبي اسمك الكريم…" />
+    </div>
+    <div class="form-grp">
+      <label class="form-lbl">رقم الهاتف <span class="req">*</span></label>
+      <input id="inp-phone" type="tel" class="form-inp" placeholder="+963 XXX XXX XXX" />
+    </div>
+    <div class="form-grp">
+      <label class="form-lbl">طريقة الاستلام <span class="req">*</span></label>
+      <div class="pickup-opts">
+        <div class="pickup-opt sel" id="opt-del" onclick="selPickup('del')">
+          <div class="pickup-ico">🚗</div>توصيل
+        </div>
+        <div class="pickup-opt" id="opt-pick" onclick="selPickup('pick')">
+          <div class="pickup-ico">🏃</div>استلام
+        </div>
+      </div>
+    </div>
+    <div id="del-fields" class="form-grp">
+      <label class="form-lbl">موقع التوصيل <span class="req">*</span></label>
+      <input id="inp-loc" type="text" class="form-inp" placeholder="المنطقة والعنوان التفصيلي…" />
+      <div style="margin-top:10px">
+        <label class="form-lbl">رابط الموقع <span style="color:var(--gray);font-weight:400">(اختياري)</span></label>
+        <input type="url" class="form-inp" placeholder="Google Maps أو أي رابط…" />
+      </div>
+    </div>
+    <div class="form-grp">
+      <label class="form-lbl">ملاحظات إضافية</label>
+      <textarea id="inp-notes" class="form-inp notes-ta" rows="3" placeholder="أي طلبات خاصة أو حساسية…"></textarea>
+    </div>
+    <button class="btn-wa-full" onclick="sendOrderWA()">💬 إرسال الطلب عبر واتساب</button>
+    <div class="wa-note">سيتم فتح واتساب تلقائياً مع تفاصيل طلبك ✨</div>
+  </div>
+</div><!-- /order -->
+
+<!-- ══════════════ OFFERS SCREEN ══════════════ -->
+<div id="s-offers" class="screen">
+  <div class="back-hdr">
+    <button class="back-btn" onclick="go('home')">→</button>
+    <span class="back-ttl">عروض Luliz 🏷️</span>
+  </div>
+  <div class="offers-ph">
+    <div class="offers-ph-ttl">عروض حصرية 🎉</div>
+    <div class="offers-ph-sub">وفّري مع Luliz، أكل لذيذ بسعر أحلى</div>
+  </div>
+  <div class="offers-list" id="offers-full"></div>
+</div><!-- /offers -->
+
+<!-- ══════════════ ABOUT SCREEN ══════════════ -->
+<div id="s-about" class="screen">
+  <div class="back-hdr">
+    <button class="back-btn" onclick="go('home')">→</button>
+    <span class="back-ttl">من نحن</span>
+  </div>
+  <div class="about-hero">
+    <span class="about-hero-emoji">🍳</span>
+    <div class="about-hero-ttl">Luliz</div>
+    <div class="about-hero-sub">أكل بيتي لذيذ… بطعم بيفرح القلب 🤍</div>
+  </div>
+  <div class="about-values">
+    <div class="val-card">
+      <div class="val-ico">🌿</div>
+      <div><div class="val-ttl">مكونات طازجة يومياً</div><div class="val-txt">نشتري مكوناتنا يومياً ونحضّر وجباتنا في نفس اليوم لضمان أعلى جودة وأحسن طعم.</div></div>
+    </div>
+    <div class="val-card">
+      <div class="val-ico">💕</div>
+      <div><div class="val-ttl">مصنوع بحب وعناية</div><div class="val-txt">كل وجبة تتحضر بدقة واهتمام، كأنك تأكلين في بيت أهلك.</div></div>
+    </div>
+    <div class="val-card">
+      <div class="val-ico">📊</div>
+      <div><div class="val-ttl">قيم غذائية شفافة</div><div class="val-txt">نعطيكِ كل تفاصيل السعرات والمكونات لتختاري بثقة وراحة بال.</div></div>
+    </div>
+    <div class="val-card">
+      <div class="val-ico">🏠</div>
+      <div><div class="val-ttl">روح البيت مع جودة المطاعم</div><div class="val-txt">Luliz بيجمع بين دفا الأكل البيتي ونظافة وتنظيم المطاعم في نفس الوقت.</div></div>
+    </div>
+  </div>
+</div><!-- /about -->
+
+<!-- ══════════════ CONTACT SCREEN ══════════════ -->
+<div id="s-contact" class="screen">
+  <div class="back-hdr">
+    <button class="back-btn" onclick="go('home')">→</button>
+    <span class="back-ttl">تواصلي معنا</span>
+  </div>
+  <div class="contact-hero">
+    <div class="contact-hero-ttl">🍽️ جاهزين نساعدك!</div>
+    <div class="contact-hero-sub">تواصلي معنا بأي طريقة تريدين</div>
+  </div>
+  <div class="contact-opts">
+    <div class="copt" onclick="openWA()">
+      <div class="copt-ico ci-wa">💬</div>
+      <div><div class="copt-lbl">واتساب</div><div class="copt-val">اطلبي أو استفسري مباشرة</div></div>
+      <span class="copt-arr">←</span>
+    </div>
+    <div class="copt">
+      <div class="copt-ico ci-ig">📸</div>
+      <div><div class="copt-lbl">إنستاغرام</div><div class="copt-val">@luliz.food</div></div>
+      <span class="copt-arr">←</span>
+    </div>
+    <div class="copt">
+      <div class="copt-ico ci-ph">📞</div>
+      <div><div class="copt-lbl">اتصال مباشر</div><div class="copt-val">+963 XXX XXX XXX</div></div>
+      <span class="copt-arr">←</span>
+    </div>
+    <div class="hours-card">
+      <div class="hours-ico">🕐</div>
+      <div class="hours-ttl">أوقات العمل</div>
+      <div class="hours-txt">
+        السبت — الخميس<br>
+        9:00 صباحاً — 3:00 مساءً<br>
+        <span class="hours-highlight">آخر موعد للطلب: 11:00 ص</span>
+      </div>
+    </div>
+    <button class="btn-wa-full" onclick="openWA()">💬 اطلبي الآن عبر واتساب</button>
+  </div>
+</div><!-- /contact -->
+
+<!-- ══════════════ BOTTOM NAV ══════════════ -->
+<nav class="bottom-nav">
+  <button class="nav-btn active" id="nb-home" onclick="go('home')"><div class="nav-ico">🏠</div><span class="nav-lbl">الرئيسية</span></button>
+  <button class="nav-btn" id="nb-menu" onclick="go('menu')"><div class="nav-ico">🍽️</div><span class="nav-lbl">المنيو</span></button>
+  <button class="nav-btn" id="nb-offers" onclick="go('offers')"><div class="nav-ico">🏷️</div><span class="nav-lbl">العروض</span></button>
+  <button class="nav-btn" id="nb-about" onclick="go('about')"><div class="nav-ico">💕</div><span class="nav-lbl">من نحن</span></button>
+  <button class="nav-btn" id="nb-contact" onclick="go('contact')"><div class="nav-ico">💬</div><span class="nav-lbl">تواصل</span></button>
+</nav>
+
+<!-- Sticky WA -->
+<div class="wa-float">
+  <button class="wa-float-btn" onclick="openWA()">💬</button>
+</div>
+
+</div><!-- /phone-frame -->
+
+<script>
+/* ── Data ── */
+const PRODUCTS = [
+  {id:1,name:'لازانيا دجاج',emoji:'🍝',cat:'pasta',
+   desc:'لازانيا مع دجاج مشوي وصلصة بيشاميل وجبنة موزاريلا',
+   full:'لازانيا محضّرة بعناية مع طبقات من الدجاج المشوي اللذيذ، صلصة البيشاميل الكريمية، وجبنة الموزاريلا الطازجة. وجبة دسمة ومشبعة تحسّين وكأنك في بيت أهلك.',
+   price:12000,oldPrice:15000,disc:20,qty:8,
+   cal:580,pro:35,crb:48,fat:22,serving:'400g',
+   ings:['دجاج','لازانيا','بيشاميل','موزاريلا','طماطم','بهارات'],
+   allergy:'يحتوي على: قمح، حليب، بيض',
+   bg:'linear-gradient(135deg,#FFE8EF,#FFF0F7)'},
+  {id:2,name:'باستا كريمية',emoji:'🍝',cat:'pasta',
+   desc:'باستا بندقية مع صلصة كريمية ودجاج وجبنة فريش',
+   full:'باستا بندقية مع صلصة كريمية غنية، دجاج طري، وجبنة بارميزان. وجبة لها طعم الإيطالي الأصيل.',
+   price:8500,oldPrice:null,disc:null,qty:15,
+   cal:420,pro:28,crb:52,fat:14,serving:'350g',
+   ings:['معكرونة','دجاج','كريمة','جبنة','ثوم','بصل'],
+   allergy:'يحتوي على: قمح، حليب',
+   bg:'linear-gradient(135deg,#FFF0E8,#FFF8E0)'},
+  {id:3,name:'نودلز بالخضار',emoji:'🍜',cat:'veggies',
+   desc:'نودلز آسيوية مع خضار طازجة وصلصة تيرياكي',
+   full:'نودلز رفيعة مع خضار طازجة ملونة، صلصة تيرياكي اللذيذة، والسمسم. طعم آسيوي أصيل.',
+   price:7000,oldPrice:9000,disc:22,qty:6,
+   cal:380,pro:18,crb:58,fat:10,serving:'320g',
+   ings:['نودلز','جزر','بروكلي','فلفل ألوان','تيرياكي','سمسم'],
+   allergy:'يحتوي على: قمح، صويا',
+   bg:'linear-gradient(135deg,#E8F8EF,#F0FFF5)'},
+  {id:4,name:'غراتان بطاطا',emoji:'🥔',cat:'potato',
+   desc:'بطاطا مع كريمة وجبنة مذابة في الفرن',
+   full:'شرائح بطاطا رقيقة مغموسة بالكريمة وجبنة الغرويير، مطبوخة في الفرن حتى الذهبية. راحة وإراحة في كل لقمة.',
+   price:7500,oldPrice:null,disc:null,qty:10,
+   cal:460,pro:15,crb:45,fat:25,serving:'380g',
+   ings:['بطاطا','كريمة','جبنة','ثوم','بصل','زبدة'],
+   allergy:'يحتوي على: حليب',
+   bg:'linear-gradient(135deg,#FFF8E8,#FFFCE0)'},
+  {id:5,name:'ماك أند تشيز',emoji:'🧀',cat:'pasta',
+   desc:'المعكرونة الكلاسيكية بالجبنة المذابة الكريمية',
+   full:'معكرونة الكوع مع صلصة جبنة مذابة وكريمية، وجبة أمريكية كلاسيكية محبوبة من الكبار والصغار.',
+   price:6500,oldPrice:null,disc:null,qty:12,
+   cal:490,pro:20,crb:60,fat:18,serving:'300g',
+   ings:['معكرونة','شيدر','حليب','زبدة','طحين','بهارات'],
+   allergy:'يحتوي على: قمح، حليب',
+   bg:'linear-gradient(135deg,#FFECE0,#FFF8E0)'},
+  {id:6,name:'سويت آند ساور',emoji:'🍗',cat:'chicken',
+   desc:'دجاج مقرمش بصلصة الحلو والحامض الآسيوية',
+   full:'قطع دجاج مقرمشة بصلصة الحلو والحامض التقليدية، مع فلفل ألوان وأناناس. نكهة آسيوية مثيرة.',
+   price:9500,oldPrice:11000,disc:14,qty:5,
+   cal:440,pro:32,crb:48,fat:12,serving:'360g',
+   ings:['دجاج','فلفل ألوان','أناناس','كيتشب','خل','سكر'],
+   allergy:'يحتوي على: صويا، قمح',
+   bg:'linear-gradient(135deg,#FFE8F0,#FFF0E8)'},
+];
+
+const OFFERS = [
+  {pid:1,name:'لازانيا دجاج',emoji:'🍝',disc:20,old:15000,nw:12000,until:'28 مايو',
+   bg:'linear-gradient(135deg,#D72B6A,#C2185B)'},
+  {pid:3,name:'نودلز بالخضار',emoji:'🍜',disc:22,old:9000,nw:7000,until:'30 مايو',
+   bg:'linear-gradient(135deg,#E91E8C,#D72B6A)'},
+  {pid:6,name:'سويت آند ساور',emoji:'🍗',disc:14,old:11000,nw:9500,until:'27 مايو',
+   bg:'linear-gradient(135deg,#C2185B,#AD1457)'},
+];
+
+let curProduct = null;
+let curQty = 1;
+
+/* ── Navigation ── */
+function go(screen){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('s-'+screen).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  const nb=document.getElementById('nb-'+screen);
+  if(nb)nb.classList.add('active');
+  document.querySelector('.phone-frame').scrollTop=0;
+  window.scrollTo(0,0);
+}
+
+/* ── Render ── */
+function prodCard(p){
+  const disc=p.disc?`<div class="disc-badge">-${p.disc}%</div>`:'';
+  const qty=p.qty<=8?`<div class="qty-badge">⚡ ${p.qty} متبقي</div>`:'';
+  const priceHtml=p.oldPrice?
+    `<span class="p-new">${p.price.toLocaleString()}</span><span class="p-old">${p.oldPrice.toLocaleString()}</span><span class="p-cur">ل.س</span>`:
+    `<span class="p-new">${p.price.toLocaleString()}</span><span class="p-cur">ل.س</span>`;
+  return`<div class="pcard">
+    <div class="pcard-img" style="background:${p.bg}">
+      <span style="font-size:80px">${p.emoji}</span>${disc}${qty}
+    </div>
+    <div class="pcard-body">
+      <div class="pcard-name">${p.name}</div>
+      <div class="pcard-desc">${p.desc}</div>
+      <div class="pcard-price">${priceHtml}</div>
+      <div class="nutri-row">
+        <div class="nutri-mini">🔥 ${p.cal}</div>
+        <div class="nutri-mini">💪 ${p.pro}g</div>
+        <div class="nutri-mini">🌾 ${p.crb}g</div>
+      </div>
+      <div class="pcard-actions">
+        <button class="btn-detail" onclick="showPD(${p.id})">التفاصيل</button>
+        <button class="btn-order-now" onclick="quickOrder(${p.id})">اطلب الآن</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function offerScrollCard(o){
+  return`<div class="offer-scroll-card" style="background:${o.bg}">
+    <span class="osc-emoji">${o.emoji}</span>
+    <div class="osc-disc">-${o.disc}%</div>
+    <div class="osc-name">${o.name}</div>
+    <div class="osc-prices"><span class="osc-new">${o.nw.toLocaleString()}</span><span class="osc-old">${o.old.toLocaleString()} ل.س</span></div>
+    <div class="osc-until">⏰ حتى ${o.until}</div>
+    <button class="btn-osc" onclick="quickOrder(${o.pid})">اطلبي الآن</button>
+  </div>`;
+}
+
+function offerFullCard(o){
+  const p=PRODUCTS.find(x=>x.id===o.pid);
+  return`<div class="ocard">
+    <div class="ocard-img" style="background:${p?p.bg:'linear-gradient(135deg,#FFE8EF,#FFF0F7)'}">
+      <span style="font-size:80px">${o.emoji}</span>
+      <div class="ocard-badge">-${o.disc}%</div>
+    </div>
+    <div class="ocard-body">
+      <div class="ocard-name">${o.name}</div>
+      <div class="ocard-until">⏰ العرض متاح حتى ${o.until}</div>
+      <div class="ocard-prices">
+        <span class="p-new">${o.nw.toLocaleString()}</span>
+        <span class="p-old">${o.old.toLocaleString()}</span>
+        <span class="p-cur">ل.س</span>
+      </div>
+      <button class="btn-fuchsia" onclick="quickOrder(${o.pid})">اطلبي الآن 🛒</button>
+    </div>
+  </div>`;
+}
+
+/* ── Product Detail ── */
+function showPD(id){
+  curProduct=PRODUCTS.find(p=>p.id===id);
+  curQty=1;
+  if(!curProduct)return;
+  const p=curProduct;
+  const discHtml=p.disc?`<div class="pd-disc-pill">خصم ${p.disc}% 🎉</div>`:'';
+  const oldHtml=p.oldPrice?`<div class="pd-old-price">${p.oldPrice.toLocaleString()} ل.س</div>`:'';
+  const ings=p.ings.map(i=>`<div class="ing-tag">${i}</div>`).join('');
+  document.getElementById('pd-content').innerHTML=`
+    <div class="pd-hero-img" style="background:${p.bg}">
+      <span style="font-size:120px">${p.emoji}</span>
+      <button class="pd-back-abs" onclick="go('menu')">→</button>
+    </div>
+    <div class="pd-body">
+      ${discHtml}
+      <div class="pd-name">${p.name}</div>
+      <div class="pd-price">${p.price.toLocaleString()} ل.س</div>
+      ${oldHtml}
+      <p class="pd-desc">${p.full}</p>
+      <div class="avail-bar">
+        <div class="avail-row"><span style="font-weight:600;font-size:13px">الكمية المتاحة</span><span>${p.qty} حصة متبقية</span></div>
+        <div class="avail-track"><div class="avail-fill" style="width:${Math.min(100,(p.qty/20)*100)}%"></div></div>
+      </div>
+      <div class="pd-sect-ttl">📊 القيم الغذائية — حجم الحصة: ${p.serving}</div>
+      <div class="nutri-pills">
+        <div class="npill c"><div class="npill-v">🔥${p.cal}</div><div class="npill-l">سعرة</div></div>
+        <div class="npill p"><div class="npill-v">💪${p.pro}g</div><div class="npill-l">بروتين</div></div>
+        <div class="npill k"><div class="npill-v">🌾${p.crb}g</div><div class="npill-l">كارب</div></div>
+        <div class="npill f"><div class="npill-v">🫒${p.fat}g</div><div class="npill-l">دهون</div></div>
+      </div>
+      <div class="pd-sect-ttl">🧺 المكونات</div>
+      <div class="ing-tags">${ings}</div>
+      <div class="allergy-box">⚠️ ${p.allergy}</div>
+      <div class="pd-sect-ttl">الكمية</div>
+      <div class="qty-sel">
+        <button class="qty-btn" onclick="chgQty(-1)">−</button>
+        <span class="qty-num" id="pd-qty">1</span>
+        <button class="qty-btn" onclick="chgQty(1)">+</button>
+        <span class="qty-total">× ${p.price.toLocaleString()} ل.س</span>
+      </div>
+      <div class="pd-sect-ttl">ملاحظات</div>
+      <textarea class="notes-ta" rows="2" placeholder="بدون ثوم؟ حادة؟ أي طلب خاص…"></textarea>
+      <button class="btn-wa-full" onclick="go('order')">💬 اطلبي عبر واتساب</button>
+    </div>`;
+  go('product');
+}
+
+function chgQty(d){
+  curQty=Math.max(1,curQty+d);
+  const el=document.getElementById('pd-qty');
+  if(el)el.textContent=curQty;
+}
+
+function quickOrder(id){
+  showPD(id);
+  setTimeout(()=>go('order'),80);
+}
+
+/* ── Order ── */
+function selPickup(t){
+  document.getElementById('opt-del').classList.toggle('sel',t==='del');
+  document.getElementById('opt-pick').classList.toggle('sel',t==='pick');
+  document.getElementById('del-fields').style.display=t==='del'?'block':'none';
+}
+
+function sendOrderWA(){
+  const n=curProduct?curProduct.name:'وجبة';
+  const pr=curProduct?(curProduct.price*curQty).toLocaleString()+'':'-';
+  const name=document.getElementById('inp-name')?.value||'';
+  const phone=document.getElementById('inp-phone')?.value||'';
+  const loc=document.getElementById('inp-loc')?.value||'';
+  const notes=document.getElementById('inp-notes')?.value||'';
+  const msg=encodeURIComponent(
+    `🍽️ طلب جديد من موقع Luliz\n━━━━━━━━━━━\n`+
+    `الوجبة: ${n}\nالكمية: ${curQty}\nالسعر: ${pr} ل.س\n━━━━━━━━━━━\n`+
+    `الاسم: ${name}\nالهاتف: ${phone}\nالموقع: ${loc}\nالملاحظات: ${notes}\n━━━━━━━━━━━\nشكراً 🤍`
+  );
+  window.open('https://wa.me/963XXXXXXXX?text='+msg,'_blank');
+}
+
+function openWA(){
+  const msg=encodeURIComponent('مرحباً Luliz 🍽️\nأريد الاستفسار عن منيو اليوم.');
+  window.open('https://wa.me/963XXXXXXXX?text='+msg,'_blank');
+}
+
+function filterCat(btn,cat){
+  document.querySelectorAll('.cat-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const container=document.getElementById('menu-prods');
+  container.innerHTML='';
+  const filtered=cat==='all'?PRODUCTS:PRODUCTS.filter(p=>p.cat===cat);
+  if(filtered.length===0){
+    container.innerHTML='<div style="text-align:center;padding:40px 20px;color:var(--gray)"><div style="font-size:60px;margin-bottom:12px">🍽️</div><div style="font-size:16px;font-weight:700">لا توجد وجبات في هذا التصنيف اليوم</div></div>';
+  }else{
+    filtered.forEach(p=>{container.innerHTML+=prodCard(p)});
+  }
+}
+
+/* ── Init ── */
+function init(){
+  // Home products
+  const hp=document.getElementById('home-prods');
+  if(hp)PRODUCTS.slice(0,3).forEach(p=>{hp.innerHTML+=prodCard(p)});
+  // Menu products
+  const mp=document.getElementById('menu-prods');
+  if(mp)PRODUCTS.forEach(p=>{mp.innerHTML+=prodCard(p)});
+  // Home offers scroll
+  const ho=document.getElementById('home-offers');
+  if(ho)OFFERS.forEach(o=>{ho.innerHTML+=offerScrollCard(o)});
+  // Full offers
+  const fo=document.getElementById('offers-full');
+  if(fo)OFFERS.forEach(o=>{fo.innerHTML+=offerFullCard(o)});
+}
+
+document.addEventListener('DOMContentLoaded',init);
+window.addEventListener('load',init);
+</script>
+</body>
+</html>

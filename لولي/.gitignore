@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build output
+frontend/dist/
+frontend/build/
+
+# Environment variables
+.env
+**/.env
+.env.local
+.env.production
+.env.development
+**/.env*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Uploads (local)
+backend/uploads/
+
+# نسخ قاعدة البيانات — بيانات عمل، ما بتنرفع
+_db-backup/

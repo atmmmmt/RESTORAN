@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>لوليز — دليل آلية التشغيل</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Lalezar&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #2b1a10; --ink-soft: #5f4b3d; --caramel: #b87835; --caramel-dark: #8f5824;
+    --cream: #f8f3eb; --cream-deep: #efe4d5; --surface: #fffdf9; --line: rgba(75,47,29,.14);
+    --green: #218c56;
+  }
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { margin: 0; font-family: 'Cairo', sans-serif; color: var(--ink); background: #e9e1d6; font-size: 11.5pt; line-height: 1.85; }
+  .page { width: 210mm; min-height: 297mm; margin: 0 auto; background: var(--surface); position: relative; padding: 20mm 18mm 26mm; page-break-after: always; overflow: hidden; }
+  .page:last-child { page-break-after: auto; }
+  h1, h2, h3 { font-family: 'Lalezar', 'Cairo', sans-serif; font-weight: 400; margin: 0; line-height: 1.25; }
+  h2 { font-size: 25pt; color: var(--ink); margin-bottom: 4mm; display: flex; align-items: center; gap: 4mm; }
+  h2 .num { width: 13mm; height: 13mm; border-radius: 50%; background: var(--caramel); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 16pt; flex-shrink: 0; }
+  h3 { font-size: 15pt; color: var(--caramel-dark); margin: 6mm 0 2mm; }
+  p { margin: 0 0 3mm; }
+  .lead { color: var(--ink-soft); font-size: 12pt; }
+  ul, ol { margin: 0 0 3mm; padding-inline-start: 6mm; }
+  li { margin-bottom: 1.2mm; }
+  b, strong { font-weight: 800; }
+
+  /* running header / footer on content pages */
+  .run-head { position: absolute; top: 8mm; right: 18mm; left: 18mm; display: flex; justify-content: space-between; align-items: center; font-size: 8.5pt; color: var(--ink-soft); border-bottom: 1px solid var(--line); padding-bottom: 2mm; }
+  .run-head img { height: 9mm; mix-blend-mode: multiply; }
+  .run-foot { position: absolute; bottom: 8mm; right: 18mm; left: 18mm; display: flex; justify-content: space-between; align-items: center; font-size: 8.5pt; color: var(--ink-soft); border-top: 1px solid var(--line); padding-top: 2mm; }
+  .run-foot img { height: 6mm; }
+  .content { padding-top: 6mm; }
+
+  /* cover */
+  .cover { background: linear-gradient(165deg, #fbf7f0 0%, #f3e7d6 60%, #ead8c0 100%); display: flex; flex-direction: column; padding: 0; }
+  .cover-top { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20mm; }
+  .cover-top .brand { width: 150mm; margin-bottom: 12mm; mix-blend-mode: multiply; }
+  .cover-top h1 { font-size: 44pt; color: var(--ink); }
+  .cover-top h1 span { color: var(--caramel); display: block; }
+  .cover-top .sub { margin-top: 5mm; font-size: 13pt; color: var(--ink-soft); font-weight: 700; }
+  .cover-band { background: var(--ink); color: #f3e3cc; padding: 9mm 18mm; display: flex; align-items: center; justify-content: space-between; }
+  .cover-band .by { font-size: 10pt; opacity: .8; }
+  .cover-band .by b { display: block; font-size: 13pt; color: #fff; opacity: 1; }
+  .cover-band img { height: 14mm; filter: invert(1); }
+  .orbit { position: absolute; border: 1px solid rgba(184,120,53,.18); border-radius: 50%; }
+
+  /* blocks */
+  .card { background: var(--cream); border: 1px solid var(--line); border-radius: 5mm; padding: 5mm 6mm; margin: 3mm 0; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 3mm; }
+  .tile { background: var(--cream); border: 1px solid var(--line); border-radius: 4mm; padding: 4mm; }
+  .tile .t { font-weight: 900; color: var(--caramel-dark); font-size: 11.5pt; margin-bottom: 1mm; }
+  .tile p { font-size: 10pt; margin: 0; color: var(--ink-soft); line-height: 1.7; }
+  .note { background: #fff5e6; border-inline-start: 4px solid var(--caramel); border-radius: 3mm; padding: 3mm 5mm; margin: 3mm 0; font-size: 10.5pt; }
+  .warn { background: #fdecea; border-inline-start: 4px solid #c0392b; border-radius: 3mm; padding: 3mm 5mm; margin: 3mm 0; font-size: 10.5pt; }
+  table { width: 100%; border-collapse: collapse; margin: 3mm 0; font-size: 10pt; }
+  th { background: var(--ink); color: #fff; font-weight: 800; padding: 2mm 3mm; text-align: right; }
+  th:first-child { border-radius: 0 3mm 0 0; } th:last-child { border-radius: 3mm 0 0 0; }
+  td { padding: 1.6mm 3mm; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--cream); }
+  .yes { color: var(--green); font-weight: 900; } .no { color: #b33; font-weight: 900; }
+  .steps { counter-reset: s; list-style: none; padding: 0; }
+  .steps li { counter-increment: s; position: relative; padding-inline-start: 11mm; margin-bottom: 3mm; }
+  .steps li::before { content: counter(s); position: absolute; right: 0; top: .5mm; width: 7.5mm; height: 7.5mm; border-radius: 50%; background: var(--caramel); color: #fff; font-weight: 900; font-size: 10pt; display: flex; align-items: center; justify-content: center; }
+  .chip { display: inline-block; background: var(--cream-deep); color: var(--caramel-dark); border-radius: 99px; padding: 0 3mm; font-weight: 800; font-size: 9.5pt; }
+  .url { direction: ltr; unicode-bidi: embed; font-family: Consolas, monospace; font-size: 10pt; background: var(--cream-deep); padding: .3mm 2mm; border-radius: 1.5mm; }
+  .toc li { display: flex; justify-content: space-between; border-bottom: 1px dotted var(--line); padding: 1mm 0; font-weight: 700; }
+  body { counter-reset: pg; }
+  .page { counter-increment: pg; }
+  .pg::before { content: "صفحة " counter(pg); }
+  .toc { list-style: none; padding: 0; }
+  .end { background: var(--ink); color: #f3e3cc; }
+  .end h2 { color: #fff; }
+  .end .card { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12); color: #f3e3cc; }
+  @media screen { .page { margin: 8mm auto; box-shadow: 0 10px 40px rgba(0,0,0,.15); } }
+</style>
+</head>
+<body>
+
+<!-- ═════════ COVER ═════════ -->
+<section class="page cover">
+  <div class="orbit" style="width:140mm;height:140mm;left:-60mm;top:-50mm"></div>
+  <div class="orbit" style="width:90mm;height:90mm;right:-35mm;bottom:40mm"></div>
+  <div class="cover-top">
+    <img class="brand" src="assets/luliz-logo.png" alt="لوليز">
+    <h1>دليل آلية التشغيل<span>منصة لوليز الكاملة</span></h1>
+    <div class="sub">الموقع الإلكتروني · لوحة التحكم · نقطة البيع · التقارير والتسويات</div>
+    <div class="sub" style="font-size:10.5pt;margin-top:3mm">نسخة التسليم — أيلول 2026</div>
+  </div>
+  <div class="cover-band">
+    <div class="by">صُمّم وطُوّر من قبل<b>Prootech Agency</b></div>
+    <img src="assets/prootech-logo.png" alt="Prootech Agency">
+  </div>
+</section>
+
+<!-- ═════════ TOC + OVERVIEW ═════════ -->
+<section class="page">
+  <div class="run-head"><span>لوليز — دليل آلية التشغيل</span><img src="assets/luliz-logo.png" alt=""></div>
+  <div class="content">
+    <h2>المحتويات</h2>
+    <ol class="toc">
+      <li><span>1. نظرة عامة على المنصة</span><span>2</span></li>
+      <li><span>2. الروابط والدخول</span><span>3</span></li>
+      <li><span>3. الأدوار والصلاحيات</span><span>3</span></li>
+      <li><span>4. موقع الزبائن: المنيو والسلة والطلب</span><span>4</span></li>
+      <li><span>5. لوحة التحكم — الأقسام بالتفصيل</span><span>5</span></li>
+      <li><span>6. حساب الكاشير: البيع وإدخال المشتريات</span><span>6</span></li>
+      <li><span>7. نسب صافي الربح والتسوية الشهرية</span><span>7</span></li>
+      <li><span>8. الدورة اليومية المقترحة للتشغيل</span><span>8</span></li>
+      <li><span>9. العمل بدون إنترنت وتثبيت التطبيق</span><span>8</span></li>
+      <li><span>10. الأمان والنصائح والدعم الفني</span><span>9</span></li>
+    </ol>
+
+    <h2 style="margin-top:8mm"><span class="num">1</span>نظرة عامة على المنصة</h2>
+    <p class="lead">منصة لوليز نظام متكامل يغطي كل مراحل العمل: من عرض الأصناف للزبون واستقبال طلبه، إلى شراء المواد الخام، الإنتاج، البيع، متابعة الكاش، وصولاً لحساب صافي الربح وتوزيعه شهرياً.</p>
+    <div class="grid3">
+      <div class="tile"><div class="t">🌐 موقع الزبائن</div><p>منيو بالصور، سلة مشتريات، وطلب مباشر عبر واتساب. يعمل كتطبيق على الموبايل.</p></div>
+      <div class="tile"><div class="t">🧾 لوحة التحكم</div><p>إدارة المنتجات والمخزون والمشتريات والمبيعات والكاش والموظفين والتقارير.</p></div>
+      <div class="tile"><div class="t">💳 نقطة البيع</div><p>شاشة كاشير سريعة للطلبات الداخلية مع شاشة للمطبخ وطباعة الفواتير.</p></div>
+    </div>
+    <div class="grid3" style="margin-top:3mm">
+      <div class="tile"><div class="t">🏪 مراكز البيع</div><p>متابعة التسليمات والتسويات والعمولات لكل مركز، مع بوابة دخول خاصة لكل مركز.</p></div>
+      <div class="tile"><div class="t">📊 التقارير</div><p>تقارير يومية وشهرية، أرباح وخسائر، أداء الأصناف والمراكز والهدر.</p></div>
+      <div class="tile"><div class="t">🤝 تسوية الأرباح</div><p>نسب الشركاء من صافي الربح تُحسب تلقائياً لكل شهر.</p></div>
+    </div>
+
+      </div>
+  <div class="run-foot"><span class="pg"></span><img src="assets/prootech-logo.png" alt=""></div>
+</section>
+
+<section class="page">
+  <div class="run-head"><span>لوليز — دليل آلية التشغيل</span><img src="assets/luliz-logo.png" alt=""></div>
+  <div class="content">
+    <h2><span class="num">2</span>الروابط والدخول</h2>
+    <table>
+      <tr><th>الواجهة</th><th>الرابط</th><th>لمن؟</th></tr>
+      <tr><td><b>موقع الزبائن</b></td><td><span class="url">https://loliz-taste.com</span></td><td>الزبائن — بدون تسجيل دخول</td></tr>
+      <tr><td><b>لوحة التحكم</b></td><td><span class="url">https://loliz-taste.com/admin/login</span></td><td>المدير، المشرف، الكاشير</td></tr>
+      <tr><td><b>نقطة البيع</b></td><td><span class="url">https://loliz-taste.com/admin/pos</span></td><td>الكاشير والإدارة</td></tr>
+      <tr><td><b>شاشة المطبخ</b></td><td><span class="url">https://loliz-taste.com/admin/kitchen</span></td><td>المطبخ (شاشة ثابتة)</td></tr>
+      <tr><td><b>بوابة المراكز</b></td><td><span class="url">https://loliz-taste.com/center-portal/login</span></td><td>مسؤول كل مركز بيع</td></tr>
+    </table>
+    <div class="warn"><b>مهم:</b> كلمات السر المبدئية التي سُلّمت مع المشروع يجب تغييرها فور الاستلام من <b>الإعدادات ← تغيير كلمة السر</b> لكل حساب.</div>
+    <h2 style="margin-top:7mm"><span class="num">3</span>الأدوار والصلاحيات</h2>
+    <p>يُنشئ المدير الحسابات من <b>لوحة التحكم ← المستخدمين</b> ويحدد دور كل حساب. الصلاحيات مطبّقة على الخادم نفسه، وليس فقط بإخفاء الأزرار.</p>
+    <table>
+      <tr><th>القسم</th><th>المدير</th><th>المشرف</th><th>الكاشير</th></tr>
+      <tr><td>نقطة البيع (طلب داخلي) وشاشة المطبخ</td><td class="yes">✔</td><td class="yes">✔</td><td class="yes">✔</td></tr>
+      <tr><td>إدخال المشتريات</td><td class="yes">✔</td><td class="yes">✔</td><td class="yes">✔</td></tr>
+      <tr><td>المنتجات، المكونات، الإنتاج، الهدر</td><td class="yes">✔</td><td class="yes">✔</td><td class="no">✘</td></tr>
+      <tr><td>المبيعات، الطلبات، العروض، المراكز</td><td class="yes">✔</td><td class="yes">✔</td><td class="no">✘</td></tr>
+      <tr><td>الكاش، التقارير، الجرد اليومي</td><td class="yes">✔</td><td class="yes">✔</td><td class="no">✘</td></tr>
+      <tr><td>الحضور والبصمة</td><td class="yes">✔</td><td>قراءة فقط</td><td class="no">✘</td></tr>
+      <tr><td>الموظفين، الرواتب، المستخدمين</td><td class="yes">✔</td><td class="no">✘</td><td class="no">✘</td></tr>
+      <tr><td>الإعدادات ونسب صافي الربح</td><td class="yes">✔</td><td class="no">✘</td><td class="no">✘</td></tr>
+    </table>
+
+      </div>
+  <div class="run-foot"><span class="pg"></span><img src="assets/prootech-logo.png" alt=""></div>
+</section>
+
+<section class="page">
+  <div class="run-head"><span>لوليز — دليل آلية التشغيل</span><img src="assets/luliz-logo.png" alt=""></div>
+  <div class="content">
+    <h2><span class="num">4</span>موقع الزبائن: المنيو والسلة والطلب</h2>
+    <ol class="steps">
+      <li><b>تصفّح المنيو:</b> الزبون يفتح صفحة <span class="chip">المنيو</span>، يفلتر حسب التصنيف أو يبحث باسم الوجبة، ويشوف الصورة والسعر والقيم الغذائية.</li>
+      <li><b>الإضافة للسلة:</b> زر <span class="chip">أضف للسلة</span> على كل صنف. تظهر <b>سلة عائمة</b> أسفل الشاشة فيها عدد القطع والإجمالي. الأصناف التي كميتها المتاحة صفر تظهر <b>«نفدت»</b> ولا يمكن إضافتها.</li>
+      <li><b>مراجعة السلة:</b> تعديل الكميات أو حذف أصناف، ثم إدخال الاسم والهاتف وطريقة الاستلام (توصيل / استلام شخصي).</li>
+      <li><b>إرسال الطلب:</b> يُسجَّل الطلب في <b>لوحة التحكم ← الطلبات</b> وتُفتح رسالة واتساب جاهزة بكل تفاصيل الطلب لتأكيده مع الزبون.</li>
+    </ol>
+    <div class="note"><b>ليظهر الصنف قابلاً للطلب:</b> حدّث <b>الكمية المتاحة</b> للمنتج من لوحة التحكم (أو سجّل دفعة إنتاج) — وإلا يبقى مكتوباً عليه «نفدت».</div>
+    <p style="font-size:10.5pt">يمكن للإدارة تفعيل <b>وضع «قريباً»</b> من الإعدادات لإخفاء الموقع مؤقتاً عن الزبائن أثناء التجهيز، دون أن تتأثر لوحة التحكم.</p>
+  </div>
+  <div class="run-foot"><span class="pg"></span><img src="assets/prootech-logo.png" alt=""></div>
+</section>
+
+<!-- ═════════ DASHBOARD SECTIONS ═════════ -->
+<section class="page">
+  <div class="run-head"><span>لوليز — دليل آلية التشغيل</span><img src="assets/luliz-logo.png" alt=""></div>
+  <div class="content">
+    <h2><span class="num">5</span>لوحة التحكم — الأقسام بالتفصيل</h2>
+    <p class="lead">كل قسم مرتبط بغيره: المشتريات ترفع مخزون المكونات وتخصم من الكاش، الإنتاج يحوّل المكونات لمنتجات جاهزة، والبيع يخفض الكمية المتاحة ويضيف للكاش.</p>
+
+    <div class="grid2">
+      <div class="tile"><div class="t">لوحة التحكم الرئيسية</div><p>ملخص اليوم: المبيعات، الأرباح، رصيد الكاش، تنبيهات نقص المخزون، وأداء المراكز.</p></div>
+      <div class="tile"><div class="t">المنتجات</div><p>إضافة الوجبات بالصورة والوصف والتصنيف والسعر، وربطها بالمكونات لحساب التكلفة تلقائياً، وتحديد ظهورها في منيو اليوم.</p></div>
+      <div class="tile"><div class="t">المكونات</div><p>المواد الخام ووحدة قياسها (غرام، كيلو، لتر، قطعة) ومخزونها الحالي ومتوسط تكلفتها.</p></div>
+      <div class="tile"><div class="t">المشتريات</div><p>تسجيل فاتورة الشراء: المورد، المكونات، الكميات والأسعار. يُحدَّث المخزون ومتوسط التكلفة ويُخصم المبلغ من الكاش.</p></div>
+      <div class="tile"><div class="t">الإنتاج</div><p>تسجيل دفعة إنتاج لمنتج: تُخصم مكوناته من المخزون وتُضاف الكمية الجاهزة للبيع.</p></div>
+      <div class="tile"><div class="t">المبيعات</div><p>سجل البيع حسب القناة (مباشر، مراكز، طلبات) مع التكلفة والربح والعمولة لكل عملية.</p></div>
+    </div>
+  </div>
+  <div class="run-foot"><span class="pg"></span><img src="assets/prootech-logo.png" alt=""></div>
+</section>
+
+<section class="page">
+  <div class="run-head"><span>لوليز — دليل آلية التشغيل</span><img src="assets/luliz-logo.png" alt=""></div>
+  <div class="content">
+    <h3 style="margin-top:0">لوحة التحكم — تتمة الأقسام</h3>
+    <div class="grid2">
+      <div class="tile"><div class="t">الهدر</div><p>توثيق التالف والمنتهي مع سببه، لتُحسب خسارته ضمن التقارير وصافي الربح.</p></div>
+      <div class="tile"><div class="t">مراكزنا</div><p>مراكز البيع الخارجية: التسليمات لكل مركز، المبيعات، التسويات، نسبة العمولة، وحساب دخول لبوابة المركز.</p></div>
+      <div class="tile"><div class="t">الطلبات</div><p>طلبات موقع الزبائن. تُحدَّث حالتها: جديد ← مؤكد ← قيد التحضير ← جاهز ← تم التسليم. عند «تم التسليم» يُضاف المبلغ للكاش ويُخصم من الكمية.</p></div>
+      <div class="tile"><div class="t">العروض</div><p>خصومات بنسبة أو بمبلغ ثابت على منتج خلال فترة محددة — تُطبَّق تلقائياً على الموقع والطلبات.</p></div>
+      <div class="tile"><div class="t">الكاش</div><p>رصيد الصندوق لحظياً، كل الحركات الداخلة والخارجة، وتسجيل المصاريف اليدوية (إيجار، كهرباء، …).</p></div>
+      <div class="tile"><div class="t">التقارير</div><p>يومي، شهري، الأرباح والخسائر، أداء المنتجات، المراكز، والهدر — لأي فترة زمنية.</p></div>
+      <div class="tile"><div class="t">الجرد اليومي</div><p>إقفال نهاية اليوم: مطابقة الكاش الفعلي مع المتوقع وتوثيق الفروقات.</p></div>
+      <div class="tile"><div class="t">الحضور والبصمة</div><p>سجلات دخول وخروج الموظفين وساعات العمل، مع مزامنة تلقائية من جهاز البصمة.</p></div>
+      <div class="tile"><div class="t">الموظفين والرواتب</div><p>بيانات الموظفين، السلف، واحتساب الرواتب الشهرية وصرفها من الكاش. <span class="chip">للمدير فقط</span></p></div>
+      <div class="tile"><div class="t">آراء العملاء</div><p>إضافة آراء الزبائن وترتيبها وإخفاء أو إظهار أي رأي على الموقع.</p></div>
+    </div>
+    <h3 style="margin-top:7mm">الإعدادات <span class="chip">للمدير فقط</span></h3>
+    <ul>
+      <li><b>الحساب:</b> معلومات المدير وتغيير كلمة السر.</li>
+      <li><b>إعدادات الموقع:</b> صورة الواجهة، رقم واتساب الطلبات، رابط إنستغرام، وتفعيل/إيقاف وضع «قريباً».</li>
+      <li><b>الطابعة:</b> عنوان IP لطابعة الكاشير الحرارية واختبار الاتصال بها.</li>
+      <li><b>نسب صافي الربح:</b> الشركاء ونسبهم والتسوية الشهرية (القسم 7).</li>
+    </ul>
+
+      </div>
+  <div class="run-foot"><span class="pg"></span><img src="assets/prootech-logo.png" alt=""></div>
+</section>
+
+<section class="page">
+  <div class="run-head"><span>لوليز — دليل آلية التشغيل</span><img src="assets/luliz-logo.png" alt=""></div>
+  <div class="content">
+    <h2><span class="num">6</span>حساب الكاشير: البيع وإدخال المشتريات</h2>
+    <p class="lead">حساب الكاشير مخصص لعمل الصندوق فقط: <b>يبيع</b> و<b>يدخل المشتريات</b>. لا يرى الكاش ولا التقارير ولا الأرباح ولا بيانات الموظفين.</p>
+
+    <h3>إنشاء حساب كاشير</h3>
+    <ol class="steps">
+      <li>من حساب المدير: <b>المستخدمين ← مستخدم جديد</b>.</li>
+      <li>أدخل الاسم والبريد وكلمة السر، واختر الدور <span class="chip">كاشير</span>.</li>
+      <li>سلّم البيانات للكاشير. عند دخوله تفتح له مباشرة شاشة <b>طلب داخلي</b>، وفي قائمته: طلب داخلي، شاشة المطبخ، المشتريات فقط.</li>
+    </ol>
+
+    <h3>البيع من نقطة البيع (طلب داخلي)</h3>
+    <ol class="steps">
+      <li>اختر الأصناف بالضغط عليها وعدّل الكميات، وأضف خصماً إن وُجد.</li>
+      <li>أكّد الطلب: يُسجَّل البيع، يُضاف المبلغ للكاش، ويظهر الطلب على <b>شاشة المطبخ</b>.</li>
+      <li>تُطبع الفاتورة تلقائياً إذا كانت الطابعة مفعّلة من الإعدادات.</li>
+      <li>إلغاء طلب بالخطأ يعكس أثره المالي تلقائياً.</li>
+    </ol>
+
+    <h3>إدخال المشتريات</h3>
+    <ol class="steps">
+      <li>من القائمة: <b>المشتريات ← عملية شراء جديدة</b>.</li>
+      <li>اكتب اسم المورد، ثم أضف كل مكوّن مع الكمية وسعر الشراء.</li>
+      <li>احفظ: يرتفع مخزون المكونات ويتحدّث متوسط التكلفة ويُخصم المبلغ من الكاش.</li>
+    </ol>
+    <div class="note">إذا احتاج الكاشير مكوّناً غير موجود بالقائمة، يطلب من المدير أو المشرف إضافته من قسم <b>المكونات</b> — الكاشير يقرأ القائمة فقط ولا يعدّلها.</div>
+  </div>
+  <div class="run-foot"><span class="pg"></span><img src="assets/prootech-logo.png" alt=""></div>
+</section>
+
+<!-- ═════════ PROFIT SHARES + DAILY CYCLE ═════════ -->
+<section class="page">
+  <div class="run-head"><span>لوليز — دليل آلية التشغيل</span><img src="assets/luliz-logo.png" alt=""></div>
+  <div class="content">
+    <h2><span class="num">7</span>نسب صافي الربح والتسوية الشهرية</h2>
+    <p class="lead">قسم خاص بالمدير داخل <b>الإعدادات</b>، لتحديد حصة كل شريك من صافي الربح وحساب المستحق له شهرياً بشكل تلقائي وشفاف.</p>
+
+    <h3>كيف يُحسب صافي الربح؟</h3>
+    <div class="card" style="text-align:center;font-weight:900;font-size:13pt">
+      صافي الربح = الإيرادات − تكلفة المنتجات المباعة − الهدر − المصاريف
+    </div>
+    <p style="font-size:10.5pt">وهو نفس الرقم الظاهر في <b>التقارير ← الأرباح والخسائر</b> لنفس الشهر، فلا يوجد أي اختلاف بين التقرير والتسوية. الإيرادات تشمل المبيعات وطلبات نقطة البيع، وتكلفة المشتريات محسوبة ضمن تكلفة المنتجات عبر المكونات.</p>
+
+    <h3>ضبط النسب</h3>
+    <ol class="steps">
+      <li><b>الإعدادات ← نسب صافي الربح والتسوية الشهرية ← إضافة شريك</b>.</li>
+      <li>اكتب اسم الشريك/الجهة ونسبته المئوية. مجموع النسب لا يمكن أن يتجاوز <b>100%</b>.</li>
+      <li>اضغط <b>حفظ النسب</b>.</li>
+    </ol>
+
+    <h3>التسوية الشهرية</h3>
+    <ol class="steps">
+      <li>اختر الشهر والسنة: يظهر تفصيل الإيرادات والتكاليف وصافي الربح.</li>
+      <li>تحتها حصة كل شريك بالليرة، وأي نسبة غير موزّعة تبقى ظاهرة كـ «غير موزّع».</li>
+      <li>اضغط <b>طباعة</b> لحفظ نسخة التسوية أو مشاركتها.</li>
+    </ol>
+    <div class="note">إذا كان الشهر خاسراً يظهر صافي الربح بالأحمر ولا تُوزَّع أي حصص. للحصول على أرقام دقيقة: سجّل كل المشتريات والمصاريف والهدر أولاً بأول، وقم بالإقفال اليومي قبل حساب تسوية الشهر.</div>
+
+      </div>
+  <div class="run-foot"><span class="pg"></span><img src="assets/prootech-logo.png" alt=""></div>
+</section>
+
+<section class="page">
+  <div class="run-head"><span>لوليز — دليل آلية التشغيل</span><img src="assets/luliz-logo.png" alt=""></div>
+  <div class="content">
+    <h2><span class="num">8</span>الدورة اليومية المقترحة للتشغيل</h2>
+    <table>
+      <tr><th style="width:24%">الوقت</th><th>ماذا يُعمل؟</th><th style="width:22%">من؟</th></tr>
+      <tr><td><b>بداية اليوم</b></td><td>تسجيل المشتريات الواردة · تحديث الكميات المتاحة وإظهار أصناف منيو اليوم</td><td>الكاشير / المشرف</td></tr>
+      <tr><td><b>التحضير</b></td><td>تسجيل دفعات الإنتاج لكل منتج جاهز</td><td>المشرف</td></tr>
+      <tr><td><b>خلال اليوم</b></td><td>البيع من نقطة البيع · متابعة طلبات الموقع وتحديث حالتها · تسليم المراكز</td><td>الكاشير / المشرف</td></tr>
+      <tr><td><b>نهاية اليوم</b></td><td>تسجيل الهدر والمصاريف · الجرد اليومي ومطابقة الكاش</td><td>المشرف / المدير</td></tr>
+      <tr><td><b>نهاية الشهر</b></td><td>تسويات المراكز · الرواتب · مراجعة تقرير الأرباح · التسوية الشهرية للشركاء</td><td>المدير</td></tr>
+    </table>
+    <h2 style="margin-top:7mm"><span class="num">9</span>العمل بدون إنترنت وتثبيت التطبيق</h2>
+    <div class="grid2">
+      <div class="tile"><div class="t">📱 تثبيت الموقع كتطبيق</div><p>على أندرويد/كروم يظهر زر <b>«ثبّت التطبيق»</b>. على آيفون: من سفاري ← زر المشاركة ← «إضافة إلى الشاشة الرئيسية». يفتح بعدها كتطبيق مستقل بشريط تنقّل سفلي.</p></div>
+      <div class="tile"><div class="t">🧾 تثبيت لوحة التحكم</div><p>افتح لوحة التحكم من المتصفح وثبّتها بنفس الطريقة، لتفتح مباشرة على جهاز الكاشير أو التابلت.</p></div>
+      <div class="tile"><div class="t">📶 انقطاع الإنترنت</div><p>تبقى لوحة التحكم تعمل وتعرض آخر بيانات محمّلة. العمليات المُدخلة أثناء الانقطاع تُحفظ على الجهاز ويظهر عددها أعلى الشاشة («غير متصل · X محفوظة»).</p></div>
+      <div class="tile"><div class="t">🔄 عودة الاتصال</div><p>تُرسل العمليات المحفوظة تلقائياً للخادم. لا تُغلق المتصفح أو تمسح بياناته قبل أن يختفي عدّاد العمليات المحفوظة.</p></div>
+    </div>
+
+      </div>
+  <div class="run-foot"><span class="pg"></span><img src="assets/prootech-logo.png" alt=""></div>
+</section>
+
+<section class="page">
+  <div class="run-head"><span>لوليز — دليل آلية التشغيل</span><img src="assets/luliz-logo.png" alt=""></div>
+  <div class="content">
+    <h2><span class="num">10</span>الأمان والنصائح</h2>
+    <ul>
+      <li>غيّر كلمات السر المبدئية لكل الحسابات فوراً، واستخدم كلمة سر مختلفة لكل موظف.</li>
+      <li>أعطِ كل شخص <b>أقل دور يحتاجه</b>: الكاشير للصندوق، المشرف للتشغيل، والمدير فقط لمن يدير الأموال والموظفين.</li>
+      <li>عند ترك موظف للعمل: عطّل حسابه من <b>المستخدمين</b> مباشرة.</li>
+      <li>سجّل المشتريات والمصاريف والهدر في نفس اليوم — دقة صافي الربح والتسوية تعتمد عليها.</li>
+      <li>راجع تنبيهات نقص المخزون في الصفحة الرئيسية للوحة التحكم يومياً.</li>
+      <li>قاعدة البيانات مستضافة سحابياً مع نسخ احتياطي، والصور محفوظة على خدمة سحابية مستقلة.</li>
+    </ul>
+  </div>
+  <div class="run-foot"><span class="pg"></span><img src="assets/prootech-logo.png" alt=""></div>
+</section>
+
+<!-- ═════════ BACK COVER ═════════ -->
+<section class="page end" style="display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center">
+  <div class="orbit" style="width:160mm;height:160mm;right:-70mm;top:-60mm;border-color:rgba(255,255,255,.08)"></div>
+  <img src="assets/prootech-logo.png" alt="Prootech Agency" style="width:120mm;filter:invert(1);margin-bottom:12mm">
+  <h2 style="justify-content:center;font-size:30pt">الدعم الفني</h2>
+  <p style="max-width:140mm;font-size:12.5pt">تم تصميم وتطوير منصة لوليز بالكامل من قبل <b style="color:#fff">Prootech Agency</b>. لأي استفسار، تطوير إضافي، أو مشكلة تقنية، تواصلوا معنا:</p>
+  <div class="card" style="margin-top:6mm;min-width:120mm">
+    <div style="font-size:14pt;font-weight:900;color:#fff" class="url" dir="ltr">prootech-agency.com</div>
+  </div>
+  <p style="margin-top:14mm;font-size:10pt;opacity:.7">© 2026 لوليز — جميع الحقوق محفوظة · صمم وطور من قبل Prootech Agency</p>
+</section>
+
+</body>
+</html>
