@@ -3,12 +3,17 @@
 const CustomerOrder = require('../models/CustomerOrder');
 const Product       = require('../models/Product');
 const Offer         = require('../models/Offer');
+const SalesCenter   = require('../models/SalesCenter');
 const cacheService  = require('../services/cacheService');
 const cashService   = require('../services/cashService');
+const financeService = require('../services/financeService');
 
 exports.getAll = async (req, res) => {
   const filter = {};
   if (req.query.status) filter.status = req.query.status;
+  if (req.query.center && req.query.center !== 'all') {
+    filter.centerId = req.query.center === 'hq' ? null : req.query.center;
+  }
   if (req.query.startDate || req.query.endDate) {
     filter.createdAt = {};
     if (req.query.startDate) filter.createdAt.$gte = new Date(req.query.startDate);
@@ -36,16 +41,20 @@ exports.getAll = async (req, res) => {
 };
 
 exports.create = async (req, res) => {
-  const { productId, quantity, customerName, customerPhone, deliveryLocation, notes, channel } = req.body;
+  const {
+    productId, quantity, customerName, customerPhone,
+    deliveryLocation, deliveryMethod, notes, centerId,
+  } = req.body;
 
   if (!productId || !quantity || !customerName || !customerPhone) {
     return res.status(400).json({ success: false, message: 'productId, quantity, customerName, customerPhone مطلوبة.' });
   }
 
   const product = await Product.findById(productId);
-  if (!product) {
-    return res.status(404).json({ success: false, message: 'المنتج غير موجود.' });
-  }
+  if (!product) return res.status(404).json({ success: false, message: 'المنتج غير موجود.' });
+
+  let center = null;
+  if (centerId) center = await SalesCenter.findById(centerId);
 
   const now = new Date();
   const activeOffer = await Offer.findOne({
@@ -55,41 +64,62 @@ exports.create = async (req, res) => {
     endDate: { $gte: now },
   });
 
-  let unitPrice = product.directPrice;
+  const qty = Number(quantity);
+  const unitPrice = Number(product.directPrice) || 0;
   let discountAmount = 0;
-
   if (activeOffer) {
     if (activeOffer.discountType === 'percentage') {
-      discountAmount = unitPrice * (activeOffer.discountValue / 100) * Number(quantity);
+      discountAmount = unitPrice * (activeOffer.discountValue / 100) * qty;
     } else {
-      discountAmount = activeOffer.discountValue * Number(quantity);
+      discountAmount = activeOffer.discountValue * qty;
     }
   }
 
-  const totalAmount = unitPrice * Number(quantity) - discountAmount;
+  const restaurantAmount = Math.max(unitPrice * qty - discountAmount, 0);
+  const taxQuote = await financeService.quote(restaurantAmount, center?._id || null);
+  const unitCost = Number(product.calculatedCost) || 0;
+  const totalCost = unitCost * qty;
 
   const order = await CustomerOrder.create({
     productId,
     productNameSnapshot: product.name,
-    quantity: Number(quantity),
+    quantity: qty,
     unitPrice,
+    unitCost,
+    totalCost,
+    profit: taxQuote.baseAmount - totalCost,
     discountAmount,
-    totalAmount,
+    netAmount: taxQuote.baseAmount,
+    invoiceTaxPercent: taxQuote.invoiceTaxPercent,
+    invoiceTaxAmount: taxQuote.invoiceTaxAmount,
+    totalPrice: taxQuote.customerTotal,
+    totalAmount: taxQuote.customerTotal,
     customerName,
     phone: customerPhone,
     location: deliveryLocation,
+    deliveryMethod: deliveryMethod || 'delivery',
     notes,
     status: 'new',
+    centerId: center ? center._id : null,
+    centerNameSnapshot: center ? center.name : '',
   });
 
-  res.status(201).json({ success: true, message: 'تم استلام الطلب بنجاح.', order });
+  res.status(201).json({
+    success: true,
+    message: 'تم استلام الطلب بنجاح.',
+    order,
+    finance: {
+      restaurantAmount: taxQuote.baseAmount,
+      invoiceTaxPercent: taxQuote.invoiceTaxPercent,
+      invoiceTaxAmount: taxQuote.invoiceTaxAmount,
+      customerTotal: taxQuote.customerTotal,
+    },
+  });
 };
 
 exports.updateStatus = async (req, res) => {
   const order = await CustomerOrder.findById(req.params.id);
-  if (!order) {
-    return res.status(404).json({ success: false, message: 'الطلب غير موجود.' });
-  }
+  if (!order) return res.status(404).json({ success: false, message: 'الطلب غير موجود.' });
 
   const { status } = req.body;
   const allowed = ['new', 'confirmed', 'preparing', 'ready', 'delivered', 'cancelled'];
@@ -97,57 +127,65 @@ exports.updateStatus = async (req, res) => {
     return res.status(400).json({ success: false, message: 'حالة غير صالحة.' });
   }
 
-  const prevStatus = order.status;
-  order.status = status;
+  if (status === 'delivered' && !order.stockApplied) {
+    await Product.findByIdAndUpdate(order.productId, { $inc: { availableQuantity: -order.quantity } });
+    order.stockApplied = true;
+  }
 
-  if (status === 'delivered' && prevStatus !== 'delivered') {
-    // 1. Add income to cash
+  if (status === 'delivered' && !order.cashPosted) {
     await cashService.createTransaction(
       'sale_income',
-      order.totalAmount,
+      order.totalPrice || order.totalAmount,
       'in',
       `طلب واتساب: ${order.productNameSnapshot} × ${order.quantity} — ${order.customerName}`,
       'CustomerOrder',
-      order._id
+      order._id,
+      order.centerId
     );
-    // 2. Deduct from product available quantity
-    await Product.findByIdAndUpdate(order.productId, {
-      $inc: { availableQuantity: -order.quantity },
-    });
+    order.cashPosted = true;
   }
 
-  // If cancelled after being delivered — reverse deduction
-  if (status === 'cancelled' && prevStatus === 'delivered') {
-    await Product.findByIdAndUpdate(order.productId, {
-      $inc: { availableQuantity: order.quantity },
-    });
+  if (status === 'cancelled' && order.stockApplied) {
+    await Product.findByIdAndUpdate(order.productId, { $inc: { availableQuantity: order.quantity } });
+    order.stockApplied = false;
   }
 
+  if (status === 'cancelled' && order.cashPosted) {
+    await cashService.createTransaction(
+      'adjustment',
+      order.totalPrice || order.totalAmount,
+      'out',
+      `عكس طلب واتساب: ${order.productNameSnapshot} × ${order.quantity} — ${order.customerName}`,
+      'CustomerOrder',
+      order._id,
+      order.centerId
+    );
+    order.cashPosted = false;
+    order.reversedAt = new Date();
+  }
+
+  order.status = status;
   await order.save();
   cacheService.invalidate('products:');
   res.json({ success: true, message: 'تم تحديث حالة الطلب.', order });
 };
 
-/**
- * DELETE /api/orders/:id — admin only.
- * A delivered order already moved stock and cash, so both are undone first
- * (stock returned, income reversed with a journal entry) before removal.
- */
 exports.remove = async (req, res) => {
   const order = await CustomerOrder.findById(req.params.id);
-  if (!order) {
-    return res.status(404).json({ success: false, message: 'الطلب غير موجود.' });
-  }
+  if (!order) return res.status(404).json({ success: false, message: 'الطلب غير موجود.' });
 
-  if (order.status === 'delivered') {
+  if (order.stockApplied || order.status === 'delivered') {
     await Product.findByIdAndUpdate(order.productId, { $inc: { availableQuantity: order.quantity } });
+  }
+  if (order.cashPosted || order.status === 'delivered') {
     await cashService.createTransaction(
       'adjustment',
-      order.totalAmount,
+      order.totalPrice || order.totalAmount,
       'out',
       `حذف طلب واتساب: ${order.productNameSnapshot} × ${order.quantity} — ${order.customerName}`,
       'CustomerOrder',
-      order._id
+      order._id,
+      order.centerId
     );
   }
 
