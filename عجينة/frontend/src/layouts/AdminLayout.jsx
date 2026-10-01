@@ -7,7 +7,7 @@ import {
   Menu, LayoutDashboard, Croissant, LayoutGrid, Wheat, ShoppingCart, CookingPot,
   Banknote, Trash2, Store, ClipboardList, Tag, Landmark, TrendingUp,
   Lock, Users, Wallet, Star, Settings, LogOut, Bell, ChefHat,
-  Fingerprint, UserCog, Receipt, WifiOff, UploadCloud, Undo2, BadgePercent,
+  Fingerprint, UserCog, Receipt, WifiOff, UploadCloud, Undo2, BadgePercent, Building2,
 } from 'lucide-react'
 
 function ConnectionStatus() {
@@ -48,6 +48,7 @@ function ConnectionStatus() {
 
 const MANAGEMENT = ['admin', 'supervisor']
 const NAV_ITEMS = [
+  { path: '/admin/americans', Icon: Building2, label: 'إدارة الأميركان', roles: ['admin', 'americans_manager'] },
   { path: '/admin/dashboard', Icon: LayoutDashboard, label: 'لوحة التحكم', roles: [...MANAGEMENT, 'viewer'] },
   { path: '/admin/pos', Icon: Receipt, label: 'طلب داخلي', roles: ['admin', 'supervisor', 'cashier'] },
   { path: '/admin/kitchen', Icon: ChefHat, label: 'شاشة المطبخ', roles: ['admin', 'supervisor', 'cashier', 'kitchen'] },
@@ -76,17 +77,18 @@ const NAV_ITEMS = [
 
 function SidebarContent({ user, onLogout, onLinkClick }) {
   const items = NAV_ITEMS.filter(i => i.roles.includes(user?.role))
+  const americans = user?.role === 'americans_manager'
 
   return (
     <div className="w-64 h-full flex flex-col" style={{ background: 'linear-gradient(180deg, #2C1206 0%, #3D1A0E 60%, #2C1206 100%)' }}>
       <div className="p-5 border-b border-white/10">
         <div className="flex items-center gap-3">
-          <div className="bg-white rounded-2xl p-1.5 shadow-lg inline-block">
-            <img src="/logo.png" alt="عجينة وطحينة" className="h-10 w-auto object-contain" draggable={false} />
+          <div className="bg-white rounded-2xl p-2 shadow-lg inline-flex items-center justify-center w-12 h-12">
+            {americans ? <Building2 size={25} style={{ color: '#8B4513' }} /> : <img src="/logo.png" alt="عجينة وطحينة" className="h-9 w-auto object-contain" draggable={false} />}
           </div>
           <div>
-            <div className="text-white font-black text-sm leading-tight">عجينة وطحينة</div>
-            <div className="text-[#D4A017] text-xs font-bold">لوحة التحكم</div>
+            <div className="text-white font-black text-sm leading-tight">{americans ? 'إدارة الأميركان' : 'عجينة وطحينة'}</div>
+            <div className="text-[#D4A017] text-xs font-bold">{americans ? 'الإدارة المالية للمحلين' : 'لوحة التحكم'}</div>
           </div>
         </div>
       </div>
@@ -95,10 +97,10 @@ function SidebarContent({ user, onLogout, onLinkClick }) {
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-full flex items-center justify-center"
             style={{ background: 'rgba(212,160,23,0.2)', border: '1.5px solid rgba(212,160,23,0.4)' }}>
-            <ChefHat size={17} style={{ color: '#D4A017' }} />
+            {americans ? <Building2 size={17} style={{ color: '#D4A017' }} /> : <ChefHat size={17} style={{ color: '#D4A017' }} />}
           </div>
           <div>
-            <div className="text-sm font-black text-white">{user?.name || 'المدير'}</div>
+            <div className="text-sm font-black text-white">{user?.name || (americans ? 'إدارة الأميركان' : 'المدير')}</div>
             <div className="text-xs" style={{ color: 'rgba(212,160,23,0.8)' }}>
               {ROLE_LABELS[user?.role] || 'مدير المطعم'}
             </div>
