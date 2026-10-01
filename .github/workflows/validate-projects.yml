@@ -55,5 +55,4 @@ jobs:
         if: matrix.project.kind == 'backend'
         working-directory: ${{ matrix.project.dir }}
         run: |
-          node --check src/server.js
-          node --check src/seed/runSeed.js
+          find src -type f -name '*.js' -print0 | xargs -0 -n1 node --check
