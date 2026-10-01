@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Building2, CalendarDays, Landmark, ReceiptText, RefreshCw, RotateCcw,
+  Building2, CalendarDays, Landmark, Receipt, RefreshCw, RotateCcw,
   ShoppingCart, TrendingUp, WalletCards, AlertTriangle, Percent, Banknote,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -72,7 +72,7 @@ function BrandBlock({ brand }) {
       </div>
 
       <div className="p-5 grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
-        <Stat title="إجمالي المقبوض من الزبائن" value={money(s.customerCollections, currency)} Icon={ReceiptText} />
+        <Stat title="إجمالي المقبوض من الزبائن" value={money(s.customerCollections, currency)} Icon={Receipt} />
         <Stat title="المرتجعات" value={money(s.refunds, currency)} subtitle={`الصافي بعد المرتجعات: ${money(s.netCollectionsAfterRefunds, currency)}`} Icon={RotateCcw} />
         <Stat title="إيراد المطعم قبل ضريبة الأرباح" value={money(s.revenueBeforeInvoiceTax, currency)} subtitle="بدون المبلغ المحصل لصالح المالية" Icon={TrendingUp} />
         <Stat title="المحصل لصالح المالية" value={money(s.invoiceTaxCollected, currency)} subtitle={`المتبقي: ${money(s.invoiceTaxDue, currency)}`} Icon={Landmark} />
@@ -177,7 +177,7 @@ export default function AmericansManagementPage() {
       ) : (
         <>
           <div className="mb-5 grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
-            <Stat title="إجمالي المحلين" value={money(totals.customerCollections)} subtitle={`${totals.ordersCount || 0} طلب`} Icon={ReceiptText} />
+            <Stat title="إجمالي المحلين" value={money(totals.customerCollections)} subtitle={`${totals.ordersCount || 0} طلب`} Icon={Receipt} />
             <Stat title="حصة إدارة الأميركان" value={money(totals.investorShare)} subtitle="من المحلين ضمن الفترة" Icon={Percent} />
             <Stat title="إجمالي المستحق للمالية" value={money((totals.invoiceTaxDue || 0) + (totals.profitTaxDue || 0))} Icon={Landmark} />
             <Stat strong title="صافي الربح التقديري للمحلين" value={money(totals.estimatedNetProfitAfterTax)} Icon={TrendingUp} />
