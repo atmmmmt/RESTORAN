@@ -6,6 +6,7 @@ const InternalOrder = require('../models/InternalOrder');
 const ReturnRecord = require('../models/ReturnRecord');
 const InvestorSettings = require('../models/InvestorSettings');
 const businessDay = require('./businessDay');
+const financeService = require('./financeService');
 
 const toCenterId = centerId => (centerId && mongoose.isValidObjectId(centerId) ? String(centerId) : null);
 
@@ -17,6 +18,13 @@ const rateOf = (order, settings) => {
 };
 const cut = (amount, pct) => Math.round((Number(amount) || 0) * (Number(pct) || 0) / 100);
 
+/** Convert a gross refund back to restaurant revenue before invoice tax. */
+const refundNet = (gross, invoiceTaxPercent = 0) => {
+  const pct = Math.max(Number(invoiceTaxPercent) || 0, 0);
+  const divisor = 1 + pct / 100;
+  return financeService.money((Number(gross) || 0) / divisor);
+};
+
 async function getOpen(centerId) {
   return CashierShift.findOne({ centerId: toCenterId(centerId), status: 'open' });
 }
@@ -26,10 +34,6 @@ async function nextNumber(centerId) {
   return (last?.number || 0) + 1;
 }
 
-/**
- * Open a shift for this branch. Refuses when one is already running — two
- * drawers on one till is exactly the muddle shifts exist to prevent.
- */
 async function open(centerId, user, openingCash = 0) {
   const existing = await getOpen(centerId);
   if (existing) {
@@ -48,7 +52,6 @@ async function open(centerId, user, openingCash = 0) {
       openingCash: Math.max(Number(openingCash) || 0, 0),
     });
   } catch (err) {
-    // Two tills opening at the same instant: the index lets one through.
     if (err.code === 11000) {
       const clash = new Error('يوجد وردية مفتوحة بالفعل — أغلقها أولاً');
       clash.statusCode = 409;
@@ -58,11 +61,6 @@ async function open(centerId, user, openingCash = 0) {
   }
 }
 
-/**
- * The shift the next sale belongs to. A sale is never refused for want of a
- * shift: if the cashier forgot to open one, it opens itself with an empty
- * drawer and the count at close sorts out the rest.
- */
 async function ensureOpen(centerId, user) {
   const current = await getOpen(centerId);
   if (current) return current;
@@ -74,8 +72,6 @@ async function ensureOpen(centerId, user) {
   }
 }
 
-/** Live figures for a shift, worked out from its own orders and the refunds
-    paid out of the drawer while it was open. */
 async function summarize(shift) {
   const [orders, settings] = await Promise.all([
     InternalOrder.find({ shiftId: shift._id }),
@@ -92,27 +88,35 @@ async function summarize(shift) {
 
   const byTypeMap = new Map();
   for (const o of active) {
-    const line = byTypeMap.get(o.orderType) || { orderType: o.orderType, count: 0, total: 0 };
+    const line = byTypeMap.get(o.orderType) || { orderType: o.orderType, count: 0, total: 0, restaurantRevenue: 0, invoiceTax: 0 };
     line.count += 1;
-    line.total += o.total || 0;
+    line.total += Number(o.total || 0);
+    line.restaurantRevenue += financeService.revenueOf(o, 'total');
+    line.invoiceTax += financeService.invoiceTaxOf(o);
     byTypeMap.set(o.orderType, line);
   }
 
-  /* Refunds come off the partner's cut at the rate their order was sold at. */
+  /* Refunds reduce the partner's share on the PRE-TAX restaurant amount.
+     The Ministry levy is never part of the partner's revenue base. */
   const refundOrderIds = [...new Set(returns.map(r => String(r.orderId)))];
   const refundOrders = refundOrderIds.length
-    ? await InternalOrder.find({ _id: { $in: refundOrderIds } }).select('orderType investorPercent')
+    ? await InternalOrder.find({ _id: { $in: refundOrderIds } }).select('orderType investorPercent invoiceTaxPercent')
     : [];
-  const refundRate = new Map(refundOrders.map(o => [String(o._id), rateOf(o, settings)]));
+  const refundOrderById = new Map(refundOrders.map(o => [String(o._id), o]));
 
   const sales = sum(active, o => o.total);
+  const restaurantRevenue = sum(active, o => financeService.revenueOf(o, 'total'));
+  const invoiceTaxCollected = sum(active, o => financeService.invoiceTaxOf(o));
   const cashSales = sum(active.filter(o => o.paymentMethod === 'cash'), o => o.total);
   const cashRefunds = sum(returns.filter(r => r.refundMethod === 'cash'), r => r.refundAmount);
   const cardRefunds = sum(returns.filter(r => r.refundMethod === 'card'), r => r.refundAmount);
   const refunded = sum(returns, r => r.refundAmount);
 
-  const investorShare = sum(active, o => cut(o.total, rateOf(o, settings)))
-    - sum(returns, r => cut(r.refundAmount, refundRate.get(String(r.orderId)) || 0));
+  const investorShare = sum(active, o => cut(financeService.revenueOf(o, 'total'), rateOf(o, settings)))
+    - sum(returns, r => {
+      const source = refundOrderById.get(String(r.orderId));
+      return cut(refundNet(r.refundAmount, source?.invoiceTaxPercent), source ? rateOf(source, settings) : 0);
+    });
 
   return {
     summary: {
@@ -121,6 +125,8 @@ async function summarize(shift) {
       subtotal: sum(active, o => o.subtotal),
       discounts: sum(active, o => o.discount),
       sales,
+      restaurantRevenue,
+      invoiceTaxCollected,
       cashSales,
       cardSales: sum(active.filter(o => o.paymentMethod === 'card'), o => o.total),
       unpaidSales: sum(active.filter(o => o.paymentMethod === 'unpaid'), o => o.total),
@@ -129,14 +135,20 @@ async function summarize(shift) {
       cardRefunds,
       netSales: sales - refunded,
       investorShare,
-      byType: [...byTypeMap.values()],
+      byType: [...byTypeMap.values()].map(line => ({
+        ...line,
+        total: financeService.money(line.total),
+        restaurantRevenue: financeService.money(line.restaurantRevenue),
+        invoiceTax: financeService.money(line.invoiceTax),
+      })),
     },
+    /* Drawer expectation remains GROSS: tax money is physically collected
+       from the customer and stays in cash until remitted to Finance. */
     expectedCash: (shift.openingCash || 0) + cashSales - cashRefunds,
     investor: settings.present(),
   };
 }
 
-/** Count the drawer, freeze the figures, and leave the till at zero. */
 async function close(centerId, user, { countedCash, notes = '' } = {}) {
   const shift = await getOpen(centerId);
   if (!shift) {
