@@ -6,18 +6,15 @@ const mongoose = require('mongoose');
 const User = require('../models/User');
 const SalesCenter = require('../models/SalesCenter');
 
-/* Managing dashboard accounts is strictly an admin job. */
 router.use(protect, requireAdmin);
 
-const ROLES = ['admin', 'supervisor', 'cashier', 'kitchen', 'viewer'];
+const ROLES = ['admin', 'supervisor', 'cashier', 'kitchen', 'viewer', 'americans_manager'];
 
-/* ── GET /api/users ── */
 router.get('/', async (req, res) => {
   const users = await User.find().select('-passwordHash').populate('centerId', 'name type isActive').sort({ createdAt: -1 });
   res.json({ success: true, users });
 });
 
-/* ── POST /api/users ── */
 router.post('/', async (req, res) => {
   const { name, email, phone, password, role, centerId } = req.body;
 
@@ -44,13 +41,12 @@ router.post('/', async (req, res) => {
     name, email, phone, role: assignedRole,
     centerId: ['cashier', 'kitchen'].includes(assignedRole) && centerId ? centerId : null,
   });
-  user.password = password;          // virtual setter → hashed on save
+  user.password = password;
   await user.save();
 
   res.status(201).json({ success: true, user, message: 'تم إنشاء الحساب بنجاح' });
 });
 
-/* ── PUT /api/users/:id ── */
 router.put('/:id', async (req, res) => {
   const { name, email, phone, role, isActive, password, centerId } = req.body;
 
@@ -64,8 +60,6 @@ router.put('/:id', async (req, res) => {
     return res.status(400).json({ success: false, message: 'الفرع المحدد غير موجود' });
   }
 
-  // Never let the last active admin lose admin rights or be disabled —
-  // that would lock everyone out of the dashboard permanently.
   const losingAdmin = user.role === 'admin' && ((role && role !== 'admin') || isActive === false);
   if (losingAdmin) {
     const otherAdmins = await User.countDocuments({
@@ -101,7 +95,6 @@ router.put('/:id', async (req, res) => {
   res.json({ success: true, user, message: 'تم تحديث الحساب' });
 });
 
-/* ── DELETE /api/users/:id ── */
 router.delete('/:id', async (req, res) => {
   if (String(req.params.id) === String(req.user._id)) {
     return res.status(400).json({ success: false, message: 'لا يمكنك حذف حسابك الخاص' });
