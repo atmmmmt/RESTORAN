@@ -16,6 +16,7 @@ const cashRoutes = require('./cashRoutes');
 const reportRoutes = require('./reportRoutes');
 const closingRoutes = require('./closingRoutes');
 const settingsRoutes     = require('./settingsRoutes');
+const financeRoutes      = require('./financeRoutes');
 const shiftRoutes        = require('./shiftRoutes');
 const siteSettingsRoutes = require('./siteSettingsRoutes');
 const uploadRoutes       = require('./uploadRoutes');
@@ -51,6 +52,7 @@ module.exports = function mountRoutes(app) {
   app.use('/api/reports', reportRoutes);
   app.use('/api/daily-closing', closingRoutes);
   app.use('/api/settings',      settingsRoutes);
+  app.use('/api/finance',       financeRoutes);
   app.use('/api/site-settings', siteSettingsRoutes);
   app.use('/api/upload',        uploadRoutes);
   app.use('/api/nutrition',     nutritionRoutes);
