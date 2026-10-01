@@ -1,177 +1,126 @@
-# 🍳 Luliz — نظام إدارة المطبخ
+# Luliz — نظام الإدارة والتشغيل
 
-منصة متكاملة لإدارة مطبخ لوليز المنزلي. تشمل موقع الزبائن ولوحة تحكم مدير المطبخ والـ API الخلفي.
+مشروع مطعم لوليز ويضم موقع الزبائن، لوحة الإدارة، المطبخ، نقطة البيع، المخزون، المشتريات، الإنتاج، المبيعات، الهدر، المراكز، التقارير والـ API الخلفي.
 
----
+## هيكل المشروع
 
-## 🗂 هيكل المشروع
-
+```text
+لولي/
+├── backend/      Node.js + Express + MongoDB
+├── frontend/     React + Vite + Tailwind CSS
+├── handover/     ملفات التسليم
+├── print-agent/  وكيل الطباعة
+├── admin.html    نموذج HTML قديم/مرجعي
+└── customer.html نموذج HTML قديم/مرجعي
 ```
-loliz project/
-├── backend/          ← Node.js + Express + MongoDB
-├── frontend/         ← React + Vite + Tailwind CSS
-├── customer.html     ← نموذج HTML أولي للزبائن
-└── admin.html        ← نموذج HTML أولي للإدارة
-```
 
----
+## التشغيل المحلي
 
-## 🚀 تشغيل المشروع
-
-### 1. إعداد قاعدة البيانات
-
-تأكد من تشغيل MongoDB محلياً على المنفذ `27017`.
-
----
-
-### 2. Backend
+### Backend
 
 ```bash
 cd backend
 npm install
-```
-
-انسخ ملف البيئة:
-```bash
 cp .env.example .env
-```
-
-عدّل `.env`:
-```
-PORT=5000
-MONGODB_URI=mongodb://localhost:27017/luliz
-JWT_SECRET=luliz-secret-key-2025-change-me
-JWT_EXPIRES_IN=7d
-NODE_ENV=development
-FRONTEND_URL=http://localhost:5174
-```
-
-أضف بيانات تجريبية:
-```bash
-npm run seed
-```
-
-شغّل الخادم:
-```bash
 npm run dev
 ```
 
-الخادم يعمل على: `http://localhost:5000`
+الإعدادات الأساسية:
 
----
+```env
+PORT=3002
+MONGODB_URI=mongodb://localhost:27017/luliz
+JWT_SECRET=ضع-قيمة-طويلة-وعشوائية
+JWT_EXPIRES_IN=7d
+NODE_ENV=development
+TZ=Asia/Damascus
+FRONTEND_URL=http://localhost:5173
+DEFAULT_TENANT=luliz
+TENANT_HOSTS=loliz-taste.com=luliz,www.loliz-taste.com=luliz
+ALLOW_DESTRUCTIVE_SEED=false
+SEED_TENANT=luliz
+```
 
-### 3. Frontend
+Health check:
+
+```text
+http://localhost:3002/health
+http://localhost:3002/api/health
+```
+
+### Frontend
 
 ```bash
 cd frontend
 npm install
-```
-
-انسخ ملف البيئة:
-```bash
 cp .env.example .env
-```
-
-عدّل `.env`:
-```
-VITE_API_URL=http://localhost:5000/api
-VITE_WA_NUMBER=963XXXXXXXXX
-```
-
-شغّل التطبيق:
-```bash
 npm run dev
 ```
 
-التطبيق يعمل على: `http://localhost:5174`
+الإعدادات الأساسية:
 
----
-
-## 🔐 بيانات الدخول (بعد التهيئة)
-
-| الحقل | القيمة |
-|---|---|
-| البريد | `admin@luliz.com` |
-| كلمة السر | `123456` |
-
----
-
-## 🌐 الصفحات والروابط
-
-### الموقع (الزبائن)
-| الصفحة | الرابط |
-|---|---|
-| الرئيسية | `http://localhost:5174/` |
-| المنيو | `http://localhost:5174/menu` |
-| العروض | `http://localhost:5174/offers` |
-| من نحن | `http://localhost:5174/about` |
-| الطلب | `http://localhost:5174/order` |
-
-### لوحة التحكم
-| الصفحة | الرابط |
-|---|---|
-| تسجيل الدخول | `http://localhost:5174/admin/login` |
-| الإحصاءات | `http://localhost:5174/admin/dashboard` |
-| المنتجات | `http://localhost:5174/admin/products` |
-| المكونات | `http://localhost:5174/admin/ingredients` |
-| المشتريات | `http://localhost:5174/admin/purchases` |
-| الإنتاج | `http://localhost:5174/admin/production` |
-| المبيعات | `http://localhost:5174/admin/sales` |
-| الهدر | `http://localhost:5174/admin/waste` |
-| مراكز البيع | `http://localhost:5174/admin/centers` |
-| الطلبات | `http://localhost:5174/admin/orders` |
-| العروض | `http://localhost:5174/admin/offers` |
-| الكاش | `http://localhost:5174/admin/cash` |
-| التقارير | `http://localhost:5174/admin/reports` |
-| الجرد اليومي | `http://localhost:5174/admin/daily-closing` |
-| الإعدادات | `http://localhost:5174/admin/settings` |
-
----
-
-## 🎨 هوية العلامة التجارية
-
-| اللون | الكود |
-|---|---|
-| الفوشيا (الرئيسي) | `#D72B6A` |
-| الأصفر الذهبي | `#F6B91A` |
-| الأخضر النعناعي | `#78C8A6` |
-| الوردي الناعم | `#F7A7C4` |
-| النص الداكن | `#3A2630` |
-| الخلفية | `#FFF7F4` |
-
----
-
-## 📡 API المرجعية
-
-```
-Base URL: http://localhost:5000/api
-
-Auth:           POST /auth/login, GET /auth/me
-Products:       GET /products/public, GET|POST /products, PUT|DELETE /products/:id
-Ingredients:    CRUD /ingredients
-Purchases:      GET|POST /purchases
-Production:     GET|POST /production-batches
-Sales:          GET|POST /sales, GET /sales/:id
-Centers:        CRUD /centers, GET /centers/:id/summary
-Deliveries:     GET|POST /center-deliveries
-Settlements:    GET|POST /center-settlements
-Waste:          GET|POST /waste, GET /waste/summary
-Offers:         GET /offers/public, CRUD /offers
-Orders:         GET|POST /orders, PUT /orders/:id/status
-Cash:           GET /cash/balance, GET /cash/transactions, POST /cash/manual-income|expense|adjustment
-Reports:        GET /reports/dashboard|daily|monthly|products|centers|waste|profit-loss
-Daily Closing:  GET|POST /daily-closing
-Settings:       GET|PUT /settings, PUT /settings/password
+```env
+VITE_API_URL=http://localhost:3002/api
+VITE_WA_NUMBER=963XXXXXXXXX
+VITE_TENANT=luliz
 ```
 
----
+واجهة Vite تعمل افتراضياً على:
 
-## ⚙️ التقنيات المستخدمة
+```text
+http://localhost:5173
+```
 
-**Backend:** Node.js · Express.js · MongoDB · Mongoose · JWT · bcryptjs
+## عزل بيانات Luliz
 
-**Frontend:** React 18 · Vite 5 · Tailwind CSS 3 · Framer Motion · React Router v6 · Axios · Recharts
+الـ backend يحتوي طبقة tenant scoping لحماية بيانات العلامات. هذا المجلد مضبوط بحيث تكون العلامة الافتراضية هي:
 
----
+```text
+luliz
+```
 
-*صُنع بحب لـ Luliz Kitchen ♡ — 2025*
+طلبات الواجهة ترسل `X-Tenant: luliz`، كما أن نطاق `loliz-taste.com` مربوط صراحةً بـ `luliz`.
+
+## تنبيه مهم بخصوص Seed
+
+الـ seed يمسح بيانات العلامة المستهدفة قبل إعادة إنشاء البيانات التجريبية، لذلك أصبح محمياً ولا يعمل افتراضياً.
+
+لتشغيله على بيئة تطوير فقط:
+
+```env
+ALLOW_DESTRUCTIVE_SEED=true
+SEED_TENANT=luliz
+```
+
+ثم:
+
+```bash
+npm run seed
+```
+
+الـ runner يسجل Mongoose tenant plugin قبل تحميل الموديلات ويشغل الـ seed داخل سياق `luliz`، حتى تكون البيانات الجديدة معزولة بشكل صحيح ولا تُنشأ خارج tenant.
+
+## إعداد الإنتاج
+
+قبل النشر:
+
+- استخدم `JWT_SECRET` طويل وعشوائي.
+- لا ترفع ملف `.env` إلى Git.
+- اضبط `MONGODB_URI` على قاعدة الإنتاج.
+- اضبط `FRONTEND_URL` على الدومين الحقيقي؛ ويمكن فصل أكثر من Origin بفاصلة عند الحاجة.
+- اترك `DEFAULT_TENANT=luliz` لهذا النشر.
+- اترك `TZ=Asia/Damascus` لحساب الأيام والتقارير بشكل صحيح.
+- اترك `ALLOW_DESTRUCTIVE_SEED=false` دائماً على الإنتاج.
+- ابنِ الواجهة بـ `npm run build` وقدّم `frontend/dist` من الويب سيرفر.
+
+## ملاحظات تنظيف
+
+- WebAR/Virtual Try-On كان بقايا من مشروع آخر وتم تعطيل نقاط دخوله مع إبقاء الملفات القديمة لتجنب كسر imports تاريخية.
+- بورت الـ backend الحقيقي الافتراضي هو `3002` وليس `5000`.
+- بورت Vite المحلي الافتراضي هو `5173`.
+
+## التقنيات
+
+**Backend:** Node.js · Express · MongoDB · Mongoose · JWT · bcryptjs · Helmet · Rate Limit
+
+**Frontend:** React 18 · Vite 5 · Tailwind CSS · React Router · Axios · Framer Motion · Recharts
