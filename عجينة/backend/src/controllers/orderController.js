@@ -7,10 +7,14 @@ const SalesCenter   = require('../models/SalesCenter');
 const cashService   = require('../services/cashService');
 const whatsappService = require('../services/whatsappService');
 const inventoryService = require('../services/inventoryService');
+const financeService = require('../services/financeService');
 
 exports.getAll = async (req, res) => {
   const filter = {};
   if (req.query.status) filter.status = req.query.status;
+  if (req.query.center && req.query.center !== 'all') {
+    filter.centerId = req.query.center === 'hq' ? null : req.query.center;
+  }
   if (req.query.startDate || req.query.endDate) {
     filter.createdAt = {};
     if (req.query.startDate) filter.createdAt.$gte = new Date(req.query.startDate);
@@ -38,7 +42,7 @@ exports.getAll = async (req, res) => {
 };
 
 exports.create = async (req, res) => {
-  const { productId, quantity, customerName, customerPhone, deliveryLocation, deliveryMethod, notes, channel, centerId } = req.body;
+  const { productId, quantity, customerName, customerPhone, deliveryLocation, deliveryMethod, notes, centerId } = req.body;
 
   if (!productId || !quantity || !customerName || !customerPhone) {
     return res.status(400).json({ success: false, message: 'productId, quantity, customerName, customerPhone مطلوبة.' });
@@ -49,12 +53,8 @@ exports.create = async (req, res) => {
     return res.status(404).json({ success: false, message: 'المنتج غير موجود.' });
   }
 
-  // اختيار الفرع اختياري — إذا الزبون اختار فرع، نجيب بياناته لحفظ اسمه ولإرسال
-  // إشعار واتساب لاحقًا لمدير الفرع المعني (فعليًا فقط لما تتوفر إعدادات واتساب بالـ env).
   let center = null;
-  if (centerId) {
-    center = await SalesCenter.findById(centerId);
-  }
+  if (centerId) center = await SalesCenter.findById(centerId);
 
   const now = new Date();
   const activeOffer = await Offer.findOne({
@@ -64,30 +64,36 @@ exports.create = async (req, res) => {
     endDate: { $gte: now },
   });
 
+  const qty = Number(quantity);
   let unitPrice = product.directPrice;
   let discountAmount = 0;
 
   if (activeOffer) {
     if (activeOffer.discountType === 'percentage') {
-      discountAmount = unitPrice * (activeOffer.discountValue / 100) * Number(quantity);
+      discountAmount = unitPrice * (activeOffer.discountValue / 100) * qty;
     } else {
-      discountAmount = activeOffer.discountValue * Number(quantity);
+      discountAmount = activeOffer.discountValue * qty;
     }
   }
 
-  const totalAmount = unitPrice * Number(quantity) - discountAmount;
+  const restaurantAmount = Math.max(unitPrice * qty - discountAmount, 0);
+  const taxQuote = await financeService.quote(restaurantAmount, center?._id || null);
   const unitCost = Number(product.calculatedCost) || 0;
+  const totalCost = unitCost * qty;
 
   const order = await CustomerOrder.create({
     productId,
     productNameSnapshot: product.name,
-    quantity: Number(quantity),
+    quantity: qty,
     unitPrice,
     unitCost,
-    totalCost: unitCost * Number(quantity),
-    profit: totalAmount - unitCost * Number(quantity),
+    totalCost,
+    profit: taxQuote.baseAmount - totalCost,
     discountAmount,
-    totalPrice: totalAmount,
+    netAmount: taxQuote.baseAmount,
+    invoiceTaxPercent: taxQuote.invoiceTaxPercent,
+    invoiceTaxAmount: taxQuote.invoiceTaxAmount,
+    totalPrice: taxQuote.customerTotal,
     customerName,
     phone: customerPhone,
     location: deliveryLocation,
@@ -98,7 +104,6 @@ exports.create = async (req, res) => {
     centerNameSnapshot: center ? center.name : '',
   });
 
-  // إشعار واتساب فوري لمدير الفرع (no-op بهدوء إذا إعدادات واتساب غير مكتملة).
   if (center && center.phone) {
     const message = whatsappService.buildOrderNotificationMessage({
       customerName,
@@ -111,7 +116,17 @@ exports.create = async (req, res) => {
     whatsappService.sendOrderNotification(center.phone, message);
   }
 
-  res.status(201).json({ success: true, message: 'تم استلام الطلب بنجاح.', order });
+  res.status(201).json({
+    success: true,
+    message: 'تم استلام الطلب بنجاح.',
+    order,
+    finance: {
+      restaurantAmount: taxQuote.baseAmount,
+      invoiceTaxPercent: taxQuote.invoiceTaxPercent,
+      invoiceTaxAmount: taxQuote.invoiceTaxAmount,
+      customerTotal: taxQuote.customerTotal,
+    },
+  });
 };
 
 exports.updateStatus = async (req, res) => {
@@ -126,7 +141,6 @@ exports.updateStatus = async (req, res) => {
     return res.status(400).json({ success: false, message: 'حالة غير صالحة.' });
   }
 
-  const prevStatus = order.status;
   if (status === 'delivered' && !order.stockApplied) {
     try {
       await inventoryService.decreaseProductStock(order.productId, order.quantity, order.centerId);
@@ -136,7 +150,6 @@ exports.updateStatus = async (req, res) => {
     }
   }
   if (status === 'delivered' && !order.cashPosted) {
-    // 1. Add income to cash
     await cashService.createTransaction(
       'sale_income',
       order.totalPrice,
