@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Luliz Admin — لوحة التحكم</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --fuchsia:#D72B6A;--fuchsia-dark:#B01E55;--fuchsia-bg:#FFF0F7;
+  --yellow:#F6B91A;--yellow-bg:#FFF8DC;
+  --mint:#78C8A6;--mint-bg:#E6F9F1;
+  --soft-pink:#F7A7C4;--pink-bg:#FFF0F7;
+  --sidebar:#2E1820;--sidebar-hover:#3D2230;--sidebar-active:#D72B6A;
+  --white:#fff;--off-white:#FFF7F4;--bg:#F5EDF2;
+  --dark:#3A2630;--gray:#7A6570;--border:#EDD8E4;--light:#F0E6EC;
+  --success:#27AE60;--warning:#F39C12;--danger:#E74C3C;--info:#2980B9;
+  --sh-sm:0 2px 12px rgba(58,38,48,.07);
+  --sh-md:0 4px 24px rgba(58,38,48,.11);
+  --r:12px;--r-lg:18px;--ease:cubic-bezier(.4,0,.2,1);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Cairo',Arial,sans-serif;background:var(--bg);color:var(--dark);direction:rtl;min-height:100vh}
+
+/* ══ LOGIN ══ */
+#login-screen{
+  min-height:100vh;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(148deg,#D72B6A 0%,#E91E8C 55%,#C2185B 100%);
+  position:relative;overflow:hidden;
+}
+.login-blob{position:absolute;border-radius:50%;opacity:.12}
+.lb1{width:400px;height:400px;background:#fff;top:-100px;left:-100px}
+.lb2{width:300px;height:300px;background:var(--yellow);bottom:-80px;right:-60px}
+.login-card{
+  background:#fff;border-radius:28px;padding:44px 36px;
+  box-shadow:0 24px 80px rgba(0,0,0,.25);width:100%;max-width:420px;
+  position:relative;z-index:1;
+}
+.login-logo{text-align:center;margin-bottom:30px}
+.login-logo-mark{
+  width:72px;height:72px;border-radius:22px;margin:0 auto 12px;
+  background:linear-gradient(135deg,var(--fuchsia),var(--fuchsia-dark));
+  display:flex;align-items:center;justify-content:center;font-size:36px;
+  box-shadow:0 8px 24px rgba(215,43,106,.35);
+}
+.login-brand{font-size:28px;font-weight:900;color:var(--fuchsia)}
+.login-brand em{color:var(--yellow);font-style:normal}
+.login-sub{font-size:13px;color:var(--gray);margin-top:4px}
+.login-field{margin-bottom:16px}
+.login-lbl{display:block;font-weight:700;font-size:13px;color:var(--dark);margin-bottom:6px}
+.login-inp{
+  width:100%;padding:13px 14px;border:2px solid var(--border);border-radius:12px;
+  font-family:'Cairo',sans-serif;font-size:14px;color:var(--dark);
+  background:var(--off-white);transition:border .2s;text-align:right;direction:rtl;
+}
+.login-inp:focus{outline:none;border-color:var(--fuchsia)}
+.btn-login{
+  width:100%;padding:15px;background:linear-gradient(135deg,var(--fuchsia),var(--fuchsia-dark));
+  color:#fff;border:none;border-radius:14px;font-family:'Cairo',sans-serif;
+  font-size:16px;font-weight:800;cursor:pointer;margin-top:8px;
+  box-shadow:0 4px 20px rgba(215,43,106,.38);transition:all .2s;
+}
+.btn-login:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(215,43,106,.48)}
+
+/* ══ MAIN LAYOUT ══ */
+#dashboard{display:none;min-height:100vh}
+.admin-layout{display:flex;min-height:100vh}
+
+/* ══ SIDEBAR ══ */
+.sidebar{
+  width:258px;background:var(--sidebar);
+  display:flex;flex-direction:column;
+  position:fixed;top:0;right:0;bottom:0;z-index:100;
+  overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.1) transparent;
+}
+.sidebar::-webkit-scrollbar{width:4px}
+.sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:2px}
+.sb-brand{padding:22px 20px 16px;border-bottom:1px solid rgba(255,255,255,.07)}
+.sb-logo{display:flex;align-items:center;gap:10px}
+.sb-logo-mark{
+  width:42px;height:42px;border-radius:13px;
+  background:linear-gradient(135deg,var(--fuchsia),var(--fuchsia-dark));
+  display:flex;align-items:center;justify-content:center;font-size:22px;
+  box-shadow:0 4px 12px rgba(215,43,106,.4);
+}
+.sb-logo-name{font-size:20px;font-weight:900;color:#fff}
+.sb-logo-name em{color:var(--yellow);font-style:normal}
+.sb-user{padding:14px 20px;border-bottom:1px solid rgba(255,255,255,.07)}
+.sb-user-row{display:flex;align-items:center;gap:10px}
+.sb-avatar{
+  width:38px;height:38px;border-radius:50%;
+  background:linear-gradient(135deg,var(--soft-pink),var(--fuchsia));
+  display:flex;align-items:center;justify-content:center;font-size:18px;
+}
+.sb-user-name{font-size:13px;font-weight:700;color:#fff}
+.sb-user-role{font-size:11px;color:rgba(255,255,255,.5);margin-top:2px}
+.sb-nav{padding:10px 0;flex:1}
+.sb-section{
+  padding:6px 16px 2px;font-size:10px;font-weight:700;
+  color:rgba(255,255,255,.3);letter-spacing:1px;margin-top:10px;
+}
+.sb-item{
+  display:flex;align-items:center;gap:11px;padding:10px 20px;
+  cursor:pointer;transition:all .2s;border:none;background:none;
+  width:100%;text-align:right;color:rgba(255,255,255,.65);
+  font-family:'Cairo',sans-serif;font-size:13.5px;font-weight:600;
+  border-radius:0;position:relative;
+}
+.sb-item:hover{background:var(--sidebar-hover);color:#fff}
+.sb-item.active{background:var(--fuchsia);color:#fff}
+.sb-item.active::before{
+  content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);
+  width:3px;height:70%;background:var(--yellow);border-radius:0 2px 2px 0;
+}
+.sb-ico{font-size:17px;width:22px;text-align:center}
+.sb-badge{
+  margin-right:auto;background:var(--yellow);color:var(--dark);
+  font-size:10px;font-weight:900;padding:2px 7px;border-radius:10px;
+}
+.sb-footer{padding:16px 20px;border-top:1px solid rgba(255,255,255,.07)}
+.btn-logout{
+  display:flex;align-items:center;gap:8px;width:100%;padding:10px 14px;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
+  border-radius:10px;color:rgba(255,255,255,.6);font-family:'Cairo',sans-serif;
+  font-size:13px;cursor:pointer;transition:all .2s;
+}
+.btn-logout:hover{background:rgba(215,43,106,.2);color:#fff;border-color:var(--fuchsia)}
+
+/* ══ MAIN CONTENT ══ */
+.main-content{
+  margin-right:258px;flex:1;display:flex;flex-direction:column;min-width:0;
+}
+.main-header{
+  background:#fff;padding:14px 24px;display:flex;align-items:center;
+  justify-content:space-between;position:sticky;top:0;z-index:50;
+  box-shadow:0 2px 16px rgba(58,38,48,.07);
+}
+.mh-left{display:flex;align-items:center;gap:12px}
+.page-title{font-size:19px;font-weight:900;color:var(--dark)}
+.page-badge{
+  background:var(--pink-bg);color:var(--fuchsia);
+  padding:4px 10px;border-radius:8px;font-size:12px;font-weight:700;
+}
+.mh-right{display:flex;align-items:center;gap:10px}
+.hdr-icon-btn{
+  width:38px;height:38px;border-radius:10px;border:none;
+  background:var(--bg);color:var(--gray);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;font-size:17px;transition:all .2s;
+}
+.hdr-icon-btn:hover{background:var(--fuchsia);color:#fff}
+.hdr-notif{position:relative}
+.notif-dot{
+  position:absolute;top:4px;left:6px;width:8px;height:8px;
+  border-radius:50%;background:var(--danger);border:2px solid #fff;
+}
+.hdr-date{font-size:13px;color:var(--gray);font-weight:600}
+
+/* ══ CONTENT AREA ══ */
+.content-area{padding:22px 24px;flex:1}
+
+/* ══ SECTIONS ══ */
+.section{display:none}
+.section.active{display:block}
+
+/* ══ STAT CARDS ══ */
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px}
+.stat-card{
+  background:#fff;border-radius:var(--r-lg);padding:18px;
+  box-shadow:var(--sh-sm);position:relative;overflow:hidden;
+}
+.stat-card::after{
+  content:attr(data-emoji);position:absolute;left:-8px;bottom:-8px;
+  font-size:56px;opacity:.07;
+}
+.stat-label{font-size:12px;font-weight:700;color:var(--gray);margin-bottom:6px}
+.stat-val{font-size:24px;font-weight:900;margin-bottom:4px}
+.stat-sub{font-size:11px;color:var(--gray)}
+.stat-trend{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;margin-top:6px}
+.trend-up{background:#E8F8F0;color:var(--success)}
+.trend-dn{background:#FEECEB;color:var(--danger)}
+.sc1 .stat-val{color:var(--fuchsia)}
+.sc2 .stat-val{color:var(--success)}
+.sc3 .stat-val{color:var(--yellow)}
+.sc4 .stat-val{color:var(--info)}
+.sc5 .stat-val{color:var(--danger)}
+.sc6 .stat-val{color:var(--warning)}
+
+/* ══ CHARTS ROW ══ */
+.charts-row{display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:22px}
+.chart-card{background:#fff;border-radius:var(--r-lg);padding:20px;box-shadow:var(--sh-sm)}
+.chart-title{font-size:15px;font-weight:800;color:var(--dark);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.bar-chart{display:flex;align-items:flex-end;gap:8px;height:120px}
+.bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px}
+.bar{border-radius:6px 6px 0 0;width:100%;transition:height .6s var(--ease);min-height:4px}
+.bar-lbl{font-size:10px;color:var(--gray);font-weight:600}
+.donut-wrap{display:flex;align-items:center;gap:16px}
+.donut{
+  width:120px;height:120px;border-radius:50%;flex-shrink:0;
+  position:relative;
+}
+.donut::after{
+  content:'';position:absolute;top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  width:70px;height:70px;background:#fff;border-radius:50%;
+}
+.donut-legend{flex:1}
+.dl-item{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px}
+.dl-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.dl-name{color:var(--gray);flex:1;font-weight:600}
+.dl-pct{font-weight:800}
+
+/* ══ QUICK TABLE ══ */
+.table-card{background:#fff;border-radius:var(--r-lg);padding:20px;box-shadow:var(--sh-sm);margin-bottom:16px}
+.tc-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.tc-title{font-size:15px;font-weight:800;color:var(--dark)}
+.btn-sm{
+  padding:7px 14px;border-radius:9px;border:none;font-family:'Cairo',sans-serif;
+  font-size:12px;font-weight:700;cursor:pointer;transition:all .2s;
+}
+.btn-pink-sm{background:var(--fuchsia);color:#fff}
+.btn-pink-sm:hover{background:var(--fuchsia-dark)}
+.btn-outline-sm{background:none;border:2px solid var(--fuchsia);color:var(--fuchsia)}
+.btn-outline-sm:hover{background:var(--fuchsia);color:#fff}
+.btn-yellow-sm{background:var(--yellow);color:var(--dark)}
+.btn-mint-sm{background:var(--mint);color:#fff}
+.btn-danger-sm{background:var(--danger);color:#fff}
+table{width:100%;border-collapse:collapse}
+th{text-align:right;padding:10px 12px;font-size:12px;font-weight:700;color:var(--gray);background:var(--bg);border-bottom:2px solid var(--border)}
+td{padding:11px 12px;font-size:13px;border-bottom:1px solid var(--light);vertical-align:middle}
+tr:hover td{background:var(--off-white)}
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
+.b-active{background:var(--mint-bg);color:var(--success)}
+.b-hidden{background:var(--light);color:var(--gray)}
+.b-sold{background:#FEECEB;color:var(--danger)}
+.b-new{background:#E3F2FD;color:var(--info)}
+.b-confirm{background:var(--mint-bg);color:var(--success)}
+.b-prep{background:var(--yellow-bg);color:#c57e00}
+.b-delivered{background:#E8F8F0;color:var(--success)}
+.b-cancel{background:#FEECEB;color:var(--danger)}
+.b-paid{background:var(--mint-bg);color:var(--success)}
+.b-unpaid{background:#FEECEB;color:var(--danger)}
+.b-partial{background:var(--yellow-bg);color:#c57e00}
+.product-thumb{
+  width:40px;height:40px;border-radius:10px;
+  display:inline-flex;align-items:center;justify-content:center;font-size:22px;
+}
+
+/* ══ FORM STYLES ══ */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.form-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.fg-full{grid-column:1/-1}
+.form-grp{margin-bottom:0}
+.form-lbl{display:block;font-weight:700;font-size:13px;color:var(--dark);margin-bottom:6px}
+.form-lbl .req{color:var(--fuchsia)}
+.form-inp,.form-sel,.form-ta{
+  width:100%;padding:11px 13px;border:2px solid var(--border);border-radius:11px;
+  font-family:'Cairo',sans-serif;font-size:14px;color:var(--dark);
+  background:#fff;transition:border .2s;text-align:right;direction:rtl;
+}
+.form-inp:focus,.form-sel:focus,.form-ta:focus{outline:none;border-color:var(--fuchsia)}
+.form-ta{resize:vertical}
+.form-actions{display:flex;gap:10px;margin-top:20px}
+.btn-save{
+  padding:12px 28px;background:var(--fuchsia);color:#fff;border:none;
+  border-radius:12px;font-family:'Cairo',sans-serif;font-size:14px;font-weight:800;
+  cursor:pointer;transition:all .2s;
+}
+.btn-save:hover{background:var(--fuchsia-dark)}
+.btn-cancel{
+  padding:12px 22px;background:none;border:2px solid var(--border);color:var(--gray);
+  border-radius:12px;font-family:'Cairo',sans-serif;font-size:14px;font-weight:700;cursor:pointer;
+}
+.section-card{background:#fff;border-radius:var(--r-lg);padding:22px;box-shadow:var(--sh-sm);margin-bottom:16px}
+
+/* ══ COST CALCULATOR ══ */
+.calc-layout{display:grid;grid-template-columns:1fr 360px;gap:16px}
+.ing-row{
+  display:flex;align-items:center;gap:10px;padding:12px;
+  border:1px solid var(--border);border-radius:11px;margin-bottom:8px;background:#fff;
+}
+.ing-row-name{flex:1;font-weight:600;font-size:13px}
+.ing-row-qty{
+  width:80px;padding:7px 10px;border:2px solid var(--border);border-radius:9px;
+  font-family:'Cairo',sans-serif;font-size:13px;text-align:center;
+}
+.ing-row-unit{font-size:12px;color:var(--gray);width:35px}
+.ing-row-cost{font-weight:700;font-size:13px;color:var(--fuchsia);width:80px;text-align:center}
+.btn-remove-ing{
+  width:28px;height:28px;border-radius:8px;border:none;background:#FEECEB;
+  color:var(--danger);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;
+}
+.btn-add-ing{
+  display:flex;align-items:center;gap:8px;padding:10px 16px;
+  border:2px dashed var(--border);border-radius:11px;background:none;
+  color:var(--gray);font-family:'Cairo',sans-serif;font-size:13px;cursor:pointer;
+  transition:all .2s;width:100%;margin-top:4px;
+}
+.btn-add-ing:hover{border-color:var(--fuchsia);color:var(--fuchsia);background:var(--fuchsia-bg)}
+.summary-card{background:var(--bg);border-radius:14px;padding:18px;margin-bottom:12px}
+.sum-row{display:flex;justify-content:space-between;font-size:13px;margin-bottom:8px}
+.sum-row-val{font-weight:700}
+.sum-total{
+  display:flex;justify-content:space-between;font-size:16px;font-weight:900;
+  color:var(--fuchsia);border-top:2px solid var(--border);padding-top:10px;margin-top:4px;
+}
+.profit-row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:10px 14px;border-radius:10px;margin-bottom:8px;
+}
+.pr-direct{background:var(--mint-bg)}
+.pr-center{background:var(--yellow-bg)}
+.pr-spec{background:var(--pink-bg)}
+.pr-name{font-size:12px;font-weight:700;color:var(--gray)}
+.pr-val{font-size:15px;font-weight:900}
+.pr-pct{font-size:11px;font-weight:600}
+.warn-low{
+  background:#FEECEB;border:1px solid #f5b7b1;border-radius:10px;
+  padding:10px 14px;font-size:13px;color:var(--danger);display:flex;gap:8px;
+}
+
+/* ══ DAILY CLOSING ══ */
+.closing-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}
+.closing-card{
+  background:#fff;border-radius:var(--r);padding:16px;box-shadow:var(--sh-sm);text-align:center;
+}
+.closing-ico{font-size:32px;margin-bottom:6px}
+.closing-val{font-size:22px;font-weight:900;margin-bottom:2px}
+.closing-lbl{font-size:12px;color:var(--gray);font-weight:600}
+.btn-close-day{
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  width:100%;padding:18px;
+  background:linear-gradient(135deg,var(--fuchsia),var(--fuchsia-dark));
+  color:#fff;border:none;border-radius:16px;font-family:'Cairo',sans-serif;
+  font-size:18px;font-weight:900;cursor:pointer;margin-top:8px;
+  box-shadow:0 4px 20px rgba(215,43,106,.35);transition:all .2s;
+}
+.btn-close-day:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(215,43,106,.45)}
+
+/* ══ CASH BALANCE ══ */
+.cash-hero{
+  background:linear-gradient(135deg,var(--fuchsia),var(--fuchsia-dark));
+  border-radius:var(--r-lg);padding:28px;color:#fff;margin-bottom:20px;
+  position:relative;overflow:hidden;
+}
+.cash-hero::after{content:'💰';position:absolute;left:20px;top:50%;transform:translateY(-50%);font-size:80px;opacity:.15}
+.cash-lbl{font-size:14px;opacity:.8;margin-bottom:6px}
+.cash-amount{font-size:40px;font-weight:900;margin-bottom:4px}
+.cash-sub{font-size:13px;opacity:.75}
+.cash-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
+.cash-card{background:#fff;border-radius:var(--r);padding:16px;box-shadow:var(--sh-sm)}
+.cc-label{font-size:12px;font-weight:700;color:var(--gray);margin-bottom:4px}
+.cc-val{font-size:18px;font-weight:900}
+.cc-inc .cc-val{color:var(--success)}
+.cc-exp .cc-val{color:var(--danger)}
+.cc-neutral .cc-val{color:var(--info)}
+
+/* ══ REPORTS ══ */
+.report-filters{
+  background:#fff;border-radius:var(--r);padding:18px;
+  box-shadow:var(--sh-sm);margin-bottom:16px;
+}
+.filter-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.report-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.kpi-card{
+  background:#fff;border-radius:var(--r);padding:16px;box-shadow:var(--sh-sm);text-align:center;
+}
+.kpi-ico{font-size:28px;margin-bottom:6px}
+.kpi-val{font-size:20px;font-weight:900;margin-bottom:2px}
+.kpi-lbl{font-size:11px;color:var(--gray);font-weight:600}
+
+/* ══ OFFERS MGMT ══ */
+.offer-mgmt-card{
+  background:#fff;border-radius:var(--r-lg);padding:18px;box-shadow:var(--sh-sm);
+  margin-bottom:12px;display:grid;grid-template-columns:60px 1fr auto;gap:14px;align-items:center;
+}
+.omc-img{font-size:36px;text-align:center}
+.omc-name{font-size:15px;font-weight:800;margin-bottom:3px}
+.omc-meta{font-size:12px;color:var(--gray)}
+.omc-actions{display:flex;gap:8px}
+
+/* ══ CENTER PROFILE ══ */
+.center-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
+.center-stat{
+  background:#fff;border-radius:var(--r);padding:14px;box-shadow:var(--sh-sm);text-align:center;
+}
+.cs-ico{font-size:24px;margin-bottom:4px}
+.cs-val{font-size:18px;font-weight:900;margin-bottom:2px}
+.cs-lbl{font-size:11px;color:var(--gray);font-weight:600}
+
+/* ══ INVENTORY ══ */
+.inv-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.inv-card{
+  background:#fff;border-radius:var(--r);padding:16px;box-shadow:var(--sh-sm);
+}
+.inv-name{font-size:14px;font-weight:800;margin-bottom:4px}
+.inv-qty{font-size:22px;font-weight:900;color:var(--fuchsia);margin-bottom:4px}
+.inv-unit{font-size:12px;color:var(--gray);font-weight:600}
+.inv-progress{height:5px;background:var(--light);border-radius:3px;overflow:hidden;margin-top:8px}
+.inv-fill{height:100%;border-radius:3px}
+.inv-ok .inv-fill{background:var(--mint)}
+.inv-low .inv-fill{background:var(--yellow)}
+.inv-low .inv-qty{color:var(--warning)}
+.inv-crit .inv-fill{background:var(--danger)}
+.inv-crit .inv-qty{color:var(--danger)}
+.low-warn{font-size:11px;color:var(--danger);font-weight:600;margin-top:4px}
+
+/* ══ PAGE UTILS ══ */
+.page-actions{display:flex;gap:10px;margin-bottom:16px;align-items:center}
+.page-actions h2{font-size:17px;font-weight:900;flex:1}
+.divider-row{height:1px;background:var(--border);margin:18px 0}
+.empty{text-align:center;padding:50px 20px;color:var(--gray)}
+.empty-ico{font-size:56px;margin-bottom:12px}
+.empty-txt{font-size:15px;font-weight:600}
+.tabs{display:flex;gap:6px;margin-bottom:16px;border-bottom:2px solid var(--border);padding-bottom:-1px}
+.tab-btn{
+  padding:9px 18px;border:none;background:none;font-family:'Cairo',sans-serif;
+  font-size:13px;font-weight:700;color:var(--gray);cursor:pointer;
+  border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .2s;
+}
+.tab-btn.active{color:var(--fuchsia);border-bottom-color:var(--fuchsia)}
+
+/* ══ RESPONSIVE ══ */
+@media(max-width:1100px){
+  .stats-grid{grid-template-columns:repeat(2,1fr)}
+  .charts-row{grid-template-columns:1fr}
+}
+@media(max-width:768px){
+  .sidebar{transform:translateX(100%);transition:transform .3s}
+  .sidebar.open{transform:translateX(0)}
+  .main-content{margin-right:0}
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════ LOGIN ══════════ -->
+<div id="login-screen">
+  <div class="login-blob lb1"></div>
+  <div class="login-blob lb2"></div>
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-logo-mark">🍳</div>
+      <div class="login-brand">Luliz<em>♡</em></div>
+      <div class="login-sub">لوحة تحكم المشروع</div>
+    </div>
+    <div class="login-field">
+      <label class="login-lbl">اسم المستخدم</label>
+      <input type="text" class="login-inp" placeholder="admin@luliz.com" value="admin@luliz.com"/>
+    </div>
+    <div class="login-field">
+      <label class="login-lbl">كلمة المرور</label>
+      <input type="password" class="login-inp" placeholder="••••••••" value="12345678"/>
+    </div>
+    <button class="btn-login" onclick="doLogin()">🔐 تسجيل الدخول</button>
+    <div style="text-align:center;margin-top:16px;font-size:12px;color:var(--gray)">
+      Luliz Kitchen Management System v1.0
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ DASHBOARD ══════════ -->
+<div id="dashboard">
+<div class="admin-layout">
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+  <div class="sb-brand">
+    <div class="sb-logo">
+      <div class="sb-logo-mark">🍳</div>
+      <span class="sb-logo-name">Luliz<em>♡</em></span>
+    </div>
+  </div>
+  <div class="sb-user">
+    <div class="sb-user-row">
+      <div class="sb-avatar">👩‍🍳</div>
+      <div><div class="sb-user-name">صاحبة المشروع</div><div class="sb-user-role">مديرة المطبخ</div></div>
+    </div>
+  </div>
+  <nav class="sb-nav">
+    <div class="sb-section">الرئيسية</div>
+    <button class="sb-item active" onclick="nav('overview')"><span class="sb-ico">📊</span> لوحة التحكم</button>
+
+    <div class="sb-section">إدارة المنتجات</div>
+    <button class="sb-item" onclick="nav('products')"><span class="sb-ico">🍽️</span> المنتجات</button>
+    <button class="sb-item" onclick="nav('ingredients')"><span class="sb-ico">🧺</span> المكونات والمواد</button>
+    <button class="sb-item" onclick="nav('purchases')"><span class="sb-ico">🛒</span> المشتريات</button>
+    <button class="sb-item" onclick="nav('cost')"><span class="sb-ico">🧮</span> حاسبة الكلفة</button>
+
+    <div class="sb-section">العمليات اليومية</div>
+    <button class="sb-item" onclick="nav('sales')"><span class="sb-ico">💰</span> تسجيل المبيعات</button>
+    <button class="sb-item" onclick="nav('orders')"><span class="sb-ico">📋</span> الطلبات <span class="sb-badge">5</span></button>
+    <button class="sb-item" onclick="nav('waste')"><span class="sb-ico">🗑️</span> الهدر والخسائر</button>
+    <button class="sb-item" onclick="nav('closing')"><span class="sb-ico">🔒</span> الجرد اليومي</button>
+
+    <div class="sb-section">مراكز البيع</div>
+    <button class="sb-item" onclick="nav('centers')"><span class="sb-ico">🏪</span> مراكز البيع</button>
+    <button class="sb-item" onclick="nav('delivery')"><span class="sb-ico">🚚</span> التسليم والتسوية</button>
+
+    <div class="sb-section">المالية والتقارير</div>
+    <button class="sb-item" onclick="nav('cash')"><span class="sb-ico">🏦</span> الكاش والرصيد</button>
+    <button class="sb-item" onclick="nav('offers')"><span class="sb-ico">🏷️</span> العروض</button>
+    <button class="sb-item" onclick="nav('reports')"><span class="sb-ico">📈</span> التقارير</button>
+  </nav>
+  <div class="sb-footer">
+    <button class="btn-logout" onclick="doLogout()"><span>🚪</span> تسجيل الخروج</button>
+  </div>
+</aside>
+
+<!-- MAIN CONTENT -->
+<div class="main-content">
+  <header class="main-header">
+    <div class="mh-left">
+      <div>
+        <div class="page-title" id="page-title">لوحة التحكم</div>
+      </div>
+    </div>
+    <div class="mh-right">
+      <div class="hdr-date">الإثنين، 26 مايو 2026</div>
+      <button class="hdr-icon-btn hdr-notif">🔔<div class="notif-dot"></div></button>
+      <button class="hdr-icon-btn">⚙️</button>
+    </div>
+  </header>
+
+  <div class="content-area">
+
+    <!-- ══ OVERVIEW ══ -->
+    <div id="sec-overview" class="section active">
+      <div class="stats-grid">
+        <div class="stat-card sc1" data-emoji="💰">
+          <div class="stat-label">مبيعات اليوم</div>
+          <div class="stat-val">127,500 ل.س</div>
+          <div class="stat-sub">15 طلب مكتمل</div>
+          <div class="stat-trend trend-up">↑ 12% عن أمس</div>
+        </div>
+        <div class="stat-card sc2" data-emoji="📈">
+          <div class="stat-label">أرباح اليوم</div>
+          <div class="stat-val">48,200 ل.س</div>
+          <div class="stat-sub">هامش 37.8%</div>
+          <div class="stat-trend trend-up">↑ 8% عن أمس</div>
+        </div>
+        <div class="stat-card sc3" data-emoji="📋">
+          <div class="stat-label">الطلبات الجديدة</div>
+          <div class="stat-val">5</div>
+          <div class="stat-sub">بانتظار التأكيد</div>
+          <div class="stat-trend trend-up">⚡ طازجة الآن</div>
+        </div>
+        <div class="stat-card sc4" data-emoji="🏦">
+          <div class="stat-label">الكاش الحالي</div>
+          <div class="stat-val">215,000 ل.س</div>
+          <div class="stat-sub">آخر تحديث: الآن</div>
+          <div class="stat-trend trend-up">↑ جيد</div>
+        </div>
+        <div class="stat-card sc5" data-emoji="🛒">
+          <div class="stat-label">مشتريات اليوم</div>
+          <div class="stat-val">32,500 ل.س</div>
+          <div class="stat-sub">4 فواتير</div>
+          <div class="stat-trend trend-dn">↑ 5% عن أمس</div>
+        </div>
+        <div class="stat-card sc6" data-emoji="🗑️">
+          <div class="stat-label">الهدر اليومي</div>
+          <div class="stat-val">4,800 ل.س</div>
+          <div class="stat-sub">3 حوادث</div>
+          <div class="stat-trend trend-dn">↓ 3% تحسّن</div>
+        </div>
+        <div class="stat-card sc1" data-emoji="🏪">
+          <div class="stat-label">مراكز البيع</div>
+          <div class="stat-val">3 مراكز</div>
+          <div class="stat-sub">نشطة اليوم</div>
+          <div class="stat-trend trend-up">✓ متصلة</div>
+        </div>
+        <div class="stat-card sc2" data-emoji="💵">
+          <div class="stat-label">المقبوض من المراكز</div>
+          <div class="stat-val">45,000 ل.س</div>
+          <div class="stat-sub">متبقي: 18,000 ل.س</div>
+          <div class="stat-trend trend-up">↑ جيد</div>
+        </div>
+      </div>
+
+      <!-- Charts Row -->
+      <div class="charts-row">
+        <div class="chart-card">
+          <div class="chart-title">📊 مبيعات الأسبوع (ل.س)</div>
+          <div class="bar-chart">
+            <div class="bar-wrap"><div class="bar" style="height:55%;background:var(--fuchsia)"></div><div class="bar-lbl">سبت</div></div>
+            <div class="bar-wrap"><div class="bar" style="height:80%;background:var(--fuchsia)"></div><div class="bar-lbl">أحد</div></div>
+            <div class="bar-wrap"><div class="bar" style="height:65%;background:var(--fuchsia)"></div><div class="bar-lbl">اثنين</div></div>
+            <div class="bar-wrap"><div class="bar" style="height:90%;background:var(--fuchsia)"></div><div class="bar-lbl">ثلاثاء</div></div>
+            <div class="bar-wrap"><div class="bar" style="height:70%;background:var(--fuchsia)"></div><div class="bar-lbl">أربعاء</div></div>
+            <div class="bar-wrap"><div class="bar" style="height:85%;background:var(--yellow)"></div><div class="bar-lbl">خميس</div></div>
+            <div class="bar-wrap"><div class="bar" style="height:100%;background:var(--mint)"></div><div class="bar-lbl">اليوم</div></div>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">🎯 المبيعات بالقناة</div>
+          <div class="donut-wrap">
+            <div class="donut" style="background:conic-gradient(var(--fuchsia) 0% 45%,var(--yellow) 45% 75%,var(--mint) 75% 100%)"></div>
+            <div class="donut-legend">
+              <div class="dl-item"><div class="dl-dot" style="background:var(--fuchsia)"></div><span class="dl-name">مباشر</span><span class="dl-pct" style="color:var(--fuchsia)">45%</span></div>
+              <div class="dl-item"><div class="dl-dot" style="background:var(--yellow)"></div><span class="dl-name">واتساب</span><span class="dl-pct" style="color:var(--yellow-dark)">30%</span></div>
+              <div class="dl-item"><div class="dl-dot" style="background:var(--mint)"></div><span class="dl-name">مراكز</span><span class="dl-pct" style="color:var(--success)">25%</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top products -->
+      <div class="table-card">
+        <div class="tc-header">
+          <div class="tc-title">🏆 أكثر المنتجات مبيعاً اليوم</div>
+          <button class="btn-sm btn-outline-sm" onclick="nav('products')">عرض الكل</button>
+        </div>
+        <table>
+          <thead><tr><th>المنتج</th><th>الكمية</th><th>الإيراد</th><th>الربح</th><th>الهامش</th></tr></thead>
+          <tbody>
+            <tr><td><span class="product-thumb" style="background:#FFE8EF">🍝</span> لازانيا دجاج</td><td>6 حصص</td><td>72,000 ل.س</td><td>28,800 ل.س</td><td><span class="badge b-active">40%</span></td></tr>
+            <tr><td><span class="product-thumb" style="background:#FFF0E8">🍝</span> باستا كريمية</td><td>8 حصص</td><td>68,000 ل.س</td><td>24,800 ل.س</td><td><span class="badge b-confirm">36%</span></td></tr>
+            <tr><td><span class="product-thumb" style="background:#FFF8E8">🥔</span> غراتان بطاطا</td><td>5 حصص</td><td>37,500 ل.س</td><td>13,500 ل.س</td><td><span class="badge b-active">36%</span></td></tr>
+            <tr><td><span class="product-thumb" style="background:#FFE8F0">🍗</span> سويت آند ساور</td><td>4 حصص</td><td>38,000 ل.س</td><td>15,200 ل.س</td><td><span class="badge b-active">40%</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div><!-- /overview -->
+
+    <!-- ══ PRODUCTS ══ -->
+    <div id="sec-products" class="section">
+      <div class="page-actions">
+        <h2>🍽️ إدارة المنتجات</h2>
+        <button class="btn-sm btn-pink-sm" onclick="nav('product-form')">+ إضافة منتج</button>
+      </div>
+      <div class="table-card">
+        <table>
+          <thead><tr><th>المنتج</th><th>الكلفة</th><th>سعر المباشر</th><th>سعر المركز</th><th>الربح</th><th>الكمية</th><th>الحالة</th><th>العروض</th><th>تعديل</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><span class="product-thumb" style="background:#FFE8EF">🍝</span> <strong>لازانيا دجاج</strong></td>
+              <td style="color:var(--danger)">7,200 ل.س</td>
+              <td style="color:var(--fuchsia);font-weight:700">12,000 ل.س</td>
+              <td>9,500 ل.س</td>
+              <td style="color:var(--success);font-weight:700">4,800 ل.س</td>
+              <td><span class="badge b-active">8 متبقي</span></td>
+              <td><span class="badge b-active">متاح</span></td>
+              <td><span class="badge" style="background:#FFF0F7;color:var(--fuchsia)">-20%</span></td>
+              <td><button class="btn-sm btn-outline-sm" onclick="nav('product-form')">✏️</button></td>
+            </tr>
+            <tr>
+              <td><span class="product-thumb" style="background:#FFF0E8">🍝</span> <strong>باستا كريمية</strong></td>
+              <td style="color:var(--danger)">5,100 ل.س</td>
+              <td style="color:var(--fuchsia);font-weight:700">8,500 ل.س</td>
+              <td>7,000 ل.س</td>
+              <td style="color:var(--success);font-weight:700">3,400 ل.س</td>
+              <td><span class="badge b-active">15 متبقي</span></td>
+              <td><span class="badge b-active">متاح</span></td>
+              <td>—</td>
+              <td><button class="btn-sm btn-outline-sm" onclick="nav('product-form')">✏️</button></td>
+            </tr>
+            <tr>
+              <td><span class="product-thumb" style="background:#E8F8EF">🍜</span> <strong>نودلز بالخضار</strong></td>
+              <td style="color:var(--danger)">4,200 ل.س</td>
+              <td style="color:var(--fuchsia);font-weight:700">7,000 ل.س</td>
+              <td>5,800 ل.س</td>
+              <td style="color:var(--success);font-weight:700">2,800 ل.س</td>
+              <td><span class="badge b-sold">6 متبقي</span></td>
+              <td><span class="badge b-active">متاح</span></td>
+              <td><span class="badge" style="background:#FFF0F7;color:var(--fuchsia)">-22%</span></td>
+              <td><button class="btn-sm btn-outline-sm">✏️</button></td>
+            </tr>
+            <tr>
+              <td><span class="product-thumb" style="background:#FFF8E8">🥔</span> <strong>غراتان بطاطا</strong></td>
+              <td style="color:var(--danger)">4,500 ل.س</td>
+              <td style="color:var(--fuchsia);font-weight:700">7,500 ل.س</td>
+              <td>6,200 ل.س</td>
+              <td style="color:var(--success);font-weight:700">3,000 ل.س</td>
+              <td><span class="badge b-active">10 متبقي</span></td>
+              <td><span class="badge b-active">متاح</span></td>
+              <td>—</td>
+              <td><button class="btn-sm btn-outline-sm">✏️</button></td>
+            </tr>
+            <tr>
+              <td><span class="product-thumb" style="background:#FFE8F0">🍗</span> <strong>سويت آند ساور</strong></td>
+              <td style="color:var(--danger)">5,700 ل.س</td>
+              <td style="color:var(--fuchsia);font-weight:700">9,500 ل.س</td>
+              <td>7,800 ل.س</td>
+              <td style="color:var(--success);font-weight:700">3,800 ل.س</td>
+              <td><span class="badge b-sold">5 متبقي</span></td>
+              <td><span class="badge b-active">متاح</span></td>
+              <td><span class="badge" style="background:#FFF0F7;color:var(--fuchsia)">-14%</span></td>
+              <td><button class="btn-sm btn-outline-sm">✏️</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div><!-- /products -->
+
+    <!-- ══ PRODUCT FORM ══ -->
+    <div id="sec-product-form" class="section">
+      <div class="page-actions">
+        <h2>➕ إضافة / تعديل منتج</h2>
+        <button class="btn-sm btn-outline-sm" onclick="nav('products')">← الرجوع</button>
+      </div>
+      <div class="section-card">
+        <div class="form-grid">
+          <div class="form-grp">
+            <label class="form-lbl">اسم المنتج <span class="req">*</span></label>
+            <input type="text" class="form-inp" placeholder="مثال: باستا كريمية بالدجاج"/>
+          </div>
+          <div class="form-grp">
+            <label class="form-lbl">التصنيف</label>
+            <select class="form-sel">
+              <option>باستا</option><option>دجاج</option><option>خضار</option><option>بطاطا</option>
+            </select>
+          </div>
+          <div class="form-grp fg-full">
+            <label class="form-lbl">الوصف</label>
+            <textarea class="form-ta" rows="2" placeholder="وصف مختصر للمنتج يظهر للزبون…"></textarea>
+          </div>
+          <div class="form-grp">
+            <label class="form-lbl">سعر البيع المباشر (ل.س) <span class="req">*</span></label>
+            <input type="number" class="form-inp" placeholder="10000"/>
+          </div>
+          <div class="form-grp">
+            <label class="form-lbl">سعر مراكز البيع (ل.س)</label>
+            <input type="number" class="form-inp" placeholder="8000"/>
+          </div>
+          <div class="form-grp">
+            <label class="form-lbl">نسبة عمولة المراكز المتخصصة (%)</label>
+            <input type="number" class="form-inp" placeholder="20"/>
+          </div>
+          <div class="form-grp">
+            <label class="form-lbl">الكمية المتاحة</label>
+            <input type="number" class="form-inp" placeholder="20"/>
+          </div>
+          <div class="form-grp">
+            <label class="form-lbl">حجم الحصة</label>
+            <input type="text" class="form-inp" placeholder="350g"/>
+          </div>
+          <div class="form-grp">
+            <label class="form-lbl">الحالة</label>
+            <select class="form-sel"><option>متاح</option><option>مخفي</option><option>نفدت الكمية</option></select>
+          </div>
+          <div class="form-grp">
+            <label class="form-lbl">إظهار ضمن وجبات اليوم</label>
+            <select class="form-sel"><option>نعم</option><option>لا</option></select>
+          </div>
+        </div>
+        <div class="divider-row"></div>
+        <div style="font-weight:800;font-size:14px;margin-bottom:12px">📊 القيم الغذائية</div>
+        <div class="form-grid-3">
+          <div class="form-grp"><label class="form-lbl">السعرات الحرارية</label><input type="number" class="form-inp" placeholder="420"/></div>
+          <div class="form-grp"><label class="form-lbl">البروتين (g)</label><input type="number" class="form-inp" placeholder="28"/></div>
+          <div class="form-grp"><label class="form-lbl">الكاربوهيدرات (g)</label><input type="number" class="form-inp" placeholder="52"/></div>
+          <div class="form-grp"><label class="form-lbl">الدهون (g)</label><input type="number" class="form-inp" placeholder="14"/></div>
+          <div class="form-grp"><label class="form-lbl">تنبيهات حساسية</label><input type="text" class="form-inp" placeholder="قمح، حليب"/></div>
+        </div>
+        <div class="form-actions">
+          <button class="btn-save">💾 حفظ المنتج</button>
+          <button class="btn-cancel" onclick="nav('products')">إلغاء</button>
+        </div>
+      </div>
+    </div><!-- /product-form -->
+
+    <!-- ══ INGREDIENTS ══ -->
+    <div id="sec-ingredients" class="section">
+      <div class="page-actions">
+        <h2>🧺 المكونات والمواد الخام</h2>
+        <button class="btn-sm btn-pink-sm">+ إضافة مادة</button>
+      </div>
+      <div class="inv-grid">
+        <div class="inv-card inv-ok">
+          <div class="inv-name">🌾 دقيق</div>
+          <div class="inv-qty">4.5 كيلو</div>
+          <div class="inv-unit">متوسط التكلفة: 1,200 ل.س/كيلو</div>
+          <div class="inv-progress"><div class="inv-fill" style="width:90%"></div></div>
+        </div>
+        <div class="inv-card inv-ok">
+          <div class="inv-name">🍗 دجاج</div>
+          <div class="inv-qty">3.2 كيلو</div>
+          <div class="inv-unit">متوسط التكلفة: 12,000 ل.س/كيلو</div>
+          <div class="inv-progress"><div class="inv-fill" style="width:65%"></div></div>
+        </div>
+        <div class="inv-card inv-low">
+          <div class="inv-name">🧀 جبنة موزاريلا</div>
+          <div class="inv-qty">0.8 كيلو</div>
+          <div class="inv-unit">متوسط التكلفة: 18,000 ل.س/كيلو</div>
+          <div class="inv-progress"><div class="inv-fill" style="width:20%"></div></div>
+          <div class="low-warn">⚠️ مخزون منخفض!</div>
+        </div>
+        <div class="inv-card inv-ok">
+          <div class="inv-name">🥛 كريمة</div>
+          <div class="inv-qty">2.4 لتر</div>
+          <div class="inv-unit">متوسط التكلفة: 8,500 ل.س/لتر</div>
+          <div class="inv-progress"><div class="inv-fill" style="width:75%"></div></div>
+        </div>
+        <div class="inv-card inv-crit">
+          <div class="inv-name">🍝 معكرونة</div>
+          <div class="inv-qty">0.4 كيلو</div>
+          <div class="inv-unit">متوسط التكلفة: 3,000 ل.س/كيلو</div>
+          <div class="inv-progress"><div class="inv-fill" style="width:10%"></div></div>
+          <div class="low-warn">🚨 ناقصة — اشتري الآن!</div>
+        </div>
+        <div class="inv-card inv-ok">
+          <div class="inv-name">📦 علب تغليف</div>
+          <div class="inv-qty">48 قطعة</div>
+          <div class="inv-unit">متوسط التكلفة: 500 ل.س/قطعة</div>
+          <div class="inv-progress"><div class="inv-fill" style="width:80%"></div></div>
+        </div>
+        <div class="inv-card inv-ok">
+          <div class="inv-name">🍅 صلصة طماطم</div>
+          <div class="inv-qty">3 كيلو</div>
+          <div class="inv-unit">متوسط التكلفة: 2,500 ل.س/كيلو</div>
+          <div class="inv-progress"><div class="inv-fill" style="width:60%"></div></div>
+        </div>
+        <div class="inv-card inv-ok">
+          <div class="inv-name">🥔 بطاطا</div>
+          <div class="inv-qty">5 كيلو</div>
+          <div class="inv-unit">متوسط التكلفة: 1,800 ل.س/كيلو</div>
+          <div class="inv-progress"><div class="inv-fill" style="width:85%"></div></div>
+        </div>
+        <div class="inv-card inv-low">
+          <div class="inv-name">🫒 زبدة</div>
+          <div class="inv-qty">0.3 كيلو</div>
+          <div class="inv-unit">متوسط التكلفة: 9,000 ل.س/كيلو</div>
+          <div class="inv-progress"><div class="inv-fill" style="width:15%"></div></div>
+          <div class="low-warn">⚠️ مخزون منخفض!</div>
+        </div>
+      </div>
+    </div><!-- /ingredients -->
+
+    <!-- ══ PURCHASES ══ -->
+    <div id="sec-purchases" class="section">
+      <div class="page-actions">
+        <h2>🛒 المشتريات</h2>
+        <button class="btn-sm btn-pink-sm">+ فاتورة جديدة</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px">
+        <div class="stat-card sc5" data-emoji="🛒"><div class="stat-label">مشتريات اليوم</div><div class="stat-val">32,500 ل.س</div></div>
+        <div class="stat-card sc6" data-emoji="📅"><div class="stat-label">مشتريات الشهر</div><div class="stat-val">480,000 ل.س</div></div>
+        <div class="stat-card sc4" data-emoji="🧺"><div class="stat-label">مواد أضيفت</div><div class="stat-val">9 مواد</div></div>
+        <div class="stat-card sc1" data-emoji="📄"><div class="stat-label">عدد الفواتير</div><div class="stat-val">4 فواتير</div></div>
+      </div>
+      <div class="section-card" style="margin-bottom:16px">
+        <div style="font-weight:800;font-size:14px;margin-bottom:14px">➕ تسجيل شراء جديد</div>
+        <div class="form-grid">
+          <div class="form-grp"><label class="form-lbl">اسم المورد <span class="req">*</span></label><input type="text" class="form-inp" placeholder="اسم المورد أو المحل…"/></div>
+          <div class="form-grp"><label class="form-lbl">المادة <span class="req">*</span></label><select class="form-sel"><option>دجاج</option><option>معكرونة</option><option>جبنة</option><option>كريمة</option><option>علب تغليف</option></select></div>
+          <div class="form-grp"><label class="form-lbl">الكمية <span class="req">*</span></label><input type="number" class="form-inp" placeholder="5"/></div>
+          <div class="form-grp"><label class="form-lbl">الوحدة</label><select class="form-sel"><option>كيلو</option><option>غرام</option><option>لتر</option><option>مل</option><option>قطعة</option></select></div>
+          <div class="form-grp"><label class="form-lbl">التكلفة الإجمالية (ل.س) <span class="req">*</span></label><input type="number" class="form-inp" placeholder="60000"/></div>
+          <div class="form-grp"><label class="form-lbl">طريقة الدفع</label><select class="form-sel"><option>كاش</option><option>بطاقة</option><option>تحويل</option><option>آجل</option></select></div>
+          <div class="form-grp"><label class="form-lbl">التاريخ</label><input type="date" class="form-inp"/></div>
+          <div class="form-grp"><label class="form-lbl">ملاحظات</label><input type="text" class="form-inp" placeholder="أي ملاحظات…"/></div>
+        </div>
+        <div class="form-actions"><button class="btn-save">💾 حفظ الفاتورة</button></div>
+      </div>
+      <div class="table-card">
+        <div class="tc-header"><div class="tc-title">سجل المشتريات اليوم</div></div>
+        <table>
+          <thead><tr><th>المورد</th><th>المادة</th><th>الكمية</th><th>التكلفة</th><th>الدفع</th><th>الوقت</th></tr></thead>
+          <tbody>
+            <tr><td>أبو أحمد للدجاج</td><td>🍗 دجاج</td><td>5 كيلو</td><td style="color:var(--danger)">60,000 ل.س</td><td><span class="badge b-paid">كاش</span></td><td>9:30 ص</td></tr>
+            <tr><td>سوبرماركت النجمة</td><td>🧀 جبنة موزاريلا</td><td>2 كيلو</td><td style="color:var(--danger)">36,000 ل.س</td><td><span class="badge b-paid">كاش</span></td><td>10:15 ص</td></tr>
+            <tr><td>مستودع المعكرونة</td><td>🍝 معكرونة</td><td>3 كيلو</td><td style="color:var(--danger)">9,000 ل.س</td><td><span class="badge b-partial">بطاقة</span></td><td>11:00 ص</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div><!-- /purchases -->
+
+    <!-- ══ COST CALCULATOR ══ -->
+    <div id="sec-cost" class="section">
+      <div class="page-actions"><h2>🧮 حاسبة كلفة المنتج</h2></div>
+      <div class="calc-layout">
+        <div>
+          <div class="section-card">
+            <div style="font-weight:800;font-size:14px;margin-bottom:14px">📋 معلومات المنتج</div>
+            <div class="form-grid" style="margin-bottom:16px">
+              <div class="form-grp"><label class="form-lbl">اسم المنتج</label><input type="text" class="form-inp" value="باستا كريمية"/></div>
+              <div class="form-grp"><label class="form-lbl">حجم الحصة</label><input type="text" class="form-inp" value="350g"/></div>
+            </div>
+            <div style="font-weight:800;font-size:14px;margin-bottom:12px">🧺 المكونات</div>
+            <div id="ing-list">
+              <div class="ing-row"><span class="ing-row-name">🍝 معكرونة</span><input class="ing-row-qty form-inp" type="number" value="150" style="width:75px;padding:7px 9px"/><span class="ing-row-unit">غرام</span><span class="ing-row-cost">4,500 ل.س</span><button class="btn-remove-ing">✕</button></div>
+              <div class="ing-row"><span class="ing-row-name">🍗 دجاج</span><input class="ing-row-qty form-inp" type="number" value="120" style="width:75px;padding:7px 9px"/><span class="ing-row-unit">غرام</span><span class="ing-row-cost">1,440 ل.س</span><button class="btn-remove-ing">✕</button></div>
+              <div class="ing-row"><span class="ing-row-name">🥛 كريمة</span><input class="ing-row-qty form-inp" type="number" value="80" style="width:75px;padding:7px 9px"/><span class="ing-row-unit">مل</span><span class="ing-row-cost">680 ل.س</span><button class="btn-remove-ing">✕</button></div>
+              <div class="ing-row"><span class="ing-row-name">🧀 جبنة</span><input class="ing-row-qty form-inp" type="number" value="40" style="width:75px;padding:7px 9px"/><span class="ing-row-unit">غرام</span><span class="ing-row-cost">720 ل.س</span><button class="btn-remove-ing">✕</button></div>
+              <div class="ing-row"><span class="ing-row-name">📦 علبة تغليف</span><input class="ing-row-qty form-inp" type="number" value="1" style="width:75px;padding:7px 9px"/><span class="ing-row-unit">قطعة</span><span class="ing-row-cost">500 ل.س</span><button class="btn-remove-ing">✕</button></div>
+            </div>
+            <button class="btn-add-ing">+ إضافة مكوّن</button>
+          </div>
+        </div>
+        <div>
+          <div class="section-card">
+            <div style="font-weight:800;font-size:15px;margin-bottom:12px">💰 ملخص الكلفة</div>
+            <div class="summary-card">
+              <div class="sum-row"><span>كلفة المكونات</span><span class="sum-row-val">7,840 ل.س</span></div>
+              <div class="sum-row"><span>التغليف</span><span class="sum-row-val">500 ل.س</span></div>
+              <div class="sum-row"><span>مصاريف متنوعة (5%)</span><span class="sum-row-val">410 ل.س</span></div>
+              <div class="sum-total"><span>كلفة الحصة</span><span>8,750 ل.س</span></div>
+            </div>
+            <div style="font-weight:800;font-size:14px;margin-bottom:10px">📊 القيم الغذائية المحسوبة</div>
+            <div class="summary-card">
+              <div class="sum-row"><span>🔥 السعرات</span><span class="sum-row-val" style="color:#E53935">420 سعرة</span></div>
+              <div class="sum-row"><span>💪 البروتين</span><span class="sum-row-val" style="color:#1565C0">28g</span></div>
+              <div class="sum-row"><span>🌾 الكاربوهيدرات</span><span class="sum-row-val" style="color:#E65100">52g</span></div>
+              <div class="sum-row"><span>🫒 الدهون</span><span class="sum-row-val" style="color:#6A1B9A">14g</span></div>
+            </div>
+            <div style="font-weight:800;font-size:14px;margin-bottom:10px">📈 الأرباح المتوقعة</div>
+            <div class="profit-row pr-direct">
+              <div><div class="pr-name">بيع مباشر (12,000 ل.س)</div><div class="pr-pct" style="color:var(--success)">هامش 27%</div></div>
+              <div class="pr-val" style="color:var(--success)">3,250 ل.س</div>
+            </div>
+            <div class="profit-row pr-center">
+              <div><div class="pr-name">مركز بسعر خاص (9,500 ل.س)</div><div class="pr-pct" style="color:var(--warning)">هامش 8%</div></div>
+              <div class="pr-val" style="color:var(--warning)">750 ل.س</div>
+            </div>
+            <div class="profit-row pr-spec">
+              <div><div class="pr-name">مركز متخصص 20% عمولة</div><div class="pr-pct" style="color:var(--fuchsia)">هامش 11%</div></div>
+              <div class="pr-val" style="color:var(--fuchsia)">1,050 ل.س</div>
+            </div>
+            <button class="btn-save" style="width:100%;margin-top:12px">💾 حفظ المنتج</button>
+          </div>
+        </div>
+      </div>
+    </div><!-- /cost -->
+
+    <!-- ══ SALES ══ -->
+    <div id="sec-sales" class="section">
+      <div class="page-actions"><h2>💰 تسجيل المبيعات</h2></div>
+      <div class="section-card" style="margin-bottom:16px">
+        <div style="font-weight:800;font-size:14px;margin-bottom:14px">🆕 بيعة جديدة</div>
+        <div class="form-grid">
+          <div class="form-grp"><label class="form-lbl">المنتج <span class="req">*</span></label><select class="form-sel"><option>لازانيا دجاج</option><option>باستا كريمية</option><option>نودلز بالخضار</option><option>غراتان بطاطا</option><option>ماك أند تشيز</option><option>سويت آند ساور</option></select></div>
+          <div class="form-grp"><label class="form-lbl">الكمية المباعة</label><input type="number" class="form-inp" placeholder="1" value="1"/></div>
+          <div class="form-grp"><label class="form-lbl">قناة البيع <span class="req">*</span></label><select class="form-sel" id="sale-channel" onchange="updateSalePrice()"><option value="direct">مباشر</option><option value="wa">واتساب</option><option value="center">مركز بيع عادي</option><option value="spec">مركز متخصص</option></select></div>
+          <div class="form-grp"><label class="form-lbl">السعر (يُحسب تلقائياً)</label><input type="number" class="form-inp" id="sale-price" value="12000" style="color:var(--fuchsia);font-weight:700"/></div>
+          <div class="form-grp"><label class="form-lbl">حالة الدفع</label><select class="form-sel"><option>مدفوع</option><option>غير مدفوع</option><option>مدفوع جزئياً</option></select></div>
+          <div class="form-grp"><label class="form-lbl">التاريخ</label><input type="date" class="form-inp"/></div>
+          <div class="form-grp fg-full"><label class="form-lbl">ملاحظات</label><input type="text" class="form-inp" placeholder="أي ملاحظات…"/></div>
+        </div>
+        <div class="form-actions"><button class="btn-save">✅ تسجيل البيعة</button></div>
+      </div>
+      <div class="table-card">
+        <div class="tc-header"><div class="tc-title">مبيعات اليوم</div><div style="font-size:14px;font-weight:700;color:var(--fuchsia)">الإجمالي: 127,500 ل.س</div></div>
+        <table>
+          <thead><tr><th>المنتج</th><th>الكمية</th><th>القناة</th><th>السعر</th><th>الدفع</th><th>الوقت</th></tr></thead>
+          <tbody>
+            <tr><td>🍝 لازانيا دجاج</td><td>2</td><td><span class="badge b-confirm">مباشر</span></td><td style="font-weight:700">24,000 ل.س</td><td><span class="badge b-paid">مدفوع</span></td><td>9:00 ص</td></tr>
+            <tr><td>🍝 باستا كريمية</td><td>3</td><td><span class="badge" style="background:#E8FFF3;color:var(--success)">واتساب</span></td><td style="font-weight:700">25,500 ل.س</td><td><span class="badge b-paid">مدفوع</span></td><td>10:30 ص</td></tr>
+            <tr><td>🍗 سويت آند ساور</td><td>4</td><td><span class="badge" style="background:var(--yellow-bg);color:#c57e00">مركز بيع</span></td><td style="font-weight:700">38,000 ل.س</td><td><span class="badge b-partial">جزئي</span></td><td>11:00 ص</td></tr>
+            <tr><td>🥔 غراتان بطاطا</td><td>5</td><td><span class="badge b-confirm">مباشر</span></td><td style="font-weight:700">37,500 ل.س</td><td><span class="badge b-paid">مدفوع</span></td><td>12:30 م</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div><!-- /sales -->
+
+    <!-- ══ ORDERS ══ -->
+    <div id="sec-orders" class="section">
+      <div class="page-actions"><h2>📋 إدارة الطلبات</h2><button class="btn-sm btn-yellow-sm">تصدير</button></div>
+      <div class="table-card">
+        <div class="tabs">
+          <button class="tab-btn active">الكل (18)</button>
+          <button class="tab-btn">جديد (5)</button>
+          <button class="tab-btn">قيد التحضير (3)</button>
+          <button class="tab-btn">تم التوصيل (8)</button>
+          <button class="tab-btn">ملغي (2)</button>
+        </div>
+        <table>
+          <thead><tr><th>العميل</th><th>المنتج</th><th>الكمية</th><th>الإجمالي</th><th>الموقع</th><th>الحالة</th><th>التاريخ</th><th>واتساب</th></tr></thead>
+          <tbody>
+            <tr><td><strong>سارة أحمد</strong><br><small style="color:var(--gray)">+963 911 111 111</small></td><td>🍝 لازانيا دجاج × 2</td><td>2</td><td style="font-weight:700;color:var(--fuchsia)">24,000 ل.س</td><td>المزة، دمشق</td><td><span class="badge b-new">جديد</span></td><td>10:45 ص</td><td><button class="btn-sm btn-mint-sm">💬</button></td></tr>
+            <tr><td><strong>ريم علي</strong><br><small style="color:var(--gray)">+963 922 222 222</small></td><td>🍝 باستا كريمية × 1</td><td>1</td><td style="font-weight:700;color:var(--fuchsia)">8,500 ل.س</td><td>الشعلان</td><td><span class="badge b-prep">قيد التحضير</span></td><td>10:30 ص</td><td><button class="btn-sm btn-mint-sm">💬</button></td></tr>
+            <tr><td><strong>هنادي سمير</strong><br><small style="color:var(--gray)">+963 933 333 333</small></td><td>🍗 سويت آند ساور × 2</td><td>2</td><td style="font-weight:700;color:var(--fuchsia)">19,000 ل.س</td><td>كفر سوسة</td><td><span class="badge b-delivered">تم التوصيل</span></td><td>9:00 ص</td><td><button class="btn-sm btn-mint-sm">💬</button></td></tr>
+            <tr><td><strong>ديمة محمد</strong><br><small style="color:var(--gray)">+963 944 444 444</small></td><td>🥔 غراتان بطاطا × 3</td><td>3</td><td style="font-weight:700;color:var(--fuchsia)">22,500 ل.س</td><td>أبو رمانة</td><td><span class="badge b-new">جديد</span></td><td>11:15 ص</td><td><button class="btn-sm btn-mint-sm">💬</button></td></tr>
+            <tr><td><strong>منى خالد</strong><br><small style="color:var(--gray)">+963 955 555 555</small></td><td>🧀 ماك أند تشيز × 1</td><td>1</td><td style="font-weight:700;color:var(--fuchsia)">6,500 ل.س</td><td>المالكي</td><td><span class="badge b-cancel">ملغي</span></td><td>9:45 ص</td><td><button class="btn-sm btn-mint-sm">💬</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div><!-- /orders -->
+
+    <!-- ══ WASTE ══ -->
+    <div id="sec-waste" class="section">
+      <div class="page-actions"><h2>🗑️ إدارة الهدر والخسائر</h2></div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px">
+        <div class="stat-card sc5" data-emoji="🗑️"><div class="stat-label">هدر اليوم</div><div class="stat-val">4,800 ل.س</div><div class="stat-sub">3 حوادث</div></div>
+        <div class="stat-card sc6" data-emoji="📅"><div class="stat-label">هدر الشهر</div><div class="stat-val">62,000 ل.س</div></div>
+        <div class="stat-card sc5" data-emoji="🍝"><div class="stat-label">أكثر منتج هدراً</div><div class="stat-val">لازانيا</div></div>
+        <div class="stat-card sc6" data-emoji="❓"><div class="stat-label">أكثر سبب</div><div class="stat-val">غير مباع</div></div>
+      </div>
+      <div class="section-card" style="margin-bottom:16px">
+        <div style="font-weight:800;font-size:14px;margin-bottom:14px">➕ تسجيل هدر</div>
+        <div class="form-grid">
+          <div class="form-grp"><label class="form-lbl">المنتج أو المادة <span class="req">*</span></label><select class="form-sel"><option>لازانيا دجاج</option><option>باستا كريمية</option><option>معكرونة (مادة خام)</option><option>دجاج (مادة خام)</option></select></div>
+          <div class="form-grp"><label class="form-lbl">الكمية <span class="req">*</span></label><input type="number" class="form-inp" placeholder="1"/></div>
+          <div class="form-grp"><label class="form-lbl">سبب الهدر <span class="req">*</span></label><select class="form-sel"><option>منتج تالف</option><option>مكونات تالفة</option><option>انكب / انسكب</option><option>انتهت الصلاحية</option><option>خطأ بالتحضير</option><option>مرتجع تالف</option><option>غير مباع</option><option>أخرى</option></select></div>
+          <div class="form-grp"><label class="form-lbl">تكلفة الهدر (ل.س)</label><input type="number" class="form-inp" placeholder="0" style="color:var(--danger)"/></div>
+          <div class="form-grp"><label class="form-lbl">التاريخ</label><input type="date" class="form-inp"/></div>
+          <div class="form-grp"><label class="form-lbl">ملاحظات</label><input type="text" class="form-inp" placeholder="ما الذي حصل؟"/></div>
+        </div>
+        <div class="form-actions"><button class="btn-save" style="background:var(--danger)">🗑️ تسجيل الهدر</button></div>
+      </div>
+      <div class="table-card">
+        <div class="tc-header"><div class="tc-title">سجل الهدر اليوم</div></div>
+        <table>
+          <thead><tr><th>المنتج/المادة</th><th>الكمية</th><th>السبب</th><th>التكلفة</th><th>الوقت</th></tr></thead>
+          <tbody>
+            <tr><td>🍝 لازانيا دجاج</td><td>1 حصة</td><td><span class="badge b-sold">غير مباع</span></td><td style="color:var(--danger)">7,200 ل.س</td><td>3:00 م</td></tr>
+            <tr><td>🧀 جبنة موزاريلا</td><td>200g</td><td><span class="badge b-cancel">انتهت صلاحية</span></td><td style="color:var(--danger)">3,600 ل.س</td><td>11:00 ص</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div><!-- /waste -->
+
+    <!-- ══ CENTERS ══ -->
+    <div id="sec-centers" class="section">
+      <div class="page-actions"><h2>🏪 مراكز البيع</h2><button class="btn-sm btn-pink-sm">+ مركز جديد</button></div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+        <div class="section-card" style="border-top:4px solid var(--fuchsia)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <div><div style="font-size:16px;font-weight:900">مطعم الريف</div><div style="font-size:12px;color:var(--gray)">مركز بسعر خاص</div></div>
+            <span class="badge b-active">نشط</span>
+          </div>
+          <div class="center-cards" style="grid-template-columns:1fr 1fr">
+            <div class="center-stat"><div class="cs-ico">📦</div><div class="cs-val" style="color:var(--fuchsia)">25</div><div class="cs-lbl">مسلّم</div></div>
+            <div class="center-stat"><div class="cs-ico">✅</div><div class="cs-val" style="color:var(--success)">20</div><div class="cs-lbl">مباع</div></div>
+            <div class="center-stat"><div class="cs-ico">💵</div><div class="cs-val" style="color:var(--info)">190k</div><div class="cs-lbl">مقبوض</div></div>
+            <div class="center-stat"><div class="cs-ico">⏳</div><div class="cs-val" style="color:var(--warning)">48k</div><div class="cs-lbl">متبقي</div></div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button class="btn-sm btn-outline-sm" style="flex:1" onclick="nav('delivery')">تسليم</button>
+            <button class="btn-sm btn-pink-sm" style="flex:1">تسوية</button>
+          </div>
+        </div>
+        <div class="section-card" style="border-top:4px solid var(--yellow)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <div><div style="font-size:16px;font-weight:900">كافيه سوشي</div><div style="font-size:12px;color:var(--gray)">مركز متخصص — 20% عمولة</div></div>
+            <span class="badge b-active">نشط</span>
+          </div>
+          <div class="center-cards" style="grid-template-columns:1fr 1fr">
+            <div class="center-stat"><div class="cs-ico">📦</div><div class="cs-val" style="color:var(--fuchsia)">15</div><div class="cs-lbl">مسلّم</div></div>
+            <div class="center-stat"><div class="cs-ico">✅</div><div class="cs-val" style="color:var(--success)">12</div><div class="cs-lbl">مباع</div></div>
+            <div class="center-stat"><div class="cs-ico">💵</div><div class="cs-val" style="color:var(--info)">96k</div><div class="cs-lbl">الصافي</div></div>
+            <div class="center-stat"><div class="cs-ico">🏷️</div><div class="cs-val" style="color:var(--yellow-dark)">24k</div><div class="cs-lbl">العمولة</div></div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button class="btn-sm btn-outline-sm" style="flex:1" onclick="nav('delivery')">تسليم</button>
+            <button class="btn-sm btn-pink-sm" style="flex:1">تسوية</button>
+          </div>
+        </div>
+        <div class="section-card" style="border-top:4px solid var(--mint)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <div><div style="font-size:16px;font-weight:900">بيت الجيران</div><div style="font-size:12px;color:var(--gray)">مركز بسعر خاص</div></div>
+            <span class="badge b-confirm">نشط</span>
+          </div>
+          <div class="center-cards" style="grid-template-columns:1fr 1fr">
+            <div class="center-stat"><div class="cs-ico">📦</div><div class="cs-val" style="color:var(--fuchsia)">10</div><div class="cs-lbl">مسلّم</div></div>
+            <div class="center-stat"><div class="cs-ico">✅</div><div class="cs-val" style="color:var(--success)">8</div><div class="cs-lbl">مباع</div></div>
+            <div class="center-stat"><div class="cs-ico">💵</div><div class="cs-val" style="color:var(--info)">64k</div><div class="cs-lbl">مقبوض</div></div>
+            <div class="center-stat"><div class="cs-ico">⏳</div><div class="cs-val" style="color:var(--warning)">16k</div><div class="cs-lbl">متبقي</div></div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button class="btn-sm btn-outline-sm" style="flex:1" onclick="nav('delivery')">تسليم</button>
+            <button class="btn-sm btn-pink-sm" style="flex:1">تسوية</button>
+          </div>
+        </div>
+      </div>
+    </div><!-- /centers -->
+
+    <!-- ══ DELIVERY ══ -->
+    <div id="sec-delivery" class="section">
+      <div class="page-actions"><h2>🚚 التسليم والتسوية</h2></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="section-card">
+          <div style="font-weight:800;font-size:14px;margin-bottom:14px">📦 تسليم بضاعة لمركز</div>
+          <div class="form-grp" style="margin-bottom:12px"><label class="form-lbl">اختيار المركز</label><select class="form-sel"><option>مطعم الريف</option><option>كافيه سوشي</option><option>بيت الجيران</option></select></div>
+          <div class="form-grp" style="margin-bottom:12px"><label class="form-lbl">المنتج</label><select class="form-sel"><option>لازانيا دجاج</option><option>باستا كريمية</option><option>نودلز بالخضار</option></select></div>
+          <div class="form-grp" style="margin-bottom:12px"><label class="form-lbl">الكمية المسلّمة</label><input type="number" class="form-inp" placeholder="10"/></div>
+          <div class="form-grp" style="margin-bottom:12px"><label class="form-lbl">التاريخ</label><input type="date" class="form-inp"/></div>
+          <div class="form-grp" style="margin-bottom:14px"><label class="form-lbl">ملاحظات</label><input type="text" class="form-inp"/></div>
+          <button class="btn-save" style="width:100%">🚚 تأكيد التسليم</button>
+        </div>
+        <div class="section-card">
+          <div style="font-weight:800;font-size:14px;margin-bottom:14px">✅ تسوية مركز البيع</div>
+          <div class="form-grp" style="margin-bottom:12px"><label class="form-lbl">المركز</label><select class="form-sel"><option>مطعم الريف</option><option>كافيه سوشي</option></select></div>
+          <div class="form-grp" style="margin-bottom:12px"><label class="form-lbl">الكمية المباعة</label><input type="number" class="form-inp" placeholder="8"/></div>
+          <div class="form-grp" style="margin-bottom:12px"><label class="form-lbl">الكمية المرتجعة</label><input type="number" class="form-inp" placeholder="2"/></div>
+          <div class="form-grp" style="margin-bottom:12px"><label class="form-lbl">المبلغ المقبوض (ل.س)</label><input type="number" class="form-inp" placeholder="80000" style="color:var(--success)"/></div>
+          <div class="summary-card" style="margin-bottom:12px">
+            <div class="sum-row"><span>العمولة المحسوبة</span><span class="sum-row-val" style="color:var(--warning)">20,000 ل.س</span></div>
+            <div class="sum-row"><span>الصافي لـ Luliz</span><span class="sum-row-val" style="color:var(--success)">60,000 ل.س</span></div>
+            <div class="sum-total"><span>المتبقي على المركز</span><span>18,000 ل.س</span></div>
+          </div>
+          <button class="btn-save" style="width:100%;background:var(--success)">✅ تأكيد التسوية</button>
+        </div>
+      </div>
+    </div><!-- /delivery -->
+
+    <!-- ══ CLOSING ══ -->
+    <div id="sec-closing" class="section">
+      <div class="page-actions"><h2>🔒 الجرد اليومي — 26 مايو 2026</h2></div>
+      <div class="closing-grid">
+        <div class="closing-card"><div class="closing-ico">🍳</div><div class="closing-val" style="color:var(--fuchsia)">45</div><div class="closing-lbl">الكمية المنتجة</div></div>
+        <div class="closing-card"><div class="closing-ico">✅</div><div class="closing-val" style="color:var(--success)">38</div><div class="closing-lbl">الكمية المباعة</div></div>
+        <div class="closing-card"><div class="closing-ico">📦</div><div class="closing-val" style="color:var(--info)">4</div><div class="closing-lbl">المتبقي</div></div>
+        <div class="closing-card"><div class="closing-ico">🗑️</div><div class="closing-val" style="color:var(--danger)">3</div><div class="closing-lbl">الهدر</div></div>
+        <div class="closing-card"><div class="closing-ico">↩️</div><div class="closing-val" style="color:var(--warning)">0</div><div class="closing-lbl">المرتجعات</div></div>
+        <div class="closing-card"><div class="closing-ico">📞</div><div class="closing-val" style="color:var(--success)">8</div><div class="closing-lbl">مبيعات واتساب</div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px">
+        <div class="summary-card">
+          <div style="font-weight:800;font-size:14px;margin-bottom:12px">💰 الملخص المالي</div>
+          <div class="sum-row"><span>الإيرادات الإجمالية</span><span class="sum-row-val" style="color:var(--success)">127,500 ل.س</span></div>
+          <div class="sum-row"><span>إجمالي الكلفة</span><span class="sum-row-val" style="color:var(--danger)">64,750 ل.س</span></div>
+          <div class="sum-row"><span>مشتريات اليوم</span><span class="sum-row-val" style="color:var(--danger)">32,500 ل.س</span></div>
+          <div class="sum-row"><span>تكلفة الهدر</span><span class="sum-row-val" style="color:var(--danger)">10,800 ل.س</span></div>
+          <div class="sum-total"><span>صافي الربح</span><span>48,200 ل.س</span></div>
+        </div>
+        <div class="summary-card">
+          <div style="font-weight:800;font-size:14px;margin-bottom:12px">🏦 حركة الكاش</div>
+          <div class="sum-row"><span>الرصيد الافتتاحي</span><span class="sum-row-val">167,000 ل.س</span></div>
+          <div class="sum-row"><span>+ مبيعات مدفوعة</span><span class="sum-row-val" style="color:var(--success)">+88,500 ل.س</span></div>
+          <div class="sum-row"><span>+ مقبوض من مراكز</span><span class="sum-row-val" style="color:var(--success)">+22,000 ل.س</span></div>
+          <div class="sum-row"><span>− مشتريات</span><span class="sum-row-val" style="color:var(--danger)">−32,500 ل.س</span></div>
+          <div class="sum-total"><span>الكاش الحالي</span><span>245,000 ل.س</span></div>
+        </div>
+      </div>
+      <button class="btn-close-day">🔒 إغلاق اليوم وحفظ التقرير</button>
+    </div><!-- /closing -->
+
+    <!-- ══ CASH ══ -->
+    <div id="sec-cash" class="section">
+      <div class="page-actions"><h2>🏦 الكاش والرصيد</h2><button class="btn-sm btn-pink-sm">+ إضافة حركة</button></div>
+      <div class="cash-hero">
+        <div class="cash-lbl">الكاش الحالي</div>
+        <div class="cash-amount">245,000 ل.س</div>
+        <div class="cash-sub">آخر تحديث: اليوم 1:30 م</div>
+      </div>
+      <div class="cash-cards">
+        <div class="cash-card cc-inc"><div class="cc-label">دخل اليوم</div><div class="cc-val">88,500 ل.س</div></div>
+        <div class="cash-card cc-exp"><div class="cc-label">مصروفات اليوم</div><div class="cc-val">32,500 ل.س</div></div>
+        <div class="cash-card cc-inc"><div class="cc-label">من المراكز</div><div class="cc-val">22,000 ل.س</div></div>
+        <div class="cash-card cc-neutral"><div class="cc-label">متبقي على مراكز</div><div class="cc-val">64,000 ل.س</div></div>
+        <div class="cash-card cc-neutral"><div class="cc-label">الرصيد الافتتاحي</div><div class="cc-val">167,000 ل.س</div></div>
+        <div class="cash-card cc-inc"><div class="cc-label">الرصيد المتوقع</div><div class="cc-val">309,000 ل.س</div></div>
+      </div>
+      <div class="table-card">
+        <div class="tc-header"><div class="tc-title">حركات الكاش اليوم</div></div>
+        <table>
+          <thead><tr><th>النوع</th><th>الوصف</th><th>المبلغ</th><th>الوقت</th></tr></thead>
+          <tbody>
+            <tr><td><span class="badge b-active">دخل</span></td><td>مبيعات مباشرة</td><td style="color:var(--success);font-weight:700">+54,000 ل.س</td><td>9:00 ص</td></tr>
+            <tr><td><span class="badge b-active">دخل</span></td><td>مبيعات واتساب</td><td style="color:var(--success);font-weight:700">+34,500 ل.س</td><td>11:00 ص</td></tr>
+            <tr><td><span class="badge b-active">دخل</span></td><td>مقبوض من مطعم الريف</td><td style="color:var(--success);font-weight:700">+22,000 ل.س</td><td>1:00 م</td></tr>
+            <tr><td><span class="badge b-cancel">مصروف</span></td><td>مشتريات — دجاج وجبنة</td><td style="color:var(--danger);font-weight:700">−32,500 ل.س</td><td>10:00 ص</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div><!-- /cash -->
+
+    <!-- ══ OFFERS MGMT ══ -->
+    <div id="sec-offers" class="section">
+      <div class="page-actions"><h2>🏷️ إدارة العروض</h2><button class="btn-sm btn-pink-sm">+ عرض جديد</button></div>
+      <div class="section-card" style="margin-bottom:16px">
+        <div style="font-weight:800;font-size:14px;margin-bottom:14px">➕ إضافة عرض جديد</div>
+        <div class="form-grid">
+          <div class="form-grp"><label class="form-lbl">المنتج <span class="req">*</span></label><select class="form-sel"><option>لازانيا دجاج</option><option>باستا كريمية</option><option>نودلز بالخضار</option></select></div>
+          <div class="form-grp"><label class="form-lbl">نوع الخصم</label><select class="form-sel"><option>نسبة مئوية (%)</option><option>مبلغ ثابت (ل.س)</option></select></div>
+          <div class="form-grp"><label class="form-lbl">قيمة الخصم <span class="req">*</span></label><input type="number" class="form-inp" placeholder="20"/></div>
+          <div class="form-grp"><label class="form-lbl">تاريخ البداية</label><input type="date" class="form-inp"/></div>
+          <div class="form-grp"><label class="form-lbl">تاريخ الانتهاء</label><input type="date" class="form-inp"/></div>
+          <div class="form-grp"><label class="form-lbl">إظهار في الصفحة الرئيسية</label><select class="form-sel"><option>نعم</option><option>لا</option></select></div>
+        </div>
+        <div class="form-actions"><button class="btn-save">💾 حفظ العرض</button></div>
+      </div>
+      <div>
+        <div class="offer-mgmt-card">
+          <div class="omc-img">🍝</div>
+          <div><div class="omc-name">لازانيا دجاج — خصم 20%</div><div class="omc-meta">من 20 مايو حتى 28 مايو | السعر الجديد: 12,000 ل.س</div></div>
+          <div class="omc-actions"><span class="badge b-active">نشط</span><button class="btn-sm btn-outline-sm">✏️</button><button class="btn-sm btn-danger-sm">🗑️</button></div>
+        </div>
+        <div class="offer-mgmt-card">
+          <div class="omc-img">🍜</div>
+          <div><div class="omc-name">نودلز بالخضار — خصم 22%</div><div class="omc-meta">من 22 مايو حتى 30 مايو | السعر الجديد: 7,000 ل.س</div></div>
+          <div class="omc-actions"><span class="badge b-active">نشط</span><button class="btn-sm btn-outline-sm">✏️</button><button class="btn-sm btn-danger-sm">🗑️</button></div>
+        </div>
+        <div class="offer-mgmt-card">
+          <div class="omc-img">🍗</div>
+          <div><div class="omc-name">سويت آند ساور — خصم 14%</div><div class="omc-meta">من 24 مايو حتى 27 مايو | السعر الجديد: 9,500 ل.س</div></div>
+          <div class="omc-actions"><span class="badge b-active">نشط</span><button class="btn-sm btn-outline-sm">✏️</button><button class="btn-sm btn-danger-sm">🗑️</button></div>
+        </div>
+      </div>
+    </div><!-- /offers -->
+
+    <!-- ══ REPORTS ══ -->
+    <div id="sec-reports" class="section">
+      <div class="page-actions"><h2>📈 التقارير والإحصائيات</h2><button class="btn-sm btn-yellow-sm">تصدير PDF</button></div>
+      <div class="report-filters">
+        <div style="font-weight:800;font-size:13px;margin-bottom:12px">🔍 فلاتر البحث</div>
+        <div class="filter-grid">
+          <div class="form-grp"><label class="form-lbl">الفترة الزمنية</label><select class="form-sel"><option>اليوم</option><option>هذا الأسبوع</option><option>هذا الشهر</option><option>نطاق مخصص</option></select></div>
+          <div class="form-grp"><label class="form-lbl">المنتج</label><select class="form-sel"><option>الكل</option><option>لازانيا دجاج</option><option>باستا كريمية</option></select></div>
+          <div class="form-grp"><label class="form-lbl">قناة البيع</label><select class="form-sel"><option>الكل</option><option>مباشر</option><option>واتساب</option><option>مراكز بيع</option></select></div>
+        </div>
+        <div style="margin-top:12px"><button class="btn-sm btn-pink-sm">🔍 تطبيق الفلتر</button></div>
+      </div>
+      <div class="report-kpis">
+        <div class="kpi-card"><div class="kpi-ico">💰</div><div class="kpi-val" style="color:var(--success)">3.82M ل.س</div><div class="kpi-lbl">إجمالي الإيرادات</div></div>
+        <div class="kpi-card"><div class="kpi-ico">📈</div><div class="kpi-val" style="color:var(--fuchsia)">1.44M ل.س</div><div class="kpi-lbl">صافي الربح</div></div>
+        <div class="kpi-card"><div class="kpi-ico">🛒</div><div class="kpi-val" style="color:var(--danger)">1.82M ل.س</div><div class="kpi-lbl">إجمالي المشتريات</div></div>
+        <div class="kpi-card"><div class="kpi-ico">🗑️</div><div class="kpi-val" style="color:var(--warning)">186k ل.س</div><div class="kpi-lbl">إجمالي الهدر</div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div class="table-card">
+          <div class="tc-header"><div class="tc-title">🏆 أكثر المنتجات مبيعاً</div></div>
+          <table>
+            <thead><tr><th>المنتج</th><th>الكمية</th><th>الإيراد</th></tr></thead>
+            <tbody>
+              <tr><td>🍝 لازانيا دجاج</td><td>142 حصة</td><td style="font-weight:700;color:var(--fuchsia)">1.7M ل.س</td></tr>
+              <tr><td>🍝 باستا كريمية</td><td>128 حصة</td><td style="font-weight:700;color:var(--fuchsia)">1.1M ل.س</td></tr>
+              <tr><td>🥔 غراتان بطاطا</td><td>95 حصة</td><td style="font-weight:700;color:var(--fuchsia)">712k ل.س</td></tr>
+              <tr><td>🍗 سويت آند ساور</td><td>72 حصة</td><td style="font-weight:700;color:var(--fuchsia)">684k ل.س</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="table-card">
+          <div class="tc-header"><div class="tc-title">🏪 أداء مراكز البيع</div></div>
+          <table>
+            <thead><tr><th>المركز</th><th>المبيعات</th><th>العمولة</th><th>الصافي</th></tr></thead>
+            <tbody>
+              <tr><td>مطعم الريف</td><td>450k</td><td>—</td><td style="color:var(--success);font-weight:700">450k</td></tr>
+              <tr><td>كافيه سوشي</td><td>280k</td><td style="color:var(--warning)">56k</td><td style="color:var(--success);font-weight:700">224k</td></tr>
+              <tr><td>بيت الجيران</td><td>180k</td><td>—</td><td style="color:var(--success);font-weight:700">180k</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div><!-- /reports -->
+
+  </div><!-- /content-area -->
+</div><!-- /main-content -->
+</div><!-- /admin-layout -->
+</div><!-- /dashboard -->
+
+<script>
+function doLogin(){
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('dashboard').style.display='block';
+}
+function doLogout(){
+  document.getElementById('dashboard').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+}
+
+const titles={
+  overview:'لوحة التحكم',products:'المنتجات','product-form':'إضافة منتج',
+  ingredients:'المكونات والمواد',purchases:'المشتريات',cost:'حاسبة الكلفة',
+  sales:'تسجيل المبيعات',orders:'الطلبات',waste:'الهدر والخسائر',
+  centers:'مراكز البيع',delivery:'التسليم والتسوية',closing:'الجرد اليومي',
+  cash:'الكاش والرصيد',offers:'العروض',reports:'التقارير'
+};
+
+function nav(id){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  const sec=document.getElementById('sec-'+id);
+  if(sec)sec.classList.add('active');
+  document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));
+  // find matching sidebar item
+  document.querySelectorAll('.sb-item').forEach(i=>{
+    if(i.getAttribute('onclick')&&i.getAttribute('onclick').includes("'"+id+"'"))
+      i.classList.add('active');
+  });
+  document.getElementById('page-title').textContent=titles[id]||id;
+  document.querySelector('.main-content').scrollTop=0;
+}
+
+function updateSalePrice(){
+  const ch=document.getElementById('sale-channel').value;
+  const prices={direct:12000,wa:12000,center:9500,spec:12000};
+  const el=document.getElementById('sale-price');
+  if(el)el.value=prices[ch]||12000;
+}
+</script>
+</body>
+</html>

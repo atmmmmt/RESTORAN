@@ -1,0 +1,44 @@
+# ── SPA history fallback ─────────────────────────────────────────────
+# React Router owns every path client-side, but Apache resolves the URL
+# against the filesystem first. Without this, reloading /centers or
+# /admin/dashboard hands the visitor Hostinger's 404 page because no such
+# file exists on disk. Serve index.html for anything that isn't a real
+# file or directory and let the router take over.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Never swallow real assets or the service worker.
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+# ── Caching ──────────────────────────────────────────────────────────
+<IfModule mod_headers.c>
+  # Hashed filenames change whenever the content changes, so they are safe
+  # to cache forever.
+  <FilesMatch "\.(js|css|woff2?|png|jpe?g|svg|webp|gif|glb|task)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+
+  # index.html and sw.js decide which build everyone runs — caching them
+  # pins visitors to a stale deploy long after the files are replaced.
+  <FilesMatch "^(index\.html|sw\.js|manifest\.webmanifest)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+  </FilesMatch>
+</IfModule>
+
+# ── Compression ──────────────────────────────────────────────────────
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml \
+    application/javascript application/json image/svg+xml \
+    application/manifest+json
+</IfModule>
+
+<IfModule mod_mime.c>
+  AddType application/manifest+json .webmanifest
+  AddType model/gltf-binary .glb
+</IfModule>

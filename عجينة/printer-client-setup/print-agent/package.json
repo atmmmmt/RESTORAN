@@ -1,0 +1,15 @@
+{
+  "name": "ajineh-print-agent",
+  "version": "1.0.0",
+  "private": true,
+  "description": "وكيل الطابعة الحرارية — يمرّر فواتير ESC/POS من الداشبورد إلى طابعة الشبكة",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "install-service": "node install-service.js",
+    "uninstall-service": "node install-service.js --uninstall"
+  },
+  "optionalDependencies": {
+    "node-windows": "^1.0.0-beta.8"
+  }
+}

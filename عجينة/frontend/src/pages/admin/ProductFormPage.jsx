@@ -1,0 +1,381 @@
+import { useEffect, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { motion } from 'framer-motion'
+import { productsAPI, ingredientsAPI, categoriesAPI } from '../../services/api'
+import PageHeader from '../../components/common/PageHeader'
+import Button from '../../components/common/Button'
+import ImageUpload from '../../components/common/ImageUpload'
+import { formatCurrency } from '../../utils/formatters'
+import toast from 'react-hot-toast'
+import VirtualTryOnSection from '../../features/virtual-try-on/admin/VirtualTryOnSection'
+
+/* Categories are managed at /admin/categories. This page used to carry its
+   own hardcoded list, which had drifted so far from the real menu that
+   picking from it invented sections the storefront had no picture for. */
+const UNITS = { gram: 'غم', kg: 'كغ', ml: 'مل', liter: 'لتر', piece: 'قطعة' }
+
+export default function ProductFormPage() {
+  const { id } = useParams()
+  const navigate = useNavigate()
+  const isEdit = Boolean(id)
+
+  const [ingredients, setIngredients] = useState([])
+  const [form, setForm] = useState({
+    name: '', description: '', category: 'باستا', image: '🍽️', imagePublicId: null,
+    directPrice: '', regularCenterPrice: '', specializedCenterDefaultCommissionPercent: 20,
+    packagingCost: 150, extraCost: 0, availableQuantity: 0,
+    status: 'available', showInTodayMenu: true, allergyNotes: '', notes: '',
+    nutrition: { calories: 0, protein: 0, carbs: 0, fat: 0, saturatedFat: 0, sugars: 0, sodium: 0, fiber: 0, portionSize: '', basis: 'estimated', confidence: 'medium', source: '' },
+    ingredients: [],
+  })
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  const [categories, setCategories] = useState([])
+
+  useEffect(() => {
+    categoriesAPI.getAll()
+      .then(res => setCategories((res.data.categories || []).map(c => c.name)))
+      .catch(() => { /* the select falls back to whatever the product already has */ })
+  }, [])
+
+  useEffect(() => {
+    ingredientsAPI.getAll().then(r => setIngredients(r.data.ingredients || []))
+    if (isEdit) {
+      setLoading(true)
+      productsAPI.getById(id).then(r => {
+        const p = r.data.product
+        setForm({
+          name: p.name, description: p.description || '', category: p.category || 'باستا',
+          image: p.image || '🍽️', imagePublicId: p.imagePublicId || null,
+          directPrice: p.directPrice, regularCenterPrice: p.regularCenterPrice,
+          specializedCenterDefaultCommissionPercent: p.specializedCenterDefaultCommissionPercent || 20,
+          packagingCost: p.packagingCost || 150, extraCost: p.extraCost || 0,
+          availableQuantity: p.availableQuantity || 0, status: p.status, showInTodayMenu: p.showInTodayMenu,
+          allergyNotes: p.allergyNotes || '', notes: p.notes || '',
+          nutrition: {
+            calories: p.nutrition?.calories || 0, protein: p.nutrition?.protein || 0,
+            carbs: p.nutrition?.carbs || 0, fat: p.nutrition?.fat || 0,
+            saturatedFat: p.nutrition?.saturatedFat || 0, sugars: p.nutrition?.sugars || 0,
+            sodium: p.nutrition?.sodium || 0, fiber: p.nutrition?.fiber || 0,
+            portionSize: p.nutrition?.portionSize || '', basis: p.nutrition?.basis || 'estimated',
+            confidence: p.nutrition?.confidence || 'medium', source: p.nutrition?.source || '',
+          },
+          ingredients: p.ingredients?.map(ing => ({
+            ingredientId: ing.ingredientId?._id || ing.ingredientId,
+            ingredientNameSnapshot: ing.ingredientNameSnapshot,
+            quantityUsed: ing.quantityUsed,
+            unitType: ing.unitType,
+          })) || [],
+        })
+      }).finally(() => setLoading(false))
+    }
+  }, [id])
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  const addIngredient = () => {
+    if (!ingredients.length) return
+    setForm(f => ({
+      ...f,
+      ingredients: [...f.ingredients, { ingredientId: ingredients[0]._id, ingredientNameSnapshot: ingredients[0].name, quantityUsed: 100, unitType: ingredients[0].unitType }],
+    }))
+  }
+
+  const removeIngredient = (i) => setForm(f => ({ ...f, ingredients: f.ingredients.filter((_, idx) => idx !== i) }))
+
+  const updateIngredient = (i, k, v) => {
+    setForm(f => {
+      const ings = [...f.ingredients]
+      ings[i] = { ...ings[i], [k]: v }
+      if (k === 'ingredientId') {
+        const found = ingredients.find(x => x._id === v)
+        if (found) { ings[i].ingredientNameSnapshot = found.name; ings[i].unitType = found.unitType }
+      }
+      return { ...f, ingredients: ings }
+    })
+  }
+
+  /* ── Live cost & nutrition from selected ingredients ── */
+  const calcCost = () => {
+    const ingCost = form.ingredients.reduce((sum, ing) => {
+      const found = ingredients.find(i => i._id === ing.ingredientId)
+      return sum + (found ? found.averageCostPerUnit * ing.quantityUsed : 0)
+    }, 0)
+    return ingCost + Number(form.packagingCost) + Number(form.extraCost)
+  }
+
+  const calcNutrition = () => {
+    if (form.ingredients.length === 0) return form.nutrition
+    let calories = 0, protein = 0, carbs = 0, fat = 0
+    for (const ing of form.ingredients) {
+      const found = ingredients.find(i => i._id === ing.ingredientId)
+      const n = found?.nutritionPerUnit
+      if (n) {
+        const qty = ing.quantityUsed || 0
+        calories += (n.calories || 0) * qty
+        protein  += (n.protein  || 0) * qty
+        carbs    += (n.carbs    || 0) * qty
+        fat      += (n.fat      || 0) * qty
+      }
+    }
+    return {
+      calories: Math.round(calories),
+      protein:  Math.round(protein  * 10) / 10,
+      carbs:    Math.round(carbs    * 10) / 10,
+      fat:      Math.round(fat      * 10) / 10,
+    }
+  }
+
+  /* Build ingredient list with cost + nutrition snapshots for the backend */
+  const buildIngredients = () => form.ingredients.map(ing => {
+    const found = ingredients.find(i => i._id === ing.ingredientId)
+    const n = found?.nutritionPerUnit
+    return {
+      ...ing,
+      costSnapshot: found ? found.averageCostPerUnit * ing.quantityUsed : 0,
+      nutritionSnapshot: n ? {
+        calories: (n.calories || 0) * ing.quantityUsed,
+        protein:  (n.protein  || 0) * ing.quantityUsed,
+        carbs:    (n.carbs    || 0) * ing.quantityUsed,
+        fat:      (n.fat      || 0) * ing.quantityUsed,
+      } : { calories: 0, protein: 0, carbs: 0, fat: 0 },
+    }
+  })
+
+  const save = async () => {
+    if (!form.name || !form.directPrice) return toast.error('الاسم والسعر مطلوبان')
+    setSaving(true)
+    try {
+      const payload = { ...form, ingredients: buildIngredients() }
+      if (isEdit) { await productsAPI.update(id, payload); toast.success('تم تحديث المنتج') }
+      else { await productsAPI.create(payload); toast.success('تم إنشاء المنتج') }
+      navigate('/admin/products')
+    } catch (e) { toast.error(e.message || 'حدث خطأ') }
+    finally { setSaving(false) }
+  }
+
+  const estimatedCost = calcCost()
+  const profit        = form.directPrice ? form.directPrice - estimatedCost : 0
+  const nutrition     = calcNutrition()
+
+  if (loading) return <div className="flex items-center justify-center h-64 text-4xl">⏳</div>
+
+  return (
+    <div>
+      <PageHeader
+        title={isEdit ? 'تعديل منتج ✏️' : 'منتج جديد ✨'}
+        breadcrumb="المنتجات"
+        actions={
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => navigate('/admin/products')}>إلغاء</Button>
+            <Button onClick={save} loading={saving}>حفظ المنتج</Button>
+          </div>
+        }
+      />
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Main form */}
+        <div className="lg:col-span-2 space-y-5">
+          {/* Basic info */}
+          <div className="bg-white rounded-2xl shadow-card p-6">
+            <h2 className="font-black text-brand-dark mb-4">معلومات أساسية</h2>
+            <div className="space-y-4">
+              {/* Image upload */}
+              <ImageUpload
+                value={form.image}
+                publicId={form.imagePublicId}
+                onChange={(url, publicId) => setForm(f => ({ ...f, image: url || '🍽️', imagePublicId: publicId }))}
+                onDelete={() => setForm(f => ({ ...f, image: '🍽️', imagePublicId: null }))}
+              />
+
+              <div>
+                  <label className="text-sm font-bold text-brand-dark mb-1.5 block">اسم المنتج *</label>
+                  <input value={form.name} onChange={e => set('name', e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-brand-border rounded-xl focus:border-fuchsia focus:outline-none font-bold"
+                    placeholder="مثال: لازانيا دجاج" />
+              </div>
+              <div>
+                <label className="text-sm font-bold text-brand-dark mb-1.5 block">الوصف</label>
+                <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={2}
+                  className="w-full px-4 py-3 border-2 border-brand-border rounded-xl focus:border-fuchsia focus:outline-none font-bold resize-none" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-bold text-brand-dark mb-1.5 block">التصنيف</label>
+                  <select value={form.category} onChange={e => set('category', e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-brand-border rounded-xl focus:border-fuchsia focus:outline-none font-bold bg-white">
+                    <option value="">— اختر تصنيفاً —</option>
+                    {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                    {form.category && !categories.includes(form.category) && (
+                      <option value={form.category}>{form.category} (غير مسجّل)</option>
+                    )}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-bold text-brand-dark mb-1.5 block">الحالة</label>
+                  <select value={form.status} onChange={e => set('status', e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-brand-border rounded-xl focus:border-fuchsia focus:outline-none font-bold bg-white">
+                    <option value="available">متاح</option>
+                    <option value="hidden">مخفي</option>
+                    <option value="sold_out">نفدت</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Ingredients */}
+          <div className="bg-white rounded-2xl shadow-card p-6">
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="font-black text-brand-dark">المكونات والوصفة 🧾</h2>
+              <button onClick={addIngredient}
+                className="text-sm bg-fuchsia-bg text-fuchsia px-4 py-2 rounded-xl font-bold hover:bg-fuchsia-light transition-colors">
+                + إضافة مكون
+              </button>
+            </div>
+            <p className="text-xs text-brand-gray font-medium mb-4">
+              المكون مش موجود؟{' '}
+              <a href="/admin/ingredients" target="_blank" rel="noopener noreferrer"
+                className="text-fuchsia font-bold underline underline-offset-2 hover:text-fuchsia-dark">
+                أضفه من صفحة المكونات ←
+              </a>
+              {' '}ثم ارجعي هون وأضيفيه
+            </p>
+            <div className="space-y-3">
+              {form.ingredients.map((ing, i) => (
+                <motion.div key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
+                  className="grid grid-cols-12 gap-2 items-center p-3 bg-brand-bg rounded-xl">
+                  <div className="col-span-5">
+                    <select value={ing.ingredientId} onChange={e => updateIngredient(i, 'ingredientId', e.target.value)}
+                      className="w-full px-3 py-2 border-2 border-brand-border rounded-xl focus:border-fuchsia focus:outline-none font-bold bg-white text-sm">
+                      {ingredients.map(x => <option key={x._id} value={x._id}>{x.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="col-span-3">
+                    <input type="number" value={ing.quantityUsed} onChange={e => updateIngredient(i, 'quantityUsed', Number(e.target.value))}
+                      className="w-full px-3 py-2 border-2 border-brand-border rounded-xl focus:border-fuchsia focus:outline-none font-bold text-sm" />
+                  </div>
+                  <div className="col-span-2 text-center text-sm text-brand-gray font-bold">{UNITS[ing.unitType] || ing.unitType}</div>
+                  <div className="col-span-2 flex justify-end">
+                    <button onClick={() => removeIngredient(i)} className="w-8 h-8 rounded-xl bg-red-50 text-red-500 font-bold hover:bg-red-100 transition-colors">✕</button>
+                  </div>
+                </motion.div>
+              ))}
+              {form.ingredients.length === 0 && (
+                <div className="text-center py-6 text-brand-gray font-bold text-sm">لا توجد مكونات — اضغط "+ إضافة مكون"</div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Sidebar */}
+        <div className="space-y-5">
+          {/* Pricing */}
+          <div className="bg-white rounded-2xl shadow-card p-6">
+            <h2 className="font-black text-brand-dark mb-4">التسعير 💰</h2>
+            <div className="space-y-3">
+              {[
+                ['سعر البيع المباشر', 'directPrice'],
+                ['سعر الفروع العادية', 'regularCenterPrice'],
+                ['تكلفة التغليف', 'packagingCost'],
+                ['تكاليف إضافية', 'extraCost'],
+              ].map(([l, k]) => (
+                <div key={k}>
+                  <label className="text-xs font-bold text-brand-gray mb-1 block">{l}</label>
+                  <input type="number" value={form[k]} onChange={e => set(k, Number(e.target.value))}
+                    className="w-full px-3 py-2.5 border-2 border-brand-border rounded-xl focus:border-fuchsia focus:outline-none font-bold text-sm" />
+                </div>
+              ))}
+              <div>
+                <label className="text-xs font-bold text-brand-gray mb-1 block">عمولة الفروع المتخصصة (%)</label>
+                <input type="number" value={form.specializedCenterDefaultCommissionPercent}
+                  onChange={e => set('specializedCenterDefaultCommissionPercent', Number(e.target.value))}
+                  className="w-full px-3 py-2.5 border-2 border-brand-border rounded-xl focus:border-fuchsia focus:outline-none font-bold text-sm" />
+              </div>
+            </div>
+          </div>
+
+          {/* Cost summary */}
+          <div className="bg-gradient-to-br from-fuchsia-bg to-brand-offwhite rounded-2xl p-5">
+            <h2 className="font-black text-brand-dark mb-4">ملخص التكلفة 📊</h2>
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm"><span className="text-brand-gray font-bold">تكلفة المكونات</span><span className="font-black text-brand-dark">{formatCurrency(estimatedCost - Number(form.packagingCost) - Number(form.extraCost))}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-brand-gray font-bold">التغليف</span><span className="font-black text-brand-dark">{formatCurrency(form.packagingCost)}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-brand-gray font-bold">أخرى</span><span className="font-black text-brand-dark">{formatCurrency(form.extraCost)}</span></div>
+              <div className="h-px bg-brand-border my-2" />
+              <div className="flex justify-between"><span className="font-black text-brand-dark">إجمالي التكلفة</span><span className="font-black text-fuchsia">{formatCurrency(estimatedCost)}</span></div>
+              <div className="flex justify-between"><span className="font-black text-brand-dark">الربح المتوقع</span>
+                <span className={`font-black ${profit >= 0 ? 'text-green-600' : 'text-red-500'}`}>{formatCurrency(profit)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Nutrition summary */}
+          <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-5 border border-green-100">
+            <h2 className="font-black text-brand-dark mb-1 flex items-center gap-2">
+              🥗 القيمة الغذائية
+            </h2>
+            <p className="text-xs text-brand-gray font-medium mb-4">
+              محسوبة تلقائياً من المكونات
+            </p>
+            <div className="space-y-2.5">
+                <div className="flex items-center justify-between rounded-xl bg-white/80 px-3 py-2 text-xs font-bold">
+                  <span className="text-brand-gray">حجم الحصة</span>
+                  <span className="text-brand-dark">{nutrition.portionSize || 'غير محدد'}</span>
+                </div>
+                {[
+                  { icon: '🔥', label: 'سعرات حرارية', val: nutrition.calories, unit: 'kcal', color: 'text-orange-500' },
+                  { icon: '🥩', label: 'بروتين',        val: nutrition.protein,  unit: 'غ',    color: 'text-red-500' },
+                  { icon: '🌾', label: 'كربوهيدرات',    val: nutrition.carbs,    unit: 'غ',    color: 'text-amber-600' },
+                  { icon: '🫒', label: 'دهون',           val: nutrition.fat,      unit: 'غ',    color: 'text-yellow-600' },
+                  { icon: '🧈', label: 'دهون مشبعة',     val: nutrition.saturatedFat, unit: 'غ', color: 'text-amber-700' },
+                  { icon: '🍬', label: 'سكريات',          val: nutrition.sugars, unit: 'غ', color: 'text-pink-600' },
+                  { icon: '🌿', label: 'ألياف',           val: nutrition.fiber, unit: 'غ', color: 'text-green-700' },
+                  { icon: '🧂', label: 'صوديوم',          val: nutrition.sodium, unit: 'ملغ', color: 'text-blue-600' },
+                ].map(row => (
+                  <div key={row.label} className="flex items-center justify-between bg-white/70 rounded-xl px-3 py-2">
+                    <span className="text-sm font-bold text-brand-gray flex items-center gap-1.5">
+                      {row.icon} {row.label}
+                    </span>
+                    <span className={`font-black text-sm ${row.color}`}>
+                      {row.val} {row.unit}
+                    </span>
+                  </div>
+                ))}
+                <div className={`rounded-xl px-3 py-2 text-xs font-bold ${nutrition.basis === 'estimated' ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'}`}>
+                  {nutrition.basis === 'estimated' ? 'تقدير غذائي حسب الحصة' : 'محسوبة من وصفة المكونات'}
+                  {nutrition.source && <div className="mt-1 font-medium opacity-75">{nutrition.source}</div>}
+                </div>
+              </div>
+          </div>
+
+          {/* Settings */}
+          <div className="bg-white rounded-2xl shadow-card p-5">
+            <h2 className="font-black text-brand-dark mb-4">إعدادات</h2>
+            <div className="space-y-3">
+              <label className="flex items-center justify-between">
+                <span className="text-sm font-bold text-brand-dark">ظاهر في منيو اليوم</span>
+                <button onClick={() => set('showInTodayMenu', !form.showInTodayMenu)}
+                  className={`w-11 h-6 rounded-full transition-all relative ${form.showInTodayMenu ? 'bg-fuchsia' : 'bg-gray-200'}`}>
+                  <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${form.showInTodayMenu ? 'right-1' : 'left-1'}`} />
+                </button>
+              </label>
+              <div>
+                <label className="text-xs font-bold text-brand-gray mb-1 block">الكمية المتاحة</label>
+                <input type="number" value={form.availableQuantity} onChange={e => set('availableQuantity', Number(e.target.value))}
+                  className="w-full px-3 py-2.5 border-2 border-brand-border rounded-xl focus:border-fuchsia focus:outline-none font-bold text-sm" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* WebAR Product Virtual Try-On — saves through its own endpoints,
+          so it is independent of this form's submit. */}
+      <div className="mt-6">
+        <VirtualTryOnSection productId={id} productName={form.name} />
+      </div>
+    </div>
+  )
+}

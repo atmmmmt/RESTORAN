@@ -1,0 +1,9 @@
+# Holds the branch's agent key — a working credential for posting attendance.
+config.json
+
+node_modules/
+daemon/
+
+# Punches waiting for the server — per-branch data, never committed.
+outbox.json
+outbox.json.*

@@ -1,0 +1,15 @@
+{
+  "listenHost": "127.0.0.1",
+  "listenPort": 18181,
+  "allowedOrigins": [
+    "https://ajineh-w-tahineh.com",
+    "https://www.ajineh-w-tahineh.com",
+    "https://ajenah.prootech-agency.com",
+    "https://www.ajenah.prootech-agency.com",
+    "https://loliz-taste.com",
+    "https://www.loliz-taste.com",
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:5175"
+  ]
+}
