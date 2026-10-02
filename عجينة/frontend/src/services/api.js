@@ -50,7 +50,8 @@ api.interceptors.response.use(
     if (err.response?.status === 401) {
       localStorage.removeItem('luliz_admin_token')
       localStorage.removeItem('luliz_admin_user')
-      window.location.href = '/admin/login'
+      const isAmericansPortal = window.location.pathname.startsWith('/americans')
+      window.location.href = isAmericansPortal ? '/americans/login' : '/admin/login'
       return Promise.reject({ ...err, message })
     }
 
