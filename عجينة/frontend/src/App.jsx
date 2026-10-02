@@ -50,6 +50,9 @@ const PosPage            = lazy(() => import('./pages/admin/PosPage'))
 const ReturnsPage        = lazy(() => import('./pages/admin/ReturnsPage'))
 const KitchenPage        = lazy(() => import('./pages/admin/KitchenPage'))
 
+const AmericansLoginPage    = lazy(() => import('./pages/americans/AmericansLoginPage'))
+const AmericansPortalPage   = lazy(() => import('./pages/americans/AmericansPortalPage'))
+
 const CenterPortalLogin     = lazy(() => import('./pages/center/CenterPortalLogin'))
 const CenterPortalDashboard = lazy(() => import('./pages/center/CenterPortalDashboard'))
 
@@ -113,6 +116,10 @@ export default function App() {
             <Route path="/centers"  element={<CustomerCentersPage />} />
             <Route path="/order"    element={<OrderPage />} />
           </Route>
+
+          <Route path="/americans" element={<Navigate to="/americans/dashboard" replace />} />
+          <Route path="/americans/login" element={<AmericansLoginPage />} />
+          <Route path="/americans/dashboard" element={<AmericansPortalPage />} />
 
           <Route path="/admin/login" element={<LoginPage />} />
           <Route path="/admin/kitchen" element={<PrivateRoute><RoleRoute roles={['admin', 'supervisor', 'cashier', 'kitchen']}><KitchenPage /></RoleRoute></PrivateRoute>} />
