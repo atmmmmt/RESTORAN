@@ -330,15 +330,18 @@ router.post('/sales', protectCenter, async (req, res) => {
   for (const sale of salesToCreate) sale.internalOrderId = kitchenOrder._id;
   const sales = await CenterSale.insertMany(salesToCreate);
 
-  // Feed the branch's own till with this sale's income.
-  if (totalSaleAmount > 0) {
+  // Feed the branch's own till with the full amount actually collected
+  // from the customer. InternalOrder snapshots the finance percentage and may
+  // increase total above the restaurant net amount, so cash must use the saved
+  // order total rather than the pre-tax cart subtotal.
+  if (kitchenOrder.total > 0) {
     await cashService.createTransaction(
-      'manual_income',
-      totalSaleAmount,
+      'sale_income',
+      kitchenOrder.total,
       'in',
-      `بيع مباشر من الفرع (${sales.length} صنف)`,
-      'CenterSale',
-      sales[0]._id,
+      `بيع مباشر من الفرع ${orderNumber} (${sales.length} صنف)`,
+      'InternalOrder',
+      kitchenOrder._id,
       center._id
     );
     kitchenOrder.cashPosted = true;
@@ -350,7 +353,10 @@ router.post('/sales', protectCenter, async (req, res) => {
     message: 'تم تسجيل البيع.',
     sale: sales[0],
     sales,
-    totalAmount: totalSaleAmount,
+    netAmount: kitchenOrder.netAmount ?? totalSaleAmount,
+    invoiceTaxPercent: kitchenOrder.invoiceTaxPercent || 0,
+    invoiceTaxAmount: kitchenOrder.invoiceTaxAmount || 0,
+    totalAmount: kitchenOrder.total,
     items: results,
     kitchenOrder,
   });
