@@ -1,0 +1,12 @@
+{
+  "name": "ajeena-web-app",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": "20.x"
+  },
+  "scripts": {
+    "build": "npm ci --omit=dev --prefix backend && npm ci --prefix frontend && npm run build --prefix frontend",
+    "start": "node server.js"
+  }
+}
