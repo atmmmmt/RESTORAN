@@ -3,10 +3,11 @@
   "version": "1.0.0",
   "private": true,
   "engines": {
-    "node": "20.x"
+    "node": ">=20 <23"
   },
   "scripts": {
+    "postinstall": "npm run build",
     "build": "npm ci --omit=dev --prefix backend && npm ci --prefix frontend && npm run build --prefix frontend",
-    "start": "node server.js"
+    "start": "node index.js"
   }
 }
