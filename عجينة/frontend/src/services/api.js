@@ -5,7 +5,7 @@ import {
   REPLAY_HEADER, IDEMPOTENCY_HEADER, createIdempotencyKey,
 } from './offline'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3002/api'
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:3002/api')
 
 /* One backend serves both brands, so every request has to say which one it is
    speaking for. Baked in at build time — this build is عجينة وطحينة's. */
@@ -162,7 +162,7 @@ export const attendanceAPI = {
 
   /** SSE URL — EventSource can't set headers, so the token rides the query. */
   streamUrl: () => {
-    const base = import.meta.env.VITE_API_URL || 'http://localhost:3002/api'
+    const base = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:3002/api')
     const token = localStorage.getItem('luliz_admin_token')
     return `${base}/attendance/stream?token=${encodeURIComponent(token || '')}`
   },
