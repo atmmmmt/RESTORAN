@@ -10,6 +10,8 @@ const CenterDelivery   = require('../models/CenterDelivery');
 const Employee        = require('../models/Employee');
 const SalaryRecord    = require('../models/SalaryRecord');
 const CashTransaction = require('../models/CashTransaction');
+const InternalOrder = require('../models/InternalOrder');
+const Product = require('../models/Product');
 const cashService      = require('../services/cashService');
 const wasteController  = require('../controllers/wasteController');
 const purchaseController = require('../controllers/purchaseController');
@@ -104,49 +106,115 @@ router.get('/me', protectCenter, async (req, res) => {
    Center records a sale → decreases inventory
 ────────────────────────────────────────────── */
 router.post('/sales', protectCenter, async (req, res) => {
-  const { productId, quantity, notes } = req.body;
+  const { productId, quantity, notes, paymentMethod = 'cash', orderType = 'takeaway' } = req.body;
 
-  if (!productId || !quantity || quantity < 1) {
+  if (!productId || !quantity || Number(quantity) < 1) {
     return res.status(400).json({ success: false, message: 'المنتج والكمية مطلوبان.' });
   }
 
   const center = req.center;
+  const qty = Number(quantity);
   const invIdx = center.inventory.findIndex(i => i.productId.toString() === productId.toString());
 
   if (invIdx < 0) {
     return res.status(400).json({ success: false, message: 'هذا المنتج غير موجود في مخزونك.' });
   }
-  if (center.inventory[invIdx].quantity < quantity) {
+  if (center.inventory[invIdx].quantity < qty) {
     return res.status(400).json({
       success: false,
-      message: `الكمية المطلوبة (${quantity}) أكبر من المتوفر (${center.inventory[invIdx].quantity}).`,
+      message: `الكمية المطلوبة (${qty}) أكبر من المتوفر (${center.inventory[invIdx].quantity}).`,
     });
   }
 
-  const productName = center.inventory[invIdx].productNameSnapshot;
+  const product = await Product.findById(productId).select('name directPrice calculatedCost');
+  if (!product) {
+    return res.status(404).json({ success: false, message: 'المنتج غير موجود.' });
+  }
 
-  // Decrement inventory
-  center.inventory[invIdx].quantity -= Number(quantity);
+  const unitPrice = Number(product.directPrice) || 0;
+  const unitCost = Number(product.calculatedCost) || 0;
+  const netAmount = unitPrice * qty;
+  const totalCost = unitCost * qty;
+
+  // Decrement this branch inventory only.
+  center.inventory[invIdx].quantity -= qty;
   center.markModified('inventory');
   await center.save();
 
-  // Create sale record
-  const sale = await CenterSale.create({
-    centerId:            center._id,
-    centerNameSnapshot:  center.name,
-    productId,
-    productNameSnapshot: productName,
-    quantity:            Number(quantity),
-    notes,
-  });
+  try {
+    // Create the same financial order used by POS/reporting so the Americans
+    // dashboard, finance snapshots and branch tax settings all see this sale.
+    const orderNumber = await InternalOrder.nextOrderNumber();
+    const order = await InternalOrder.create({
+      centerId: center._id,
+      orderNumber,
+      qrPayload: orderNumber,
+      items: [{
+        productId: product._id,
+        name: product.name,
+        unitPrice,
+        unitCost,
+        quantity: qty,
+        lineTotal: netAmount,
+      }],
+      subtotal: netAmount,
+      total: netAmount,
+      totalCost,
+      profit: netAmount - totalCost,
+      paymentMethod,
+      orderType,
+      notes: notes || '',
+      status: 'new',
+      timeline: [{ status: 'new', at: new Date(), by: center.name }],
+      createdByName: center.name,
+      stockApplied: true,
+    });
 
-  res.status(201).json({
-    success: true,
-    message: 'تم تسجيل البيع وتحديث المخزون.',
-    sale,
-    newQuantity: center.inventory[invIdx].quantity,
-    isLowStock:  center.inventory[invIdx].quantity < center.lowStockThreshold,
-  });
+    const sale = await CenterSale.create({
+      internalOrderId: order._id,
+      centerId: center._id,
+      centerNameSnapshot: center.name,
+      productId: product._id,
+      productNameSnapshot: product.name,
+      quantity: qty,
+      unitPrice,
+      totalAmount: netAmount,
+      notes,
+    });
+
+    if ((paymentMethod === 'cash' || paymentMethod === 'card') && order.total > 0) {
+      await cashService.createTransaction(
+        'sale_income',
+        order.total,
+        'in',
+        `بيع فرع ${center.name} — ${orderNumber}`,
+        'InternalOrder',
+        order._id,
+        center._id
+      );
+      order.cashPosted = true;
+      await order.save();
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: 'تم تسجيل البيع وتحديث المخزون.',
+      sale,
+      order,
+      netAmount: order.netAmount,
+      invoiceTaxPercent: order.invoiceTaxPercent,
+      invoiceTaxAmount: order.invoiceTaxAmount,
+      totalAmount: order.total,
+      newQuantity: center.inventory[invIdx].quantity,
+      isLowStock: center.inventory[invIdx].quantity < center.lowStockThreshold,
+    });
+  } catch (err) {
+    // Roll back branch inventory if the financial sale could not be created.
+    center.inventory[invIdx].quantity += qty;
+    center.markModified('inventory');
+    await center.save();
+    throw err;
+  }
 });
 
 /* ──────────────────────────────────────────────
