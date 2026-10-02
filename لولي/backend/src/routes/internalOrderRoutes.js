@@ -7,6 +7,7 @@ const mongoose = require('mongoose');
 const { protect, requirePOS, requireAdmin } = require('../middleware/auth');
 const InternalOrder = require('../models/InternalOrder');
 const Product       = require('../models/Product');
+const SalesCenter   = require('../models/SalesCenter');
 const cashService   = require('../services/cashService');
 const cacheService  = require('../services/cacheService');
 const CustomerOrder = require('../models/CustomerOrder');
@@ -16,6 +17,69 @@ const STATUSES = InternalOrder.STATUSES;
 
 /* "آجل" means the money hasn't arrived yet, so nothing hits the drawer. */
 const isPaid = method => method === 'cash' || method === 'card';
+
+async function restoreOrderStock(order) {
+  if (order.centerId) {
+    const center = await SalesCenter.findById(order.centerId);
+    if (!center) throw new Error('الفرع المرتبط بالطلب غير موجود');
+
+    for (const line of order.items) {
+      const idx = center.inventory.findIndex(item => String(item.productId) === String(line.productId));
+      if (idx >= 0) {
+        center.inventory[idx].quantity += Number(line.quantity) || 0;
+      } else {
+        center.inventory.push({
+          productId: line.productId,
+          productNameSnapshot: line.name,
+          quantity: Number(line.quantity) || 0,
+        });
+      }
+    }
+    center.markModified('inventory');
+    await center.save();
+    return;
+  }
+
+  for (const line of order.items) {
+    await Product.updateOne({ _id: line.productId }, { $inc: { availableQuantity: line.quantity } });
+  }
+}
+
+async function consumeOrderStock(order) {
+  if (order.centerId) {
+    const center = await SalesCenter.findById(order.centerId);
+    if (!center) throw new Error('الفرع المرتبط بالطلب غير موجود');
+
+    for (const line of order.items) {
+      const idx = center.inventory.findIndex(item => String(item.productId) === String(line.productId));
+      if (idx < 0 || Number(center.inventory[idx].quantity) < Number(line.quantity)) {
+        throw new Error(`لا توجد كمية كافية من "${line.name}" في مخزون الفرع`);
+      }
+    }
+    for (const line of order.items) {
+      const idx = center.inventory.findIndex(item => String(item.productId) === String(line.productId));
+      center.inventory[idx].quantity -= Number(line.quantity) || 0;
+    }
+    center.markModified('inventory');
+    await center.save();
+    return;
+  }
+
+  const applied = [];
+  for (const line of order.items) {
+    const ok = await Product.findOneAndUpdate(
+      { _id: line.productId, availableQuantity: { $gte: line.quantity } },
+      { $inc: { availableQuantity: -line.quantity } }
+    );
+    if (!ok) {
+      for (const done of applied) {
+        await Product.updateOne({ _id: done.productId }, { $inc: { availableQuantity: done.quantity } });
+      }
+      throw new Error(`لا توجد كمية كافية من "${line.name}" لإعادة تفعيل الطلب`);
+    }
+    applied.push(line);
+  }
+}
 
 /* Supervisors run the counter, so staff-level access is right here. */
 router.use(protect, requirePOS);
@@ -268,11 +332,9 @@ router.put('/:id/status', async (req, res) => {
     return res.json({ success: true, order, message: 'الحالة كما هي' });
   }
 
-  // Cancelling puts the stock back — but only once.
+  // Cancelling puts the stock back — into the same branch it came from.
   if (status === 'cancelled' && order.stockApplied) {
-    for (const line of order.items) {
-      await Product.updateOne({ _id: line.productId }, { $inc: { availableQuantity: line.quantity } });
-    }
+    await restoreOrderStock(order);
     order.stockApplied = false;
   }
 
@@ -291,19 +353,12 @@ router.put('/:id/status', async (req, res) => {
     }
   }
 
-  // Un-cancelling takes it out again.
+  // Un-cancelling takes it out again from the same branch/HQ inventory.
   if (order.status === 'cancelled' && status !== 'cancelled' && !order.stockApplied) {
-    for (const line of order.items) {
-      const ok = await Product.findOneAndUpdate(
-        { _id: line.productId, availableQuantity: { $gte: line.quantity } },
-        { $inc: { availableQuantity: -line.quantity } }
-      );
-      if (!ok) {
-        return res.status(409).json({
-          success: false,
-          message: `لا توجد كمية كافية من "${line.name}" لإعادة تفعيل الطلب`,
-        });
-      }
+    try {
+      await consumeOrderStock(order);
+    } catch (err) {
+      return res.status(409).json({ success: false, message: err.message });
     }
     order.stockApplied = true;
 
@@ -370,9 +425,7 @@ router.delete('/:id', requireAdmin, async (req, res) => {
   if (!order) return res.status(404).json({ success: false, message: 'الطلب غير موجود' });
 
   if (order.stockApplied) {
-    for (const line of order.items) {
-      await Product.updateOne({ _id: line.productId }, { $inc: { availableQuantity: line.quantity } });
-    }
+    await restoreOrderStock(order);
   }
 
   if (order.cashPosted) {
