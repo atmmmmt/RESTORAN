@@ -13,6 +13,8 @@ const compression = require('compression');
 const cors = require('cors');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
+const path = require('path');
+const fs = require('fs');
 
 const connectDB = require('./config/db');
 
@@ -120,6 +122,21 @@ app.get('/api/health', (req, res) => res.json({ success: true, uptime: process.u
 
 // Mount all API routes
 mountRoutes(app);
+
+// In production the Node app also serves the Vite frontend built from ../frontend.
+// This keeps the storefront/admin and API on one origin, which simplifies Hostinger deployment.
+if (process.env.NODE_ENV === 'production') {
+  const frontendDist = path.resolve(__dirname, '../../frontend/dist');
+  if (fs.existsSync(frontendDist)) {
+    app.use(express.static(frontendDist));
+    app.get('*', (req, res, next) => {
+      if (req.path === '/api' || req.path.startsWith('/api/')) return next();
+      return res.sendFile(path.join(frontendDist, 'index.html'));
+    });
+  } else {
+    console.warn('⚠️  frontend/dist غير موجود — تأكد من تشغيل npm run build من جذر المطعم');
+  }
+}
 
 // 404 handler
 app.use((req, res) => {
