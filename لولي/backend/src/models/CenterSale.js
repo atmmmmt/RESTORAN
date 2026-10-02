@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 
 const centerSaleSchema = new mongoose.Schema(
   {
+    internalOrderId: { type: mongoose.Schema.Types.ObjectId, ref: 'InternalOrder', default: null, index: true },
     centerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'SalesCenter',
@@ -28,6 +29,16 @@ const centerSaleSchema = new mongoose.Schema(
       type: Number,
       required: [true, 'الكمية مطلوبة'],
       min: [1, 'الكمية يجب أن تكون 1 على الأقل'],
+    },
+    unitPrice: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    totalAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
     saleDate: {
       type: Date,
