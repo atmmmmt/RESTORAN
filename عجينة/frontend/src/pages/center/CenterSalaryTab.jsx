@@ -71,6 +71,52 @@ export default function CenterSalaryTab() {
     }
   }
 
+  const addLate = async (rec) => {
+    const hours = Number(window.prompt('عدد ساعات التأخر:', '1'))
+    if (!(hours > 0)) return
+    const reason = window.prompt('سبب التأخر (اختياري):', '') || ''
+    try {
+      await centerPortalAPI.addLateSalaryRecord(rec._id, {
+        hours,
+        date: new Date().toISOString().slice(0, 10),
+        reason,
+      })
+      toast.success('تم تسجيل التأخر')
+      load()
+    } catch (err) { toast.error(err.message || 'حدث خطأ') }
+  }
+
+  const adjust = async (rec) => {
+    const bonuses = Number(window.prompt('قيمة المكافأة:', String(rec.bonuses || 0))) || 0
+    const otherDeductions = Number(window.prompt('قيمة الخصم الإضافي:', String(rec.otherDeductions || 0))) || 0
+    const notes = window.prompt('ملاحظات (اختياري):', rec.notes || '') || ''
+    try {
+      await centerPortalAPI.adjustSalaryRecord(rec._id, { bonuses, otherDeductions, notes })
+      toast.success('تم حفظ المكافآت والخصومات')
+      load()
+    } catch (err) { toast.error(err.message || 'حدث خطأ') }
+  }
+
+  const addAdvance = async () => {
+    if (!employees.length) return toast.error('لا يوجد موظفون')
+    const menu = employees.map((e, i) => `${i + 1} - ${e.name}`).join('\n')
+    const choice = Number(window.prompt(`اختر رقم الموظف:\n${menu}`, '1'))
+    const emp = employees[choice - 1]
+    if (!emp) return
+    const amount = Number(window.prompt(`قيمة السلفة لـ ${emp.name}:`, ''))
+    if (!(amount > 0)) return
+    const reason = window.prompt('السبب (اختياري):', '') || ''
+    try {
+      await centerPortalAPI.createAdvance({
+        employeeId: emp._id,
+        amount,
+        date: new Date().toISOString().slice(0, 10),
+        reason,
+      })
+      toast.success('تم تسجيل السلفة وخصمها من صندوق الفرع')
+    } catch (err) { toast.error(err.message || 'حدث خطأ') }
+  }
+
   const remove = async (rec) => {
     if (!confirm(`حذف سجل راتب ${rec.employeeName}؟`)) return
     try {
@@ -88,6 +134,10 @@ export default function CenterSalaryTab() {
         <div className="flex items-center justify-between mb-4 gap-2">
           <h2 className="font-black text-brand-dark text-base">💵 سجلات الرواتب</h2>
           <div className="flex items-center gap-2">
+            <button onClick={addAdvance}
+              className="px-3 py-2 rounded-xl font-black text-white text-xs shadow whitespace-nowrap bg-amber-700 hover:bg-amber-800">
+              + سلفة
+            </button>
             <input type="month" value={month} onChange={e => setMonth(e.target.value)}
               className="px-3 py-1.5 border-2 border-brand-border rounded-xl font-bold text-sm" />
             <motion.button whileTap={{ scale: 0.97 }} onClick={openCreate}
@@ -127,10 +177,20 @@ export default function CenterSalaryTab() {
 
                 {!rec.isPaid && (
                   <div className="flex items-center justify-between border-t border-brand-border/60 pt-2">
-                    <button disabled={syncingId === rec._id} onClick={() => syncAttendance(rec)}
-                      className="text-[11px] font-bold text-white bg-amber-700 hover:bg-amber-800 disabled:opacity-60 px-2.5 py-1 rounded-lg">
-                      🖐️ جلب من البصمة
-                    </button>
+                    <div className="flex flex-wrap gap-1.5">
+                      <button disabled={syncingId === rec._id} onClick={() => syncAttendance(rec)}
+                        className="text-[11px] font-bold text-white bg-amber-700 hover:bg-amber-800 disabled:opacity-60 px-2.5 py-1 rounded-lg">
+                        🖐️ جلب من البصمة
+                      </button>
+                      <button onClick={() => addLate(rec)}
+                        className="text-[11px] font-bold text-white bg-orange-600 hover:bg-orange-700 px-2.5 py-1 rounded-lg">
+                        ⏱️ تأخر
+                      </button>
+                      <button onClick={() => adjust(rec)}
+                        className="text-[11px] font-bold text-white bg-blue-600 hover:bg-blue-700 px-2.5 py-1 rounded-lg">
+                        ± مكافأة/خصم
+                      </button>
+                    </div>
                     {rec.attendanceSynced && (
                       <div className="text-[11px] font-bold text-brand-gray">
                         {rec.daysAttended} يوم · {rec.hoursWorked} ساعة
