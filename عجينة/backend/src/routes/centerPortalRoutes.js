@@ -785,47 +785,96 @@ router.delete('/expenses/:id', protectCenter, async (req, res) => {
    branch's or head office's staff.
 ────────────────────────────────────────────── */
 
-/** Push an employee to the terminal, assigning a PIN if they lack one. */
+/** Resolve the signed-in branch's own terminal. */
+async function branchDevice(centerId) {
+  return AttendanceDevice.findOne({ centerId, isActive: true });
+}
+
+async function queueBranchCommand(centerId, type, payload = {}) {
+  const device = await branchDevice(centerId);
+  if (!device) {
+    const err = new Error('لا يوجد جهاز بصمة مسجّل لهذا الفرع');
+    err.statusCode = 400;
+    throw err;
+  }
+  const command = await DeviceCommand.create({
+    deviceId: device._id,
+    type,
+    payload,
+    requestedBy: null,
+  });
+  return { device, command };
+}
+
+router.get('/attendance/device', protectCenter, async (req, res) => {
+  const device = await AttendanceDevice.findOne({ centerId: req.center._id, isActive: true });
+  if (!device) return res.json({ success: true, device: null });
+  const pendingCommands = await DeviceCommand.countDocuments({
+    deviceId: device._id,
+    status: { $in: ['pending', 'running'] },
+  });
+  res.json({
+    success: true,
+    device: {
+      id: device._id,
+      name: device.name,
+      deviceIp: device.deviceIp,
+      devicePort: device.devicePort,
+      lastSeenAt: device.lastSeenAt,
+      lastSyncAt: device.lastSyncAt,
+      lastSyncCount: device.lastSyncCount,
+      deviceReachable: device.deviceReachable,
+      lastError: device.lastError,
+      discovered: device.discovered || [],
+      deviceSerial: device.deviceSerial || '',
+      deviceVersion: device.deviceVersion || '',
+      agentVersion: device.agentVersion || '',
+      pendingCommands,
+    },
+  });
+});
+
+router.post('/attendance/device/refresh', protectCenter, async (req, res) => {
+  const { device } = await queueBranchCommand(req.center._id, 'get-info');
+  await DeviceCommand.create({ deviceId: device._id, type: 'sync-time' });
+  res.json({ success: true, message: 'تم إرسال طلب التحديث إلى جهاز الفرع' });
+});
+
+router.post('/attendance/device/scan', protectCenter, async (req, res) => {
+  await queueBranchCommand(req.center._id, 'scan-network');
+  res.json({ success: true, message: 'جارٍ البحث عن أجهزة البصمة على شبكة الفرع' });
+});
+
+/** Push an employee to this branch terminal, assigning a local PIN if needed. */
 router.post('/employees/:id/push', protectCenter, async (req, res) => {
   const emp = await Employee.findOne({ _id: req.params.id, centerId: req.center._id });
   if (!emp) return res.status(404).json({ success: false, message: 'الموظف غير موجود' });
 
   if (!emp.devicePin) {
-    // Next free numeric PIN — device slots are numbers, so keep them dense
-    // across the whole system (a shared physical device), not just this branch.
-    const used = (await Employee.find({ devicePin: { $ne: '' } }).select('devicePin'))
+    const used = (await Employee.find({ centerId: req.center._id, devicePin: { $ne: '' } }).select('devicePin'))
       .map(e => Number(e.devicePin)).filter(n => Number.isFinite(n));
     emp.devicePin = String(used.length ? Math.max(...used) + 1 : 1);
+    await emp.save();
   }
 
-  const result = await zk.setUser({ uid: Number(emp.devicePin), pin: emp.devicePin, name: emp.name });
-  if (!result.ok) return res.status(502).json({ success: false, message: result.message });
+  await queueBranchCommand(req.center._id, 'push-user', {
+    uid: Number(emp.devicePin), pin: emp.devicePin, name: emp.name, employeeId: emp._id,
+  });
 
-  emp.syncedToDevice = true;
-  await emp.save();
-
-  res.json({ success: true, employee: emp, message: `تم إرسال ${emp.name} إلى الجهاز` });
+  res.json({ success: true, employee: emp, message: `تم إرسال ${emp.name} إلى طابور جهاز الفرع` });
 });
 
-/** Put the terminal into enrollment mode for this employee's finger. */
 router.post('/employees/:id/enroll', protectCenter, async (req, res) => {
-  const { fingerIndex = 0 } = req.body;
-
   const emp = await Employee.findOne({ _id: req.params.id, centerId: req.center._id });
   if (!emp) return res.status(404).json({ success: false, message: 'الموظف غير موجود' });
-  if (!emp.devicePin) {
-    return res.status(400).json({ success: false, message: 'أرسل الموظف إلى الجهاز أولاً' });
-  }
+  if (!emp.devicePin) return res.status(400).json({ success: false, message: 'أرسل الموظف إلى الجهاز أولاً' });
 
-  const result = await zk.startEnroll({
-    uid: Number(emp.devicePin), pin: emp.devicePin, fingerIndex: Number(fingerIndex),
+  await queueBranchCommand(req.center._id, 'start-enroll', {
+    uid: Number(emp.devicePin), pin: emp.devicePin,
+    fingerIndex: Number(req.body.fingerIndex) || 0, employeeId: emp._id,
   });
-  if (!result.ok) return res.status(502).json({ success: false, message: result.message });
 
-  emp.fingerprintEnrolled = true;
-  await emp.save();
-
-  res.json({ success: true, message: `الجهاز جاهز — ${emp.name} يضع إصبعه 3 مرات` });
+  res.json({ success: true, message: `الجهاز سيجهز خلال ثوانٍ — ${emp.name} يضع إصبعه 3 مرات` });
 });
 
 router.delete('/employees/:id/fingerprints', protectCenter, async (req, res) => {
@@ -833,12 +882,12 @@ router.delete('/employees/:id/fingerprints', protectCenter, async (req, res) => 
   if (!emp) return res.status(404).json({ success: false, message: 'الموظف غير موجود' });
   if (!emp.devicePin) return res.status(400).json({ success: false, message: 'الموظف غير مرتبط بالجهاز' });
 
-  const result = await zk.clearFingerprints(Number(emp.devicePin));
-  if (!result.ok) return res.status(502).json({ success: false, message: result.message });
-
+  await queueBranchCommand(req.center._id, 'clear-fingerprints', {
+    uid: Number(emp.devicePin), pin: emp.devicePin, employeeId: emp._id,
+  });
   emp.fingerprintEnrolled = false;
   await emp.save();
-  res.json({ success: true, message: 'تم مسح بصمات الموظف' });
+  res.json({ success: true, message: 'تم إرسال طلب مسح البصمات' });
 });
 
 router.delete('/employees/:id/device', protectCenter, async (req, res) => {
@@ -846,13 +895,44 @@ router.delete('/employees/:id/device', protectCenter, async (req, res) => {
   if (!emp) return res.status(404).json({ success: false, message: 'الموظف غير موجود' });
   if (!emp.devicePin) return res.status(400).json({ success: false, message: 'الموظف غير مرتبط بالجهاز' });
 
-  const result = await zk.deleteUser(Number(emp.devicePin));
-  if (!result.ok) return res.status(502).json({ success: false, message: result.message });
-
+  await queueBranchCommand(req.center._id, 'delete-user', {
+    uid: Number(emp.devicePin), pin: emp.devicePin, employeeId: emp._id,
+  });
   emp.syncedToDevice = false;
   emp.fingerprintEnrolled = false;
   await emp.save();
-  res.json({ success: true, message: 'تم حذف الموظف من الجهاز' });
+  res.json({ success: true, message: 'تم إرسال طلب حذف الموظف من الجهاز' });
+});
+
+router.post('/attendance/punch', protectCenter, async (req, res) => {
+  const emp = await Employee.findOne({ _id: req.body.employeeId, centerId: req.center._id });
+  if (!emp) return res.status(404).json({ success: false, message: 'الموظف غير موجود' });
+
+  const when = req.body.at ? new Date(req.body.at) : new Date();
+  if (Number.isNaN(when.getTime())) return res.status(400).json({ success: false, message: 'التوقيت غير صحيح' });
+  const date = attendanceService.toDateKey(when);
+
+  const log = await AttendanceLog.create({
+    centerId: req.center._id,
+    employeeId: emp._id,
+    employeeName: emp.name,
+    devicePin: emp.devicePin || `manual-${emp._id}`,
+    timestamp: when,
+    date,
+    source: 'manual',
+    notes: String(req.body.notes || '').trim(),
+  });
+  await attendanceService.recomputeDirections(date, emp._id);
+  res.status(201).json({ success: true, log, message: 'تم تسجيل الحركة اليدوية' });
+});
+
+router.delete('/attendance/punch/:id', protectCenter, async (req, res) => {
+  const log = await AttendanceLog.findOne({ _id: req.params.id, centerId: req.center._id });
+  if (!log) return res.status(404).json({ success: false, message: 'الحركة غير موجودة' });
+  const { date, employeeId } = log;
+  await log.deleteOne();
+  await attendanceService.recomputeDirections(date, employeeId);
+  res.json({ success: true, message: 'تم حذف الحركة وإعادة احتساب اليوم' });
 });
 
 /* ── Boards & reports — employeeScope(centerId) already filters to this
