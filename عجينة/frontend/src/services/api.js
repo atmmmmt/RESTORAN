@@ -455,12 +455,17 @@ export const centerPortalAPI = {
   createEmployee: (data)   => centerApi.post('/center-portal/employees', data),
   updateEmployee: (id, d)  => centerApi.put(`/center-portal/employees/${id}`, d),
   removeEmployee: (id)     => centerApi.delete(`/center-portal/employees/${id}`),
+  restoreEmployee:(id)     => centerApi.post(`/center-portal/employees/${id}/restore`),
 
   getSalaryRecords: (params) => centerApi.get('/center-portal/salary-records', { params }),
   initSalaryRecord: (data)   => centerApi.post('/center-portal/salary-records', data),
+  addLateSalaryRecord: (id, data) => centerApi.put(`/center-portal/salary-records/${id}/late`, data),
   adjustSalaryRecord: (id, data) => centerApi.put(`/center-portal/salary-records/${id}/adjust`, data),
   paySalaryRecord:  (id)     => centerApi.post(`/center-portal/salary-records/${id}/pay`),
   removeSalaryRecord: (id)   => centerApi.delete(`/center-portal/salary-records/${id}`),
+
+  getAdvances:   (params) => centerApi.get('/center-portal/advances', { params }),
+  createAdvance: (data)   => centerApi.post('/center-portal/advances', data),
 
   /** This branch's own till — never the business-wide figure. */
   getCash:       (params) => centerApi.get('/center-portal/cash', { params }),
@@ -481,6 +486,11 @@ export const centerPortalAPI = {
   removeExpense: (id)     => centerApi.delete(`/center-portal/expenses/${id}`),
 
   // Attendance / fingerprint device (branch-scoped)
+  getAttendanceDevice:  () => centerApi.get('/center-portal/attendance/device'),
+  refreshAttendanceDevice: () => centerApi.post('/center-portal/attendance/device/refresh'),
+  scanAttendanceDevice: () => centerApi.post('/center-portal/attendance/device/scan'),
+  manualAttendancePunch: (data) => centerApi.post('/center-portal/attendance/punch', data),
+  deleteAttendancePunch: (id) => centerApi.delete(`/center-portal/attendance/punch/${id}`),
   pushEmployeeToDevice: (id)              => centerApi.post(`/center-portal/employees/${id}/push`),
   enrollFingerprint:    (id, fingerIndex) => centerApi.post(`/center-portal/employees/${id}/enroll`, { fingerIndex }),
   clearFingerprints:    (id)              => centerApi.delete(`/center-portal/employees/${id}/fingerprints`),
@@ -489,6 +499,11 @@ export const centerPortalAPI = {
   getAttendanceSummary:    (from, to)     => centerApi.get('/center-portal/attendance/summary', { params: { from, to } }),
   getEmployeeAttendance:   (id, from, to) => centerApi.get(`/center-portal/attendance/employee/${id}`, { params: { from, to } }),
   syncSalaryAttendance:    (id, payBasis) => centerApi.post(`/center-portal/salary-records/${id}/sync-attendance`, { payBasis }),
+
+  getCurrentShift: () => centerApi.get('/center-portal/shifts/current'),
+  getShifts: (params) => centerApi.get('/center-portal/shifts', { params }),
+  openShift: (data) => centerApi.post('/center-portal/shifts/open', data),
+  closeShift: (data) => centerApi.post('/center-portal/shifts/close', data),
 }
 
 export default api
