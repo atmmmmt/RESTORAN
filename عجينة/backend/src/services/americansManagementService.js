@@ -1,6 +1,7 @@
 'use strict';
 
 const mongoose = require('mongoose');
+const AmericansSettlement = require('../models/AmericansSettlement');
 
 const money = value => Math.round((Number(value) || 0) * 100) / 100;
 const sum = (rows, pick) => rows.reduce((total, row) => total + (Number(pick(row)) || 0), 0);
@@ -165,7 +166,17 @@ async function loadBrand(brand, range) {
   };
 
   const investorCollection = brand === 'ajeena' ? 'investorsettings' : 'profitsharesettings';
-  const [internalOrders, siteOrders, cashRows, taxPayments, returns, financeSettings, investorSettings, shifts] = await Promise.all([
+  const centralDb = mongoose.connection.db;
+  const settlementFilter = {
+    brand,
+    centerId: center._id || null,
+    $or: [
+      { paidAt: { $gte: range.start, $lt: range.end } },
+      { periodStart: { $lt: range.end }, periodEnd: { $gte: range.start } },
+    ],
+  };
+
+  const [internalOrders, siteOrders, cashRows, taxPayments, returns, financeSettings, investorSettings, shifts, settlements] = await Promise.all([
     db.collection('internalorders').find(internalFilter).project({
       orderNumber: 1, createdAt: 1, orderType: 1, paymentMethod: 1, total: 1,
       netAmount: 1, invoiceTaxAmount: 1, totalCost: 1, investorPercent: 1, status: 1,
@@ -193,6 +204,8 @@ async function loadBrand(brand, range) {
       number: 1, businessDay: 1, status: 1, openedAt: 1, closedAt: 1,
       openingCash: 1, expectedCash: 1, countedCash: 1, difference: 1,
     }).sort({ openedAt: -1 }).limit(40).toArray().catch(() => []),
+    centralDb.collection('americanssettlements').find(settlementFilter)
+      .sort({ paidAt: -1 }).limit(100).toArray().catch(() => []),
   ]);
 
   const settings = resolvedFinanceSettings(financeSettings, center._id);
@@ -211,6 +224,7 @@ async function loadBrand(brand, range) {
   const refundsTotal = sum(returns, row => row.refundAmount);
   const invoiceTaxPaid = sum(taxPayments.filter(row => row.type === 'invoice_tax'), row => row.amount);
   const profitTaxPaid = sum(taxPayments.filter(row => row.type === 'profit_tax'), row => row.amount);
+  const investorSharePaid = sum(settlements.filter(row => row.type === 'investor_share'), row => row.amount);
   const profitBeforeTax = revenueBeforeInvoiceTax - costOfGoods - operatingExpenses;
   const profitTaxEstimate = settings.profitTax.enabled && profitBeforeTax > 0
     ? profitBeforeTax * settings.profitTax.percent / 100
@@ -277,6 +291,8 @@ async function loadBrand(brand, range) {
       invoiceTaxDue: money(Math.max(invoiceTaxCollected - invoiceTaxPaid, 0)),
       profitTaxDue: money(Math.max(profitTaxEstimate - profitTaxPaid, 0)),
       investorShare: money(Math.max(investorShare, 0)),
+      investorSharePaid: money(investorSharePaid),
+      investorShareDue: money(Math.max(investorShare - investorSharePaid, 0)),
       cashIn: money(cashIn),
       cashOut: money(cashOut),
       cashMovementNet: money(cashIn - cashOut),
@@ -294,6 +310,11 @@ async function loadBrand(brand, range) {
       id: String(row._id), number: row.number, businessDay: row.businessDay, status: row.status,
       openedAt: row.openedAt, closedAt: row.closedAt, openingCash: row.openingCash,
       expectedCash: row.expectedCash, countedCash: row.countedCash, difference: row.difference,
+    })),
+    settlements: settlements.map(row => ({
+      id: String(row._id), type: row.type, amount: row.amount, paidAt: row.paidAt,
+      periodStart: row.periodStart, periodEnd: row.periodEnd, notes: row.notes || '',
+      createdByName: row.createdByName || '',
     })),
   };
 }
@@ -336,6 +357,8 @@ async function getSummary(query = {}) {
       invoiceTaxDue: total('invoiceTaxDue'),
       profitTaxDue: total('profitTaxDue'),
       investorShare: total('investorShare'),
+      investorSharePaid: total('investorSharePaid'),
+      investorShareDue: total('investorShareDue'),
       cashIn: total('cashIn'),
       cashOut: total('cashOut'),
       cashMovementNet: total('cashMovementNet'),
@@ -343,4 +366,135 @@ async function getSummary(query = {}) {
   };
 }
 
-module.exports = { getSummary };
+async function recordSettlement(input = {}, user = null) {
+  const brand = String(input.brand || '');
+  const type = String(input.type || '');
+  const allowedBrands = ['ajeena', 'luliz'];
+  const allowedTypes = ['investor_share', 'invoice_tax', 'profit_tax'];
+  if (!allowedBrands.includes(brand)) {
+    const err = new Error('المطعم غير صالح'); err.statusCode = 400; throw err;
+  }
+  if (!allowedTypes.includes(type)) {
+    const err = new Error('نوع التسوية غير صالح'); err.statusCode = 400; throw err;
+  }
+
+  const amount = money(input.amount);
+  if (!(amount > 0)) {
+    const err = new Error('المبلغ يجب أن يكون أكبر من صفر'); err.statusCode = 400; throw err;
+  }
+
+  const defaults = defaultRange();
+  const periodStart = parseDate(input.periodStart, defaults.start);
+  const periodEnd = parseDate(input.periodEnd, defaults.end);
+  if (periodEnd <= periodStart) {
+    const err = new Error('نهاية الفترة يجب أن تكون بعد بدايتها'); err.statusCode = 400; throw err;
+  }
+  const paidAt = parseDate(input.paidAt, new Date());
+
+  const sourceDb = dbFor(brand);
+  const center = await resolveCenter(sourceDb, brand);
+  if (!center) {
+    const err = new Error('فرع الأميركان غير مربوط لهذا المطعم'); err.statusCode = 400; throw err;
+  }
+
+  const snapshot = await loadBrand(brand, { start: periodStart, end: periodEnd });
+  const due = type === 'investor_share'
+    ? Number(snapshot.summary?.investorShareDue || 0)
+    : type === 'invoice_tax'
+      ? Number(snapshot.summary?.invoiceTaxDue || 0)
+      : Number(snapshot.summary?.profitTaxDue || 0);
+
+  if (amount > due + 0.01) {
+    const err = new Error(`المبلغ أكبر من المستحق الحالي (${money(due)})`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const settlementId = new mongoose.Types.ObjectId();
+  const cashId = new mongoose.Types.ObjectId();
+  const taxPaymentId = type === 'investor_share' ? null : new mongoose.Types.ObjectId();
+  const now = new Date();
+  const centerId = center._id || null;
+  const notes = String(input.notes || '').trim();
+  const createdByName = user?.name || 'إدارة الأميركان';
+
+  const cashDoc = {
+    _id: cashId,
+    centerId,
+    type: type === 'investor_share' ? 'investor_payment' : 'tax_payment',
+    amount,
+    direction: 'out',
+    description: type === 'investor_share'
+      ? `تسوية حصة إدارة الأميركان${notes ? ` — ${notes}` : ''}`
+      : `تسديد للمالية — ${type === 'invoice_tax' ? 'نسبة الفاتورة' : 'ضريبة الأرباح'}${notes ? ` — ${notes}` : ''}`,
+    referenceType: type === 'investor_share' ? 'AmericansSettlement' : 'TaxPayment',
+    referenceId: type === 'investor_share' ? settlementId : taxPaymentId,
+    transactionDate: paidAt,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  try {
+    await sourceDb.collection('cashtransactions').insertOne(cashDoc);
+
+    if (taxPaymentId) {
+      await sourceDb.collection('taxpayments').insertOne({
+        _id: taxPaymentId,
+        centerId,
+        type,
+        amount,
+        paidAt,
+        periodStart,
+        periodEnd,
+        reference: 'تسوية من إدارة الأميركان',
+        notes,
+        createdBy: null,
+        createdByName,
+        cashTransactionId: cashId,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    await AmericansSettlement.collection.insertOne({
+      _id: settlementId,
+      brand,
+      centerId,
+      centerName: center.name || 'الأميركان',
+      type,
+      amount,
+      paidAt,
+      periodStart,
+      periodEnd,
+      notes,
+      createdBy: user?._id || null,
+      createdByName,
+      sourceCashTransactionId: cashId,
+      sourceTaxPaymentId: taxPaymentId,
+      createdAt: now,
+      updatedAt: now,
+    });
+  } catch (err) {
+    await sourceDb.collection('cashtransactions').deleteOne({ _id: cashId }).catch(() => {});
+    if (taxPaymentId) await sourceDb.collection('taxpayments').deleteOne({ _id: taxPaymentId }).catch(() => {});
+    await AmericansSettlement.collection.deleteOne({ _id: settlementId }).catch(() => {});
+    throw err;
+  }
+
+  return {
+    settlement: {
+      id: String(settlementId),
+      brand,
+      type,
+      amount,
+      paidAt,
+      periodStart,
+      periodEnd,
+      notes,
+      center: { id: centerId ? String(centerId) : 'hq', name: center.name },
+    },
+    brand: await loadBrand(brand, { start: periodStart, end: periodEnd }),
+  };
+}
+
+module.exports = { getSummary, recordSettlement };
