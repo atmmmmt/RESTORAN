@@ -18,6 +18,10 @@ const dayjs   = require('dayjs');
 const zk               = require('../services/zktecoService');
 const attendanceService = require('../services/attendanceService');
 const InternalOrder = require('../models/InternalOrder');
+const FinanceSettings = require('../models/FinanceSettings');
+const TaxPayment = require('../models/TaxPayment');
+const financeService = require('../services/financeService');
+const businessDay = require('../services/businessDay');
 
 /** Calculate hourly rate based on pay period */
 function calcHourlyRate(emp) {
@@ -100,6 +104,137 @@ router.get('/me', protectCenter, async (req, res) => {
     },
     balance: { totalDelivered, totalCollected, amountOwed: balance },
     recentSales,
+  });
+});
+
+
+const TIME_RE = /^([01]\\d|2[0-3]):[0-5]\\d$/;
+const safePercent = (value, label) => {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0 || number > 100) {
+    const err = new Error(`${label} يجب أن تكون بين 0 و 100`);
+    err.statusCode = 400;
+    throw err;
+  }
+  return number;
+};
+
+/* ──────────────────────────────────────────────
+   Branch settings — scoped to the signed-in branch only.
+   The branch manager can control their own working hours and finance rates,
+   never another branch or the restaurant-wide defaults.
+────────────────────────────────────────────── */
+router.get('/settings', protectCenter, async (req, res) => {
+  const settings = await FinanceSettings.getSingleton();
+  const day = await businessDay.current(req.center._id);
+  const resolved = settings.resolveFor(req.center._id);
+
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const centerId = req.center._id;
+
+  const [orders, expenses, payments] = await Promise.all([
+    InternalOrder.find({
+      centerId,
+      createdAt: { $gte: monthStart, $lt: monthEnd },
+      status: { $ne: 'cancelled' },
+    }).select('total netAmount invoiceTaxAmount totalCost'),
+    CashTransaction.find({
+      centerId,
+      transactionDate: { $gte: monthStart, $lt: monthEnd },
+      direction: 'out',
+      type: 'manual_expense',
+    }).select('amount'),
+    TaxPayment.find({
+      centerId,
+      paidAt: { $gte: monthStart, $lt: monthEnd },
+    }).select('type amount'),
+  ]);
+
+  const revenue = financeService.money(orders.reduce((sum, o) => sum + financeService.revenueOf(o, 'total'), 0));
+  const invoiceTaxCollected = financeService.money(orders.reduce((sum, o) => sum + financeService.invoiceTaxOf(o), 0));
+  const costOfGoods = financeService.money(orders.reduce((sum, o) => sum + Number(o.totalCost || 0), 0));
+  const operatingExpenses = financeService.money(expenses.reduce((sum, x) => sum + Number(x.amount || 0), 0));
+  const profitBeforeTax = financeService.money(revenue - costOfGoods - operatingExpenses);
+  const profitTax = financeService.profitTaxEstimate(profitBeforeTax, resolved);
+  const invoiceTaxPaid = financeService.money(payments.filter(x => x.type === 'invoice_tax').reduce((s, x) => s + Number(x.amount || 0), 0));
+  const profitTaxPaid = financeService.money(payments.filter(x => x.type === 'profit_tax').reduce((s, x) => s + Number(x.amount || 0), 0));
+
+  res.json({
+    success: true,
+    settings: {
+      finance: resolved,
+      businessHours: {
+        openingTime: day.openingTime,
+        closingTime: day.closingTime,
+        currentDay: day.day,
+        dayStartsAt: day.start,
+        dayEndsAt: day.end,
+      },
+    },
+    monthSummary: {
+      ordersCount: orders.length,
+      customerCollections: financeService.money(revenue + invoiceTaxCollected),
+      revenueBeforeInvoiceTax: revenue,
+      invoiceTaxCollected,
+      invoiceTaxPaid,
+      invoiceTaxDue: financeService.money(Math.max(invoiceTaxCollected - invoiceTaxPaid, 0)),
+      costOfGoods,
+      operatingExpenses,
+      profitBeforeTax,
+      profitTaxEstimate: profitTax.amount,
+      profitTaxPaid,
+      profitTaxDue: financeService.money(Math.max(profitTax.amount - profitTaxPaid, 0)),
+      estimatedNetProfitAfterTax: financeService.money(profitBeforeTax - profitTax.amount),
+    },
+  });
+});
+
+router.put('/settings', protectCenter, async (req, res) => {
+  const center = await SalesCenter.findById(req.center._id);
+  if (!center) return res.status(404).json({ success: false, message: 'الفرع غير موجود' });
+
+  const { openingTime, closingTime, invoiceTax = {}, profitTax = {} } = req.body || {};
+
+  if (openingTime !== undefined) {
+    if (!TIME_RE.test(String(openingTime))) return res.status(400).json({ success: false, message: 'وقت الافتتاح يجب أن يكون HH:MM' });
+    center.openingTime = String(openingTime);
+  }
+  if (closingTime !== undefined) {
+    if (!TIME_RE.test(String(closingTime))) return res.status(400).json({ success: false, message: 'وقت الإغلاق يجب أن يكون HH:MM' });
+    center.closingTime = String(closingTime);
+  }
+  await center.save();
+  businessDay.invalidate(center._id);
+
+  const settings = await FinanceSettings.getSingleton();
+  let row = settings.branchOverrides.find(item => String(item.centerId) === String(center._id));
+  if (!row) {
+    settings.branchOverrides.push({ centerId: center._id, enabled: true });
+    row = settings.branchOverrides[settings.branchOverrides.length - 1];
+  }
+  row.enabled = true;
+  if (invoiceTax.enabled !== undefined) row.invoiceTax.enabled = !!invoiceTax.enabled;
+  if (invoiceTax.percent !== undefined) row.invoiceTax.percent = safePercent(invoiceTax.percent, 'نسبة الفاتورة');
+  if (profitTax.enabled !== undefined) row.profitTax.enabled = !!profitTax.enabled;
+  if (profitTax.percent !== undefined) row.profitTax.percent = safePercent(profitTax.percent, 'نسبة الأرباح');
+  await settings.save();
+
+  const day = await businessDay.current(center._id);
+  res.json({
+    success: true,
+    message: 'تم حفظ إعدادات الفرع',
+    settings: {
+      finance: settings.resolveFor(center._id),
+      businessHours: {
+        openingTime: day.openingTime,
+        closingTime: day.closingTime,
+        currentDay: day.day,
+        dayStartsAt: day.start,
+        dayEndsAt: day.end,
+      },
+    },
   });
 });
 
