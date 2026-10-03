@@ -24,6 +24,7 @@ const orderItemSchema = new mongoose.Schema({
 const internalOrderSchema = new mongoose.Schema(
   {
     centerId: { type: mongoose.Schema.Types.ObjectId, ref: 'SalesCenter', default: null, index: true },
+    shiftId: { type: mongoose.Schema.Types.ObjectId, ref: 'CashierShift', default: null, index: true },
     orderNumber: { type: String, required: true, unique: true, index: true },
     qrPayload:   { type: String, default: '' },
     qrDataUrl:   { type: String, default: '' },
