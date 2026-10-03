@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CheckCircle2, HandCoins, X } from 'lucide-react'
+import { CheckCircle2, Banknote, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { api } from '../../services/api'
 
@@ -43,7 +43,7 @@ export default function AmericansSettlementPanel({ brand, periodStart, periodEnd
   return <>
     <div className="rounded-[28px] border p-5 sm:p-6 mb-5" style={{background:CARD,borderColor:LINE}}>
       <div className="flex items-center gap-2 mb-4">
-        <HandCoins size={19} style={{color:GOLD}} />
+        <Banknote size={19} style={{color:GOLD}} />
         <div>
           <h3 className="text-white font-black">المحاسبة والتسويات</h3>
           <p className="text-white/35 text-xs mt-1">سجّل ما استلمته الإدارة فعلياً من هذا المطعم.</p>
