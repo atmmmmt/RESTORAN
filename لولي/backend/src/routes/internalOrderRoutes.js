@@ -150,6 +150,8 @@ router.get('/daily-report', async (req, res) => {
   const sum = (list, k) => list.reduce((s, o) => s + (o[k] || 0), 0);
   const posList = orders.filter(o => o.kind === 'pos');
   const siteList = orders.filter(o => o.kind === 'site');
+  const deliveryList = orders.filter(o => o.kind === 'site' || o.orderType === 'delivery');
+  const internalList = orders.filter(o => o.kind === 'pos' && o.orderType !== 'delivery');
 
   res.json({
     success: true,
@@ -167,6 +169,11 @@ router.get('/daily-report', async (req, res) => {
     totals: {
       count: orders.length,
       sales: sum(orders, 'total'),
+      // New operational split requested by Luliz. Historical and today's
+      // orders are recalculated live into these two buckets.
+      internal: { count: internalList.length, sales: sum(internalList, 'total'), investorShare: sum(internalList, 'investorShare') },
+      delivery: { count: deliveryList.length, sales: sum(deliveryList, 'total'), investorShare: sum(deliveryList, 'investorShare') },
+      // Legacy buckets kept for backwards compatibility.
       pos: { count: posList.length, sales: sum(posList, 'total'), investorShare: sum(posList, 'investorShare') },
       site: { count: siteList.length, sales: sum(siteList, 'total'), investorShare: sum(siteList, 'investorShare') },
       investorShare: sum(orders, 'investorShare'),
