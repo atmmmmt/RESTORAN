@@ -293,6 +293,12 @@ async function loadBrand(brand, range) {
       investorShare: money(Math.max(investorShare, 0)),
       investorSharePaid: money(investorSharePaid),
       investorShareDue: money(Math.max(investorShare - investorSharePaid, 0)),
+      settledTotal: money(investorSharePaid + invoiceTaxPaid + profitTaxPaid),
+      settlementDueTotal: money(
+        Math.max(investorShare - investorSharePaid, 0)
+        + Math.max(invoiceTaxCollected - invoiceTaxPaid, 0)
+        + Math.max(profitTaxEstimate - profitTaxPaid, 0)
+      ),
       cashIn: money(cashIn),
       cashOut: money(cashOut),
       cashMovementNet: money(cashIn - cashOut),
@@ -359,6 +365,8 @@ async function getSummary(query = {}) {
       investorShare: total('investorShare'),
       investorSharePaid: total('investorSharePaid'),
       investorShareDue: total('investorShareDue'),
+      settledTotal: total('settledTotal'),
+      settlementDueTotal: total('settlementDueTotal'),
       cashIn: total('cashIn'),
       cashOut: total('cashOut'),
       cashMovementNet: total('cashMovementNet'),
