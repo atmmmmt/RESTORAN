@@ -41,7 +41,7 @@ async function open(centerId, user, openingCash = 0) {
     err.statusCode = 409;
     throw err;
   }
-  const { day } = await businessDay.current();
+  const { day } = await businessDay.current(centerId);
   try {
     return await CashierShift.create({
       centerId: toCenterId(centerId),
