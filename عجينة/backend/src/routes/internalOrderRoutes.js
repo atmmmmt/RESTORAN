@@ -34,6 +34,15 @@ function applyCenterScope(req, filter) {
   }
 }
 
+function businessDayCenter(req) {
+  const assigned = boundCenterId(req.user);
+  if (assigned) return assigned;
+  const asked = req.query.center;
+  return asked && asked !== 'all' && asked !== 'hq' && mongoose.isValidObjectId(asked)
+    ? String(asked)
+    : null;
+}
+
 function presentOrder(order, role) {
   const value = order?.toObject ? order.toObject({ virtuals: true }) : { ...order };
   if (['cashier', 'kitchen'].includes(role)) {
@@ -61,7 +70,7 @@ router.get('/', requireRole('admin', 'supervisor', 'cashier', 'kitchen', 'viewer
   /* A working day, cut on the shop's opening hours — 'today' is the one
      running now, which after midnight may still be yesterday's date. */
   if (date) {
-    const { start, end } = await businessDay.range(date === 'today' ? undefined : date);
+    const { start, end } = await businessDay.range(date === 'today' ? undefined : date, businessDayCenter(req));
     filter.createdAt = { $gte: start, $lt: end };
   }
   if (req.query.shift && mongoose.isValidObjectId(req.query.shift)) filter.shiftId = req.query.shift;
@@ -80,7 +89,7 @@ router.get('/', requireRole('admin', 'supervisor', 'cashier', 'kitchen', 'viewer
    hours (Damascus time), so a night past midnight is still one report. Must
    sit above /:key so "daily-report" isn't read as an id. */
 router.get('/daily-report', requireRole('admin', 'supervisor', 'cashier', 'viewer'), async (req, res) => {
-  const { day, start, end } = await businessDay.range(req.query.date);
+  const { day, start, end } = await businessDay.range(req.query.date, businessDayCenter(req));
 
   const posFilter = { createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } };
   applyCenterScope(req, posFilter);
@@ -472,7 +481,7 @@ router.post('/:id/print-result', requirePos, async (req, res) => {
 
 /* ── Today's counters for the POS header ── */
 router.get('/stats/today', requireRole('admin', 'supervisor', 'cashier', 'kitchen', 'viewer'), async (req, res) => {
-  const { day, start, end } = await businessDay.current();
+  const { day, start, end } = await businessDay.current(businessDayCenter(req));
 
   const statsFilter = { createdAt: { $gte: start, $lt: end } };
   applyCenterScope(req, statsFilter);
