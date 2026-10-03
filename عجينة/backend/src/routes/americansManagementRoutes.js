@@ -18,4 +18,16 @@ router.get('/summary', async (req, res) => {
   }
 });
 
+router.post('/settlements', async (req, res) => {
+  try {
+    const data = await americansManagementService.recordSettlement(req.body, req.user);
+    res.status(201).json({ success: true, message: 'تم تسجيل المحاسبة وتحديث المستحقات', ...data });
+  } catch (err) {
+    res.status(err.statusCode || 500).json({
+      success: false,
+      message: err.message || 'تعذّر تسجيل المحاسبة',
+    });
+  }
+});
+
 module.exports = router;
