@@ -525,11 +525,15 @@ router.get('/employees', protectCenter, async (req, res) => {
 });
 
 router.post('/employees', protectCenter, async (req, res) => {
-  const { name, hireDate, monthlySalary, dailyHours, workingDays, role, phone, notes } = req.body;
-  if (!name || !monthlySalary) return res.status(400).json({ success: false, message: 'الاسم والراتب مطلوبان' });
+  const {
+    name, hireDate, monthlySalary, dailyHours, workingDays, role, department,
+    phone, notes, hourlyRateOverride, devicePin, payPeriod,
+  } = req.body;
+  if (!name || monthlySalary === undefined) return res.status(400).json({ success: false, message: 'الاسم والراتب مطلوبان' });
   const emp = await Employee.create({
     centerId: req.center._id,
-    name, hireDate, monthlySalary, dailyHours, workingDays, role, phone, notes,
+    name, hireDate, monthlySalary, dailyHours, workingDays, role, department,
+    phone, notes, hourlyRateOverride, devicePin, payPeriod,
   });
   res.status(201).json({ success: true, employee: emp });
 });
@@ -548,6 +552,16 @@ router.delete('/employees/:id', protectCenter, async (req, res) => {
   if (!existing) return res.status(404).json({ success: false, message: 'الموظف غير موجود' });
   await Employee.findByIdAndUpdate(req.params.id, { isActive: false });
   res.json({ success: true, message: 'تم إلغاء تفعيل الموظف' });
+});
+
+router.post('/employees/:id/restore', protectCenter, async (req, res) => {
+  const emp = await Employee.findOneAndUpdate(
+    { _id: req.params.id, centerId: req.center._id },
+    { isActive: true },
+    { new: true }
+  );
+  if (!emp) return res.status(404).json({ success: false, message: 'الموظف غير موجود' });
+  res.json({ success: true, employee: emp, message: 'تمت إعادة تفعيل الموظف' });
 });
 
 /* ──────────────────────────────────────────────
@@ -585,6 +599,26 @@ router.post('/salary-records', protectCenter, async (req, res) => {
       finalSalary: emp.monthlySalary,
     });
   }
+  res.json({ success: true, record });
+});
+
+router.put('/salary-records/:id/late', protectCenter, async (req, res) => {
+  const record = await SalaryRecord.findOne({ _id: req.params.id, centerId: req.center._id });
+  if (!record) return res.status(404).json({ success: false, message: 'السجل غير موجود' });
+  if (record.isPaid) return res.status(400).json({ success: false, message: 'لا يمكن التعديل بعد الصرف' });
+  const hours = Number(req.body.hours);
+  if (!(hours > 0)) return res.status(400).json({ success: false, message: 'أدخل عدد ساعات التأخر' });
+  record.lateHours = Number(record.lateHours || 0) + hours;
+  record.lateDeduction = record.lateHours * Number(record.hourlyRate || 0);
+  record.lateLog.push({
+    date: req.body.date || new Date().toISOString().slice(0, 10),
+    hours,
+    reason: String(req.body.reason || ''),
+  });
+  const base = record.payBasis === 'hours' ? record.hoursPay : record.baseSalary;
+  const lateCut = record.payBasis === 'hours' ? 0 : record.lateDeduction;
+  record.finalSalary = Math.max(0, base + record.bonuses - lateCut - record.otherDeductions - record.advances);
+  await record.save();
   res.json({ success: true, record });
 });
 
@@ -631,6 +665,36 @@ router.delete('/salary-records/:id', protectCenter, async (req, res) => {
   if (record.isPaid) return res.status(400).json({ success: false, message: 'لا يمكن حذف سجل مصروف' });
   await record.deleteOne();
   res.json({ success: true, message: 'تم حذف السجل' });
+});
+
+
+/* ── Employee advances (branch-scoped) ── */
+router.get('/advances', protectCenter, async (req, res) => {
+  const filter = { centerId: req.center._id };
+  if (req.query.employeeId) filter.employeeId = req.query.employeeId;
+  const advances = await EmployeeAdvance.find(filter).sort({ date: -1 });
+  res.json({ success: true, advances });
+});
+
+router.post('/advances', protectCenter, async (req, res) => {
+  const emp = await Employee.findOne({ _id: req.body.employeeId, centerId: req.center._id });
+  if (!emp) return res.status(404).json({ success: false, message: 'الموظف غير موجود' });
+  const amount = Number(req.body.amount);
+  if (!(amount > 0)) return res.status(400).json({ success: false, message: 'المبلغ غير صحيح' });
+  const advance = await EmployeeAdvance.create({
+    centerId: req.center._id,
+    employeeId: emp._id,
+    employeeName: emp.name,
+    amount,
+    date: req.body.date || new Date(),
+    reason: String(req.body.reason || ''),
+  });
+  await cashService.createTransaction(
+    'manual_expense', amount, 'out',
+    `سلفة ${emp.name}${advance.reason ? ` — ${advance.reason}` : ''}`,
+    'EmployeeAdvance', advance._id, req.center._id
+  );
+  res.status(201).json({ success: true, advance, message: 'تم تسجيل السلفة وخصمها من صندوق الفرع' });
 });
 
 /* ──────────────────────────────────────────────
@@ -1016,6 +1080,56 @@ router.post('/salary-records/:id/sync-attendance', protectCenter, async (req, re
     days: summary.days,
     message: `تمت المزامنة — ${summary.totals.daysAttended} يوم، ${summary.totals.totalHours} ساعة`,
   });
+});
+
+
+/* ── Cashier shifts (branch-scoped) ── */
+async function presentBranchShift(shift) {
+  if (!shift) return null;
+  const value = shift.toObject();
+  if (shift.status === 'open') {
+    const live = await shiftService.summarize(shift);
+    value.summary = live.summary;
+    value.expectedCash = live.expectedCash;
+    value.investor = live.investor;
+  }
+  return value;
+}
+
+router.get('/shifts/current', protectCenter, async (req, res) => {
+  const [shift, day] = await Promise.all([
+    shiftService.getOpen(req.center._id),
+    businessDay.current(req.center._id),
+  ]);
+  res.json({
+    success: true,
+    shift: await presentBranchShift(shift),
+    businessDay: {
+      day: day.day, start: day.start, end: day.end,
+      openingTime: day.openingTime, closingTime: day.closingTime,
+    },
+  });
+});
+
+router.get('/shifts', protectCenter, async (req, res) => {
+  const filter = { centerId: req.center._id };
+  if (req.query.day && businessDay.DAY_KEY.test(req.query.day)) filter.businessDay = req.query.day;
+  const shifts = await CashierShift.find(filter).sort({ openedAt: -1 }).limit(Math.min(Number(req.query.limit)||30, 200));
+  res.json({ success: true, shifts });
+});
+
+router.post('/shifts/open', protectCenter, async (req, res) => {
+  const actor = { _id: null, name: req.center.name };
+  const shift = await shiftService.open(req.center._id, actor, req.body.openingCash);
+  res.status(201).json({ success: true, shift: await presentBranchShift(shift), message: `تم فتح الوردية رقم ${shift.number}` });
+});
+
+router.post('/shifts/close', protectCenter, async (req, res) => {
+  const actor = { _id: null, name: req.center.name };
+  const shift = await shiftService.close(req.center._id, actor, req.body);
+  const diff = Number(shift.difference || 0);
+  const note = diff === 0 ? 'الدرج مطابق' : diff > 0 ? `زيادة ${diff}` : `نقص ${Math.abs(diff)}`;
+  res.json({ success: true, shift, message: `تم تصفير الوردية رقم ${shift.number} — ${note}` });
 });
 
 module.exports = router;
