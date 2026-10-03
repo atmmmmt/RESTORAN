@@ -118,12 +118,12 @@ const salesCenterSchema = new mongoose.Schema(
     openingTime: {
       type: String,
       default: '10:00',
-      match: [/^([01]\\d|2[0-3]):[0-5]\\d$/, 'صيغة وقت الافتتاح HH:MM'],
+      match: [/^([01]\d|2[0-3]):[0-5]\d$/, 'صيغة وقت الافتتاح HH:MM'],
     },
     closingTime: {
       type: String,
       default: '04:00',
-      match: [/^([01]\\d|2[0-3]):[0-5]\\d$/, 'صيغة وقت الإغلاق HH:MM'],
+      match: [/^([01]\d|2[0-3]):[0-5]\d$/, 'صيغة وقت الإغلاق HH:MM'],
     },
     inventory: {
       type: [inventoryItemSchema],
