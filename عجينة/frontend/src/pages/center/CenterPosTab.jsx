@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Plus, Minus, Trash2, ShoppingBag, Package, EyeOff, Eye } from 'lucide-react'
+import { Search, Plus, Minus, Trash2, ShoppingBag, Package, EyeOff, Eye, Receipt, Clock, Wallet, TrendingUp, ChefHat, CheckCircle2, Truck, Store, Bike } from 'lucide-react'
 import { centerPortalAPI } from '../../services/api'
 import Button from '../../components/common/Button'
 import PageHeader from '../../components/common/PageHeader'
@@ -11,6 +11,17 @@ const fmt = (n) => `${Number(n || 0).toLocaleString('ar-SY')} ل.س`
 
 const isImageUrl = (v) => typeof v === 'string' && /^https?:\/\//.test(v)
 
+const ORDER_TYPES = [
+  { key: 'takeaway', label: 'سفري', Icon: ShoppingBag },
+  { key: 'dine_in', label: 'بالمحل', Icon: Store },
+  { key: 'delivery', label: 'توصيل', Icon: Bike },
+]
+const PAYMENTS = [
+  { key: 'cash', label: 'نقداً' },
+  { key: 'card', label: 'بطاقة' },
+  { key: 'unpaid', label: 'آجل' },
+]
+
 /**
  * Branch cashier screen — sells from the full restaurant menu (same catalog
  * customers see), not from center.inventory (which only tracks raw-supply
@@ -19,6 +30,7 @@ const isImageUrl = (v) => typeof v === 'string' && /^https?:\/\//.test(v)
  * to this branch.
  */
 export default function CenterPosTab({ onSale }) {
+  const [tab, setTab] = useState('new')
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
@@ -30,6 +42,18 @@ export default function CenterPosTab({ onSale }) {
   const [hiddenLoading, setHiddenLoading] = useState(false)
   const [category, setCategory] = useState(null)
   const [shiftTick, setShiftTick] = useState(0)
+  const [orders, setOrders] = useState([])
+  const [stats, setStats] = useState(null)
+  const [meta, setMeta] = useState({
+    orderType: 'takeaway',
+    paymentMethod: 'cash',
+    customerName: '',
+    customerPhone: '',
+    discountType: 'amount',
+    discount: 0,
+    discountPercent: 0,
+    discountReason: '',
+  })
 
   const loadProducts = () => {
     setLoading(true)
@@ -39,7 +63,20 @@ export default function CenterPosTab({ onSale }) {
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { loadProducts() }, [])
+  const loadPosData = async () => {
+    try {
+      const [o, s] = await Promise.all([
+        centerPortalAPI.getPosOrders({ date: 'today' }),
+        centerPortalAPI.getPosStats(),
+      ])
+      setOrders(o.data.orders || [])
+      setStats(s.data.stats || null)
+    } catch (e) {
+      toast.error(e.message || 'تعذر تحميل سجل الكاشير')
+    }
+  }
+
+  useEffect(() => { loadProducts(); loadPosData() }, [])
 
   const loadHidden = () => {
     setHiddenLoading(true)
@@ -120,7 +157,11 @@ export default function CenterPosTab({ onSale }) {
   const clearCart = () => { setCart([]); setNotes('') }
 
   const totalQty = useMemo(() => cart.reduce((s, i) => s + i.quantity, 0), [cart])
-  const total = useMemo(() => cart.reduce((s, i) => s + (i.unitPrice || 0) * i.quantity, 0), [cart])
+  const subtotal = useMemo(() => cart.reduce((s, i) => s + (i.unitPrice || 0) * i.quantity, 0), [cart])
+  const discountAmount = meta.discountType === 'percent'
+    ? Math.round(subtotal * Math.min(Math.max(Number(meta.discountPercent) || 0, 0), 100) / 100)
+    : Math.min(Math.max(Number(meta.discount) || 0, 0), subtotal)
+  const total = Math.max(subtotal - discountAmount, 0)
 
   const submit = async () => {
     if (!cart.length) return toast.error('السلة فارغة')
@@ -129,13 +170,18 @@ export default function CenterPosTab({ onSale }) {
       const res = await centerPortalAPI.recordSale({
         items: cart.map(({ productId, quantity }) => ({ productId, quantity })),
         notes,
+        ...meta,
+        discount: discountAmount,
+        discountPercent: Number(meta.discountPercent) || 0,
       })
       toast.success(res.data.message || 'تم تسجيل البيع')
       if (res.data.totalAmount) {
         toast.success(`الإجمالي: ${fmt(res.data.totalAmount)}`, { duration: 4000 })
       }
       clearCart()
+      setMeta(m => ({ ...m, customerName: '', customerPhone: '', discount: 0, discountPercent: 0, discountReason: '' }))
       setShiftTick(t => t + 1)
+      await loadPosData()
       onSale?.()
     } catch (e) {
       toast.error(e.message || 'حدث خطأ')
@@ -151,9 +197,38 @@ export default function CenterPosTab({ onSale }) {
         subtitle="نفس تشغيل الكاشير الإداري — الوردية، البيع، والتصفير ضمن فرعك فقط"
       />
 
-      <CenterShiftPanel tick={shiftTick} onChanged={() => setShiftTick(t => t + 1)} />
+      <CenterShiftPanel tick={shiftTick} onChanged={() => { setShiftTick(t => t + 1); loadPosData() }} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      {stats && (
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-5">
+          {[
+            { Icon: Receipt, label: 'طلبات اليوم', value: stats.count || 0, color: '#A96734' },
+            { Icon: Wallet, label: 'مبيعات اليوم', value: fmt(stats.revenue || 0), color: '#2E7A4A' },
+            { Icon: TrendingUp, label: 'ربح اليوم', value: fmt(stats.profit || 0), color: '#4A7A2E' },
+            { Icon: ChefHat, label: 'قيد التجهيز', value: stats.preparing || 0, color: '#B8860B' },
+            { Icon: CheckCircle2, label: 'جاهز', value: stats.ready || 0, color: '#4A6AB8' },
+            { Icon: stats.unpaid > 0 ? Clock : Truck, label: stats.unpaid > 0 ? 'آجل' : 'تم التسليم', value: stats.unpaid > 0 ? fmt(stats.unpaid) : (stats.delivered || 0), color: '#6B5A4A' },
+          ].map(({ Icon, label, value, color }) => (
+            <div key={label} className="bg-white rounded-2xl p-4 shadow-card flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${color}1F` }}>
+                <Icon size={18} style={{ color }} />
+              </div>
+              <div className="min-w-0"><div className="text-xs text-brand-gray font-bold">{label}</div><div className="font-black text-brand-dark truncate">{value}</div></div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="flex gap-2 mb-5">
+        {[['new','طلب جديد',Receipt],['log','سجل اليوم',Clock]].map(([key,label,Icon]) => (
+          <button key={key} onClick={() => setTab(key)}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-black transition-all ${tab===key?'bg-fuchsia text-white shadow-md':'bg-white text-brand-gray shadow-card'}`}>
+            <Icon size={15}/>{label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'new' && <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Products */}
         <div className="lg:col-span-2">
           <div className="flex items-center gap-2 mb-4">
@@ -298,6 +373,43 @@ export default function CenterPosTab({ onSale }) {
             </div>
           )}
 
+          <div className="grid grid-cols-3 gap-2 mb-3">
+            {ORDER_TYPES.map(({key,label,Icon}) => (
+              <button key={key} onClick={() => setMeta(m=>({...m,orderType:key}))}
+                className={`rounded-xl py-2 text-xs font-black flex items-center justify-center gap-1 border-2 ${meta.orderType===key?'border-fuchsia bg-fuchsia/5 text-fuchsia':'border-brand-border text-brand-gray'}`}>
+                <Icon size={13}/>{label}
+              </button>
+            ))}
+          </div>
+
+          <div className="mb-3">
+            <div className="text-xs font-bold text-brand-gray mb-2">طريقة الدفع</div>
+            <div className="grid grid-cols-3 gap-2">
+              {PAYMENTS.map(p => (
+                <button key={p.key} onClick={() => setMeta(m=>({...m,paymentMethod:p.key}))}
+                  className={`rounded-xl py-2 text-xs font-black border-2 ${meta.paymentMethod===p.key?'border-fuchsia bg-fuchsia/5 text-fuchsia':'border-brand-border text-brand-gray'}`}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <input value={meta.customerName} onChange={e=>setMeta(m=>({...m,customerName:e.target.value}))} placeholder="اسم الزبون" className="px-3 py-2.5 border-2 border-brand-border rounded-xl font-bold text-sm"/>
+            <input value={meta.customerPhone} onChange={e=>setMeta(m=>({...m,customerPhone:e.target.value}))} placeholder="الهاتف" className="px-3 py-2.5 border-2 border-brand-border rounded-xl font-bold text-sm"/>
+          </div>
+
+          <div className="mb-3 rounded-xl bg-brand-bg p-3">
+            <div className="flex items-center justify-between mb-2"><span className="text-xs font-bold text-brand-gray">الخصم</span>
+              <select value={meta.discountType} onChange={e=>setMeta(m=>({...m,discountType:e.target.value}))} className="text-xs font-bold bg-white border border-brand-border rounded-lg px-2 py-1">
+                <option value="amount">مبلغ</option><option value="percent">نسبة %</option>
+              </select>
+            </div>
+            <input type="number" min="0" value={meta.discountType==='percent'?meta.discountPercent:meta.discount}
+              onChange={e=>setMeta(m=>({...m,[meta.discountType==='percent'?'discountPercent':'discount']:e.target.value}))}
+              className="w-full px-3 py-2 border-2 border-brand-border rounded-xl font-bold text-sm bg-white"/>
+          </div>
+
           <input value={notes} onChange={e => setNotes(e.target.value)}
             placeholder="ملاحظات على البيع (اختياري)"
             className="w-full px-3 py-2.5 border-2 border-brand-border rounded-xl focus:border-fuchsia focus:outline-none font-bold text-sm mb-3" />
@@ -307,6 +419,8 @@ export default function CenterPosTab({ onSale }) {
               <span className="text-brand-gray font-bold">عدد القطع</span>
               <span className="font-black text-brand-dark">{totalQty}</span>
             </div>
+            <div className="flex justify-between text-sm"><span className="text-brand-gray font-bold">المجموع</span><span className="font-black">{fmt(subtotal)}</span></div>
+            {discountAmount > 0 && <div className="flex justify-between text-sm text-red-500"><span className="font-bold">الخصم</span><span className="font-black">− {fmt(discountAmount)}</span></div>}
             <div className="flex justify-between pt-2 border-t border-brand-border">
               <span className="font-black text-brand-dark">الإجمالي</span>
               <span className="font-black text-fuchsia text-lg">{fmt(total)}</span>
@@ -317,7 +431,29 @@ export default function CenterPosTab({ onSale }) {
             تأكيد البيع
           </Button>
         </div>
-      </div>
+      </div>}
+
+      {tab === 'log' && (
+        <div className="bg-white rounded-2xl shadow-card overflow-x-auto">
+          {!orders.length ? <div className="p-10 text-center font-bold text-brand-gray">لا توجد طلبات اليوم</div> : (
+            <table className="w-full min-w-[780px] text-sm">
+              <thead><tr className="text-right text-xs text-brand-gray border-b border-brand-border">
+                <th className="p-3">الطلب</th><th className="p-3">الوقت</th><th className="p-3">النوع</th><th className="p-3">الدفع</th><th className="p-3">الحالة</th><th className="p-3">الإجمالي</th>
+              </tr></thead>
+              <tbody>{orders.map(o => (
+                <tr key={o._id} className="border-b border-brand-border/60">
+                  <td className="p-3 font-black text-brand-dark">{o.orderNumber}</td>
+                  <td className="p-3 font-bold text-brand-gray">{new Date(o.createdAt).toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'})}</td>
+                  <td className="p-3 font-bold">{o.orderType==='dine_in'?'بالمحل':o.orderType==='delivery'?'توصيل':'سفري'}</td>
+                  <td className="p-3 font-bold">{o.paymentMethod==='cash'?'نقداً':o.paymentMethod==='card'?'بطاقة':'آجل'}</td>
+                  <td className="p-3 font-bold">{o.status==='new'?'جديد':o.status==='preparing'?'قيد التجهيز':o.status==='ready'?'جاهز':o.status==='delivered'?'تم التسليم':'ملغى'}</td>
+                  <td className="p-3 font-black text-fuchsia">{fmt(o.total)}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          )}
+        </div>
+      )}
     </div>
   )
 }
