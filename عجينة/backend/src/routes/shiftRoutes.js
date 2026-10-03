@@ -33,7 +33,8 @@ router.use(protect);
 
 /* ── GET /api/shifts/current ── the open shift (or null) and the working day. */
 router.get('/current', requireRole('admin', 'supervisor', 'cashier', 'viewer'), async (req, res) => {
-  const [shift, day] = await Promise.all([shiftService.getOpen(centerOf(req)), businessDay.current()]);
+  const centerId = centerOf(req);
+  const [shift, day] = await Promise.all([shiftService.getOpen(centerId), businessDay.current(centerId)]);
   res.json({
     success: true,
     shift: await present(shift),
