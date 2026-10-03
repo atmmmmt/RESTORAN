@@ -17,6 +17,7 @@ import Modal        from '../../components/common/Modal'
 import LoadingState from '../../components/common/LoadingState'
 import toast from 'react-hot-toast'
 import { useAuth } from '../../hooks/useAuth'
+import ShiftPanel from '../../components/pos/ShiftPanel'
 
 const STATUS_META = {
   new:       { label: 'جديد',        color: '#4A6AB8', bg: 'rgba(74,106,184,0.12)', Icon: Receipt },
@@ -67,6 +68,7 @@ export default function PosPage() {
   const [stats,  setStats]  = useState(null)
   const [ticket, setTicket] = useState(null)
   const [testingPrinter, setTestingPrinter] = useState(false)
+  const [shiftTick, setShiftTick] = useState(0)
 
   const testPrinter = async () => {
     setTestingPrinter(true)
@@ -92,6 +94,7 @@ export default function PosPage() {
       ])
       setOrders(o.data.orders || [])
       setStats(s.data.stats)
+      setShiftTick(t => t + 1)
     } catch (e) { toast.error(e.message) }
   }, [])
 
@@ -349,6 +352,8 @@ export default function PosPage() {
           </div>
         }
       />
+
+      <ShiftPanel tick={shiftTick} onChanged={loadOrders} />
 
       {stats && (
         <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-5">
