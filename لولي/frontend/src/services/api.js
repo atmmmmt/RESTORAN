@@ -303,6 +303,13 @@ export const settingsAPI = {
   updatePassword: (data) => api.put('/settings/password', data),
 }
 
+export const shiftsAPI = {
+  current: ()       => api.get('/shifts/current'),
+  list:    (params) => api.get('/shifts', { params }),
+  open:    (data)   => api.post('/shifts/open', data),
+  close:   (data)   => api.post('/shifts/close', data),
+}
+
 export const siteSettingsAPI = {
   get:    ()     => api.get('/site-settings'),
   update: (data) => api.put('/site-settings', data),
