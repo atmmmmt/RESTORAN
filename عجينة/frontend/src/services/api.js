@@ -445,6 +445,8 @@ export const centerPortalAPI = {
   getSales:    ()     => centerApi.get('/center-portal/sales'),
   /** data: { items: [{ productId, quantity }], notes } — a whole cart in one call. */
   recordSale:  (data) => centerApi.post('/center-portal/sales', data),
+  getPosOrders: (params) => centerApi.get('/center-portal/pos/orders', { params }),
+  getPosStats:  () => centerApi.get('/center-portal/pos/stats'),
 
   /** Full menu (minus items this branch hid today) — what the cashier sells from. */
   getProducts:            ()     => centerApi.get('/center-portal/products'),
