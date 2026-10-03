@@ -12,6 +12,8 @@ const cashService   = require('../services/cashService');
 const cacheService  = require('../services/cacheService');
 const CustomerOrder = require('../models/CustomerOrder');
 const ProfitShareSettings = require('../models/ProfitShareSettings');
+const shiftService = require('../services/shiftService');
+const businessDay = require('../services/businessDay');
 
 const STATUSES = InternalOrder.STATUSES;
 
@@ -91,8 +93,7 @@ router.get('/', async (req, res) => {
   const filter = {};
   if (status && STATUSES.includes(status)) filter.status = status;
   if (date) {
-    const start = new Date(`${date}T00:00:00`);
-    const end   = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+    const { start, end } = await businessDay.range(date === 'today' ? undefined : date);
     filter.createdAt = { $gte: start, $lt: end };
   }
 
@@ -108,9 +109,7 @@ router.get('/', async (req, res) => {
    investor's cut of each one, for the end-of-day printout. Cancelled orders
    are left out. Must sit above /:idOrNumber so "daily-report" isn't read as an id. */
 router.get('/daily-report', async (req, res) => {
-  const day = /^d{4}-d{2}-d{2}$/.test(req.query.date || '') ? req.query.date : null;
-  const start = day ? new Date(`${day}T00:00:00`) : new Date(new Date().setHours(0, 0, 0, 0));
-  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  const { day, start, end } = await businessDay.range(req.query.date);
 
   const [settings, pos, site] = await Promise.all([
     ProfitShareSettings.getSingleton(),
@@ -145,8 +144,7 @@ router.get('/daily-report', async (req, res) => {
 
   res.json({
     success: true,
-    // local (Damascus) date — toISOString() would shift to the previous day
-    date: day || `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`,
+    date: day,
     investor: { enabled: invOn, name: inv.name || 'الأميركان', posPercent: posPct, sitePercent: sitePct },
     orders,
     totals: {
@@ -273,7 +271,10 @@ router.post('/', async (req, res) => {
     applied.push(line);
   }
 
-  /* 3 — create the order */
+  /* 3 — create the order inside the currently open cashier shift.
+     If the cashier starts selling without explicitly opening one, a zero-float
+     shift is opened automatically so no sale can escape shift accounting. */
+  const shift = await shiftService.ensureOpen(null, req.user);
   const orderNumber = await InternalOrder.nextOrderNumber();
   const qrPayload   = orderNumber;
 
@@ -286,6 +287,7 @@ router.post('/', async (req, res) => {
   } catch { /* a missing QR must not block the sale */ }
 
   const order = await InternalOrder.create({
+    shiftId: shift?._id || null,
     orderNumber, qrPayload, qrDataUrl,
     items: lines,
     subtotal, discount: disc, total, totalCost, profit,
@@ -301,10 +303,10 @@ router.post('/', async (req, res) => {
 
   /* 4 — money in the drawer. Failing to log cash must not void a sale that
          already happened physically, so this is best-effort and flagged. */
-  if (isPaid(paymentMethod) && total > 0) {
+  if (isPaid(paymentMethod) && order.total > 0) {
     try {
       await cashService.createTransaction(
-        'sale_income', total, 'in',
+        'sale_income', order.total, 'in',
         `طلب داخلي ${orderNumber} — ${lines.length} صنف`,
         'InternalOrder', order._id
       );
@@ -391,10 +393,7 @@ router.put('/:id/status', async (req, res) => {
 
 /* ── Today's counters for the POS header ── */
 router.get('/stats/today', async (req, res) => {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
-
+  const { start, end } = await businessDay.current();
   const orders = await InternalOrder.find({ createdAt: { $gte: start, $lt: end } });
   const active = orders.filter(o => o.status !== 'cancelled');
 
