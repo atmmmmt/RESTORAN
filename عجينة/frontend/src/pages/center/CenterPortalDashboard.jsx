@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Menu, Store, Home, Users, Wallet, Receipt, ShoppingBag, ShoppingCart, Trash2, LogOut, Fingerprint } from 'lucide-react'
+import { Menu, Store, Home, Users, Wallet, Receipt, ShoppingBag, ShoppingCart, Trash2, LogOut, Fingerprint, Settings } from 'lucide-react'
 import { centerPortalAPI } from '../../services/api'
 import toast from 'react-hot-toast'
 import CenterEmployeesTab from './CenterEmployeesTab'
@@ -11,6 +11,7 @@ import CenterWasteTab from './CenterWasteTab'
 import CenterPurchasesTab from './CenterPurchasesTab'
 import CenterAttendanceTab from './CenterAttendanceTab'
 import CenterPosTab from './CenterPosTab'
+import CenterSettingsTab from './CenterSettingsTab'
 import PageHeader from '../../components/common/PageHeader'
 import StatCard from '../../components/common/StatCard'
 
@@ -26,6 +27,7 @@ const NAV_ITEMS = [
   { key: 'expenses',  Icon: Receipt,      label: 'المصاريف' },
   { key: 'purchases', Icon: ShoppingCart, label: 'المشتريات' },
   { key: 'waste',     Icon: Trash2,       label: 'الهدر' },
+  { key: 'settings',  Icon: Settings,     label: 'إعدادات الفرع' },
 ]
 
 function SidebarContent({ centerInfo, tab, setTab, onLogout, onLinkClick }) {
@@ -199,6 +201,7 @@ export default function CenterPortalDashboard() {
           {tab === 'attendance' && <CenterAttendanceTab />}
           {tab === 'expenses' && <CenterExpensesTab />}
           {tab === 'purchases' && <CenterPurchasesTab />}
+          {tab === 'settings' && <CenterSettingsTab />}
           {/* Waste needs the branch's own stock list to pick from. */}
           {tab === 'waste' && <CenterWasteTab inventory={data?.center?.inventory || []} />}
 
