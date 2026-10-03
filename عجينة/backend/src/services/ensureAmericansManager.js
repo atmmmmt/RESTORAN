@@ -29,6 +29,16 @@ async function ensureAmericansManager() {
   if (user.name !== name) { user.name = name; changed = true; }
   if (user.isActive === false) { user.isActive = true; changed = true; }
   if (user.centerId) { user.centerId = null; changed = true; }
+
+  // The environment variable is the source of truth for this service account.
+  // If the account was created earlier with another password, keep it in sync
+  // so changing Hostinger env + redeploy actually changes the login password.
+  const passwordMatches = await user.comparePassword(password);
+  if (!passwordMatches) {
+    user.password = password;
+    changed = true;
+  }
+
   if (changed) await user.save();
   return user;
 }
