@@ -432,6 +432,8 @@ router.post('/sales', protectCenter, async (req, res) => {
     await inventoryService.decreaseIngredientStock(ingredientId, need, center._id);
   }
 
+  const actor = { _id: null, name: center.name };
+  const shift = await shiftService.ensureOpen(center._id, actor);
   const orderNumber = await InternalOrder.nextOrderNumber();
   const orderLines = resolved.map(({ productId, quantity }) => {
     const product = productMap.get(productId.toString());
@@ -445,6 +447,7 @@ router.post('/sales', protectCenter, async (req, res) => {
   const totalCost = orderLines.reduce((sum, line) => sum + line.unitCost * line.quantity, 0);
   const kitchenOrder = await InternalOrder.create({
     centerId: center._id,
+    shiftId: shift?._id || null,
     orderNumber,
     qrPayload: orderNumber,
     items: orderLines,
