@@ -25,8 +25,14 @@ const profitShareSettingsSchema = new mongoose.Schema(
     investor: {
       enabled:     { type: Boolean, default: true },
       name:        { type: String, trim: true, default: 'الأميركان' },
-      posPercent:  { type: Number, min: 0, max: 100, default: 15 },
-      sitePercent: { type: Number, min: 0, max: 100, default: 10 },
+      // New business rule for Luliz:
+      // delivery = 15%, any counter/internal order = 20%.
+      // Keep the legacy fields for compatibility with older deployments,
+      // but all new calculations use deliveryPercent/internalPercent.
+      deliveryPercent: { type: Number, min: 0, max: 100, default: 15 },
+      internalPercent: { type: Number, min: 0, max: 100, default: 20 },
+      posPercent:  { type: Number, min: 0, max: 100, default: 20 },
+      sitePercent: { type: Number, min: 0, max: 100, default: 15 },
     },
   },
   { timestamps: true }
@@ -34,7 +40,24 @@ const profitShareSettingsSchema = new mongoose.Schema(
 
 profitShareSettingsSchema.statics.getSingleton = async function () {
   let doc = await this.findOne();
-  if (!doc) doc = await this.create({});
+  if (!doc) doc = await this.create({
+    investor: { deliveryPercent: 15, internalPercent: 20, posPercent: 20, sitePercent: 15 },
+  });
+
+  // Existing production documents were created before delivery/internal rates
+  // existed. Backfill them once so today and all historical reports use the
+  // requested Luliz percentages immediately after deploy.
+  const inv = doc.investor || {};
+  let changed = false;
+  if (inv.deliveryPercent === undefined || inv.deliveryPercent === null) { inv.deliveryPercent = 15; changed = true; }
+  if (inv.internalPercent === undefined || inv.internalPercent === null) { inv.internalPercent = 20; changed = true; }
+  if (Number(inv.posPercent) !== 20) { inv.posPercent = 20; changed = true; }
+  if (Number(inv.sitePercent) !== 15) { inv.sitePercent = 15; changed = true; }
+  doc.investor = inv;
+  if (changed) {
+    doc.markModified('investor');
+    await doc.save();
+  }
   return doc;
 };
 
