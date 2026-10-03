@@ -123,6 +123,16 @@ app.get('/api/health', (req, res) => res.json({ success: true, uptime: process.u
 // Mount all API routes
 mountRoutes(app);
 
+// The Americans finance portal is hosted by Ajeena & Tahina. Keep any old
+// Luliz links working by forwarding them to the canonical portal host.
+const AMERICANS_PORTAL_ORIGIN = String(
+  process.env.AMERICANS_PORTAL_ORIGIN || 'https://dodgerblue-curlew-950894.hostingersite.com'
+).replace(/\/$/, '');
+app.use('/americans', (req, res) => {
+  const suffix = req.originalUrl || '/americans';
+  return res.redirect(302, `${AMERICANS_PORTAL_ORIGIN}${suffix}`);
+});
+
 // In production the Node app also serves the Vite frontend built from ../frontend.
 // This keeps the storefront/admin and API on one origin, which simplifies Hostinger deployment.
 if (process.env.NODE_ENV === 'production') {
