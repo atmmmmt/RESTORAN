@@ -82,8 +82,10 @@ function RestaurantCard({ brand, onOpen }) {
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <div><div className="text-white/35 text-[11px] font-bold">المقبوض</div><div className="text-white font-black mt-1">{money(s.customerCollections,brand.currency)}</div></div>
-        <div><div className="text-white/35 text-[11px] font-bold">حصة الأميركان</div><div className="font-black mt-1" style={{color:GOLD}}>{money(s.investorShare,brand.currency)}</div></div>
+        <div><div className="text-white/35 text-[11px] font-bold">مبيعات المطعم المقبوضة</div><div className="text-white font-black mt-1">{money(s.customerCollections,brand.currency)}</div></div>
+        <div><div className="text-white/35 text-[11px] font-bold">تمت محاسبته للإدارة</div><div className="font-black mt-1 text-emerald-400">{money(s.settledTotal,brand.currency)}</div></div>
+        <div><div className="text-white/35 text-[11px] font-bold">المستحق المتبقي</div><div className="font-black mt-1" style={{color:GOLD}}>{money(s.settlementDueTotal,brand.currency)}</div></div>
+        <div><div className="text-white/35 text-[11px] font-bold">حصة الأميركان المتبقية</div><div className="text-white font-black mt-1">{money(s.investorShareDue,brand.currency)}</div></div>
         <div><div className="text-white/35 text-[11px] font-bold">الربح التقديري</div><div className="text-white font-black mt-1">{money(s.estimatedNetProfitAfterTax,brand.currency)}</div></div>
         <div><div className="text-white/35 text-[11px] font-bold">الطلبات</div><div className="text-white font-black mt-1">{s.ordersCount||0}</div></div>
       </div>
@@ -212,10 +214,10 @@ export default function AmericansPortalPage() {
           </div>
 
           <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-6">
-            <Metric title="إجمالي المقبوض للمطاعم" value={money(totals.customerCollections)} sub={`${totals.ordersCount||0} طلب`} Icon={Receipt}/>
-            <Metric title="حصة إدارة الأميركان المتبقية" value={money(totals.investorShareDue)} sub={'تمت محاسبة: ' + money(totals.investorSharePaid)} Icon={Percent} accent/>
+            <Metric title="إجمالي ما تمت محاسبته" value={money(totals.settledTotal)} sub="من لوليز + عجينة وطحينة" Icon={Banknote} accent/>
+            <Metric title="إجمالي المستحق المتبقي" value={money(totals.settlementDueTotal)} sub="حصة الإدارة + المالية" Icon={WalletCards}/>
+            <Metric title="حصة إدارة الأميركان المتبقية" value={money(totals.investorShareDue)} sub={'تمت محاسبة: ' + money(totals.investorSharePaid)} Icon={Percent}/>
             <Metric title="المستحق للمالية" value={money((totals.invoiceTaxDue||0)+(totals.profitTaxDue||0))} Icon={Landmark}/>
-            <Metric title="صافي الربح التقديري" value={money(totals.estimatedNetProfitAfterTax)} Icon={TrendingUp}/>
           </div>
 
           <div className="flex items-center gap-2 text-white/35 text-xs font-bold mb-4"><CalendarDays size={14}/> الفترة المحددة تنطبق على جميع المطاعم أدناه.</div>
