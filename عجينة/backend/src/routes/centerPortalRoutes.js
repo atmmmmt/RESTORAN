@@ -15,13 +15,18 @@ const wasteController  = require('../controllers/wasteController');
 const purchaseController = require('../controllers/purchaseController');
 const { protectCenter } = require('../middleware/auth');
 const dayjs   = require('dayjs');
-const zk               = require('../services/zktecoService');
 const attendanceService = require('../services/attendanceService');
 const InternalOrder = require('../models/InternalOrder');
 const FinanceSettings = require('../models/FinanceSettings');
 const TaxPayment = require('../models/TaxPayment');
 const financeService = require('../services/financeService');
 const businessDay = require('../services/businessDay');
+const AttendanceDevice = require('../models/AttendanceDevice');
+const DeviceCommand = require('../models/DeviceCommand');
+const AttendanceLog = require('../models/AttendanceLog');
+const EmployeeAdvance = require('../models/EmployeeAdvance');
+const CashierShift = require('../models/CashierShift');
+const shiftService = require('../services/shiftService');
 
 /** Calculate hourly rate based on pay period */
 function calcHourlyRate(emp) {
