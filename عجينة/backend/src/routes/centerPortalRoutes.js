@@ -332,7 +332,17 @@ router.post('/sales', protectCenter, async (req, res) => {
     return res.status(400).json({ success: false, message: 'السلة فارغة.' });
   }
 
-  const { notes } = req.body;
+  const {
+    notes,
+    paymentMethod = 'cash',
+    orderType = 'takeaway',
+    customerName = '',
+    customerPhone = '',
+    discount = 0,
+    discountType = 'amount',
+    discountPercent = 0,
+    discountReason = '',
+  } = req.body;
   const center = req.center;
   const hiddenIds = (center.unavailableProductIds || []).map(id => id.toString());
 
@@ -427,6 +437,13 @@ router.post('/sales', protectCenter, async (req, res) => {
     });
   }
 
+  const byPercent = discountType === 'percent';
+  const pct = byPercent ? Math.min(Math.max(Number(discountPercent) || 0, 0), 100) : 0;
+  const requestedDiscount = byPercent
+    ? Math.round(totalSaleAmount * pct / 100)
+    : Math.max(Number(discount) || 0, 0);
+  const discountAmount = Math.min(requestedDiscount, totalSaleAmount);
+
   // Draw direct-resale items out of this branch only.
   for (const [ingredientId, need] of stockDeductions) {
     await inventoryService.decreaseIngredientStock(ingredientId, need, center._id);
@@ -452,13 +469,17 @@ router.post('/sales', protectCenter, async (req, res) => {
     qrPayload: orderNumber,
     items: orderLines,
     subtotal: totalSaleAmount,
-    total: totalSaleAmount,
+    discount: discountAmount,
+    total: totalSaleAmount - discountAmount,
     totalCost,
-    profit: totalSaleAmount - totalCost,
-    paymentMethod: req.body.paymentMethod || 'cash',
-    orderType: req.body.orderType || 'takeaway',
-    customerName: req.body.customerName || '',
-    customerPhone: req.body.customerPhone || '',
+    profit: totalSaleAmount - discountAmount - totalCost,
+    discountType: byPercent && discountAmount > 0 ? 'percent' : 'amount',
+    discountPercent: byPercent && discountAmount > 0 ? pct : 0,
+    discountReason: discountAmount > 0 ? String(discountReason || '').trim().slice(0, 80) : '',
+    paymentMethod,
+    orderType,
+    customerName,
+    customerPhone,
     notes: notes || '',
     status: 'new',
     timeline: [{ status: 'new', at: new Date(), by: center.name }],
@@ -477,7 +498,7 @@ router.post('/sales', protectCenter, async (req, res) => {
   // from the customer. InternalOrder snapshots the finance percentage and may
   // increase total above the restaurant net amount, so cash must use the saved
   // order total rather than the pre-tax cart subtotal.
-  if (kitchenOrder.total > 0) {
+  if (paymentMethod !== 'unpaid' && kitchenOrder.total > 0) {
     await cashService.createTransaction(
       'sale_income',
       kitchenOrder.total,
@@ -515,6 +536,45 @@ router.get('/sales', protectCenter, async (req, res) => {
     .limit(100);
 
   res.json({ success: true, count: sales.length, sales });
+});
+
+
+/* ── Admin-style POS summary/log for this branch only ── */
+router.get('/pos/orders', protectCenter, async (req, res) => {
+  const { start, end } = await businessDay.range(
+    req.query.date === 'today' || !req.query.date ? undefined : req.query.date,
+    req.center._id
+  );
+  const orders = await InternalOrder.find({
+    centerId: req.center._id,
+    createdAt: { $gte: start, $lt: end },
+  }).sort({ createdAt: -1 }).limit(250);
+  res.json({ success: true, orders });
+});
+
+router.get('/pos/stats', protectCenter, async (req, res) => {
+  const { start, end } = await businessDay.current(req.center._id);
+  const orders = await InternalOrder.find({
+    centerId: req.center._id,
+    createdAt: { $gte: start, $lt: end },
+  }).select('status total netAmount profit paymentMethod');
+
+  const active = orders.filter(o => o.status !== 'cancelled');
+  const sum = (rows, key) => rows.reduce((s, row) => s + Number(row[key] || 0), 0);
+
+  res.json({
+    success: true,
+    stats: {
+      count: active.length,
+      revenue: sum(active, 'total'),
+      restaurantRevenue: sum(active, 'netAmount'),
+      profit: sum(active, 'profit'),
+      preparing: active.filter(o => o.status === 'preparing').length,
+      ready: active.filter(o => o.status === 'ready').length,
+      delivered: active.filter(o => o.status === 'delivered').length,
+      unpaid: sum(active.filter(o => o.paymentMethod === 'unpaid'), 'total'),
+    },
+  });
 });
 
 /* ──────────────────────────────────────────────
