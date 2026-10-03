@@ -74,7 +74,7 @@ function AdminOnlyRoute({ children }) {
 
 const ROLE_HOME = {
   admin: '/admin/dashboard', supervisor: '/admin/dashboard', viewer: '/admin/dashboard',
-  cashier: '/admin/pos', kitchen: '/admin/kitchen', americans_manager: '/admin/americans',
+  cashier: '/admin/pos', kitchen: '/admin/kitchen', americans_manager: '/americans/dashboard',
 }
 
 function RoleRoute({ roles, children }) {
@@ -126,7 +126,7 @@ export default function App() {
           <Route path="/admin" element={<PrivateRoute><AdminLayout /></PrivateRoute>}>
             <Route index element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="dashboard" element={<RoleRoute roles={['admin', 'supervisor', 'viewer']}><DashboardPage /></RoleRoute>} />
-            <Route path="americans" element={<RoleRoute roles={['admin', 'americans_manager']}><AmericansManagementPage /></RoleRoute>} />
+            <Route path="americans" element={<RoleRoute roles={['admin']}><AmericansManagementPage /></RoleRoute>} />
             <Route path="products" element={<RoleRoute roles={['admin', 'supervisor']}><ProductsPage /></RoleRoute>} />
             <Route path="categories" element={<RoleRoute roles={['admin', 'supervisor']}><CategoriesPage /></RoleRoute>} />
             <Route path="products/new" element={<RoleRoute roles={['admin', 'supervisor']}><ProductFormPage /></RoleRoute>} />
