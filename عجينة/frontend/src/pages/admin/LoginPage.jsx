@@ -24,7 +24,7 @@ export default function LoginPage() {
         : role === 'kitchen'
           ? '/admin/kitchen'
           : role === 'americans_manager'
-            ? '/admin/americans'
+            ? '/americans/dashboard'
             : '/admin/dashboard'
       navigate(home)
     } catch (err) {
