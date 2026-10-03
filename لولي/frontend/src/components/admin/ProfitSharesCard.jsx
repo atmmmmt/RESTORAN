@@ -20,7 +20,7 @@ export default function ProfitSharesCard() {
   const [month, setMonth] = useState(now.getMonth() + 1)
   const [settlement, setSettlement] = useState(null)
   const [loadingSettlement, setLoadingSettlement] = useState(false)
-  const [investor, setInvestor] = useState({ enabled: true, name: 'الأميركان', posPercent: 15, sitePercent: 10 })
+  const [investor, setInvestor] = useState({ enabled: true, name: 'الأميركان', internalPercent: 20, deliveryPercent: 15 })
   const [savingInvestor, setSavingInvestor] = useState(false)
 
   useEffect(() => {
@@ -63,7 +63,7 @@ export default function ProfitSharesCard() {
   const saveInvestor = async () => {
     setSavingInvestor(true)
     try {
-      const r = await profitSharesAPI.saveInvestor({ ...investor, posPercent: Number(investor.posPercent), sitePercent: Number(investor.sitePercent) })
+      const r = await profitSharesAPI.saveInvestor({ ...investor, internalPercent: Number(investor.internalPercent), deliveryPercent: Number(investor.deliveryPercent) })
       setInvestor(r.data.investor)
       toast.success(r.data.message)
     } catch (e) { toast.error(e.message || 'فشل الحفظ') }
@@ -101,7 +101,7 @@ export default function ProfitSharesCard() {
             <input value={investor.name || ''} onChange={e => setInvestor(i => ({ ...i, name: e.target.value }))}
               className="w-full px-3 py-2.5 border-2 border-brand-border rounded-xl focus:border-fuchsia focus:outline-none font-bold text-sm bg-white" />
           </div>
-          {[['posPercent', 'طلبات الكاشير %'], ['sitePercent', 'طلبات الموقع %']].map(([k, label]) => (
+          {[['internalPercent', 'الداخلي / السفري %'], ['deliveryPercent', 'التوصيل %']].map(([k, label]) => (
             <div key={k}>
               <label className="text-xs font-bold text-brand-dark mb-1.5 block">{label}</label>
               <input type="number" min="0" max="100" step="0.5" value={investor[k] ?? ''} onChange={e => setInvestor(i => ({ ...i, [k]: e.target.value }))}
