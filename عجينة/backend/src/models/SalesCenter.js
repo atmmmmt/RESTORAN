@@ -111,6 +111,20 @@ const salesCenterSchema = new mongoose.Schema(
       default: 5,
       min: 1,
     },
+
+    // ── Branch working day ──
+    // Each branch may have a different night schedule. Orders/reports/shifts
+    // use these hours instead of the restaurant-wide defaults when centerId is known.
+    openingTime: {
+      type: String,
+      default: '10:00',
+      match: [/^([01]\\d|2[0-3]):[0-5]\\d$/, 'صيغة وقت الافتتاح HH:MM'],
+    },
+    closingTime: {
+      type: String,
+      default: '04:00',
+      match: [/^([01]\\d|2[0-3]):[0-5]\\d$/, 'صيغة وقت الإغلاق HH:MM'],
+    },
     inventory: {
       type: [inventoryItemSchema],
       default: [],
