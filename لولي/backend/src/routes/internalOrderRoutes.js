@@ -119,22 +119,31 @@ router.get('/daily-report', async (req, res) => {
 
   const inv = settings.investor || {};
   const invOn = inv.enabled !== false;
-  const posPct = invOn ? Number(inv.posPercent ?? 15) : 0;
-  const sitePct = invOn ? Number(inv.sitePercent ?? 10) : 0;
+  const deliveryPct = invOn ? Number(inv.deliveryPercent ?? 15) : 0;
+  const internalPct = invOn ? Number(inv.internalPercent ?? 20) : 0;
+  const rateForPos = orderType => orderType === 'delivery' ? deliveryPct : internalPct;
   const share = (amount, pct) => Math.round((amount || 0) * pct / 100);
+  const netOf = order => Number(order.netAmount ?? Math.max((Number(order.total || 0) - Number(order.invoiceTaxAmount || 0)), 0)) || 0;
+  const siteNetOf = order => Number(order.netAmount ?? Math.max((Number(order.totalPrice || order.totalAmount || 0) - Number(order.invoiceTaxAmount || 0)), 0)) || 0;
 
   const orders = [
     ...pos.map(o => ({
       kind: 'pos', number: o.orderNumber, at: o.createdAt, orderType: o.orderType,
       paymentMethod: o.paymentMethod, customerName: o.customerName || '',
       items: o.items.map(i => ({ name: i.name, quantity: i.quantity })),
-      total: o.total || 0, investorPercent: posPct, investorShare: share(o.total, posPct),
+      total: o.total || 0,
+      investorBase: netOf(o),
+      investorPercent: rateForPos(o.orderType),
+      investorShare: share(netOf(o), rateForPos(o.orderType)),
     })),
     ...site.map(o => ({
       kind: 'site', number: 'موقع', at: o.createdAt, orderType: 'site',
       paymentMethod: '', customerName: o.customerName || '',
       items: [{ name: o.productNameSnapshot, quantity: o.quantity }],
-      total: o.totalAmount || 0, investorPercent: sitePct, investorShare: share(o.totalAmount, sitePct),
+      total: o.totalPrice || o.totalAmount || 0,
+      investorBase: siteNetOf(o),
+      investorPercent: deliveryPct,
+      investorShare: share(siteNetOf(o), deliveryPct),
     })),
   ].sort((a, b) => new Date(a.at) - new Date(b.at));
 
@@ -145,7 +154,15 @@ router.get('/daily-report', async (req, res) => {
   res.json({
     success: true,
     date: day,
-    investor: { enabled: invOn, name: inv.name || 'الأميركان', posPercent: posPct, sitePercent: sitePct },
+    investor: {
+      enabled: invOn,
+      name: inv.name || 'الأميركان',
+      deliveryPercent: deliveryPct,
+      internalPercent: internalPct,
+      // legacy aliases for old print layouts
+      posPercent: internalPct,
+      sitePercent: deliveryPct,
+    },
     orders,
     totals: {
       count: orders.length,
