@@ -8,6 +8,7 @@ import {
 import toast from 'react-hot-toast'
 import { useAuth } from '../../hooks/useAuth'
 import { api } from '../../services/api'
+import AmericansSettlementPanel from './AmericansSettlementPanel'
 
 const GOLD = '#C49B49'
 const BG = '#0F1113'
@@ -90,7 +91,7 @@ function RestaurantCard({ brand, onOpen }) {
   )
 }
 
-function RestaurantDetail({ brand, onBack }) {
+function RestaurantDetail({ brand, onBack, periodStart, periodEnd, onSettled }) {
   const s=brand.summary||{}, currency=brand.currency||'SYP'
   return (
     <div>
@@ -108,9 +109,11 @@ function RestaurantDetail({ brand, onBack }) {
         </div>
       </div>
 
+      <AmericansSettlementPanel brand={brand} periodStart={periodStart} periodEnd={periodEnd} onSettled={onSettled} />
+
       <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-5">
         <Metric title="إجمالي المقبوض" value={money(s.customerCollections,currency)} Icon={Receipt}/>
-        <Metric title="حصة إدارة الأميركان" value={money(s.investorShare,currency)} Icon={Percent} accent/>
+        <Metric title="حصة إدارة الأميركان المتبقية" value={money(s.investorShareDue,currency)} sub={'تمت محاسبة: ' + money(s.investorSharePaid,currency)} Icon={Percent} accent/>
         <Metric title="إيراد المطعم" value={money(s.revenueBeforeInvoiceTax,currency)} sub="بعد فصل المبلغ المحصل للمالية" Icon={TrendingUp}/>
         <Metric title="المستحق للمالية" value={money((s.invoiceTaxDue||0)+(s.profitTaxDue||0),currency)} Icon={Landmark}/>
         <Metric title="المرتجعات" value={money(s.refunds,currency)} sub={`الصافي: ${money(s.netCollectionsAfterRefunds,currency)}`} Icon={RotateCcw}/>
@@ -210,7 +213,7 @@ export default function AmericansPortalPage() {
 
           <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-6">
             <Metric title="إجمالي المقبوض للمطاعم" value={money(totals.customerCollections)} sub={`${totals.ordersCount||0} طلب`} Icon={Receipt}/>
-            <Metric title="حصة إدارة الأميركان" value={money(totals.investorShare)} Icon={Percent} accent/>
+            <Metric title="حصة إدارة الأميركان المتبقية" value={money(totals.investorShareDue)} sub={'تمت محاسبة: ' + money(totals.investorSharePaid)} Icon={Percent} accent/>
             <Metric title="المستحق للمالية" value={money((totals.invoiceTaxDue||0)+(totals.profitTaxDue||0))} Icon={Landmark}/>
             <Metric title="صافي الربح التقديري" value={money(totals.estimatedNetProfitAfterTax)} Icon={TrendingUp}/>
           </div>
@@ -222,7 +225,7 @@ export default function AmericansPortalPage() {
           {loading&&!data&&<div className="text-white/40 text-center py-16 font-black">جاري تحميل المطاعم…</div>}
         </>}
 
-        {selectedBrand && <RestaurantDetail brand={selectedBrand} onBack={()=>setSelected(null)}/>}
+        {selectedBrand && <RestaurantDetail brand={selectedBrand} onBack={()=>setSelected(null)} periodStart={start} periodEnd={end} onSettled={load}/>} 
       </main>
     </div>
   )
