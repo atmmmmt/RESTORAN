@@ -440,6 +440,8 @@ if (typeof window !== 'undefined') {
 export const centerPortalAPI = {
   login:       (data) => axios.post(`${API_URL}/center-portal/login`, data),
   getMe:       ()     => centerApi.get('/center-portal/me'),
+  getSettings: ()     => centerApi.get('/center-portal/settings'),
+  updateSettings: (data) => centerApi.put('/center-portal/settings', data),
   getSales:    ()     => centerApi.get('/center-portal/sales'),
   /** data: { items: [{ productId, quantity }], notes } — a whole cart in one call. */
   recordSale:  (data) => centerApi.post('/center-portal/sales', data),
