@@ -31,6 +31,7 @@ const attendanceRoutes     = require('./attendanceRoutes');
 const internalOrderRoutes  = require('./internalOrderRoutes');
 const printerRoutes        = require('./printerRoutes');
 const profitShareRoutes    = require('./profitShareRoutes');
+const americansPortalRoutes = require('./americansPortalRoutes');
 
 module.exports = function mountRoutes(app) {
   app.use('/api/auth', authRoutes);
@@ -64,4 +65,5 @@ module.exports = function mountRoutes(app) {
   app.use('/api/internal-orders', internalOrderRoutes);
   app.use('/api/printer', printerRoutes);
   app.use('/api/profit-shares', profitShareRoutes);
+  app.use('/api/americans-portal', americansPortalRoutes);
 };
