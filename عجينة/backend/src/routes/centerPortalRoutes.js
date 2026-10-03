@@ -108,7 +108,7 @@ router.get('/me', protectCenter, async (req, res) => {
 });
 
 
-const TIME_RE = /^([01]\\d|2[0-3]):[0-5]\\d$/;
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const safePercent = (value, label) => {
   const number = Number(value);
   if (!Number.isFinite(number) || number < 0 || number > 100) {
