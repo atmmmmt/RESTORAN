@@ -132,9 +132,10 @@ function investorRate(brand, order, settings, kind) {
 
   const investor = settings?.investor || {};
   if (investor.enabled === false) return 0;
-  return kind === 'site'
-    ? Number(investor.sitePercent ?? 10) || 0
-    : Number(investor.posPercent ?? 15) || 0;
+  const delivery = Number(investor.deliveryPercent ?? 15) || 0;
+  const internal = Number(investor.internalPercent ?? 20) || 0;
+  if (kind === 'site') return delivery;
+  return order?.orderType === 'delivery' ? delivery : internal;
 }
 
 async function loadBrand(brand, range) {
