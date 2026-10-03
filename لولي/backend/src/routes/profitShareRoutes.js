@@ -45,17 +45,30 @@ router.put('/', async (req, res) => {
 
 /* PUT /api/profit-shares/investor — the investor's cut of takings */
 router.put('/investor', async (req, res) => {
-  const { enabled, name, posPercent, sitePercent } = req.body || {};
+  const {
+    enabled, name,
+    deliveryPercent, internalPercent,
+    // legacy aliases kept so old frontends do not break during deployment
+    posPercent, sitePercent,
+  } = req.body || {};
   const pct = v => { const n = Number(v); return Number.isFinite(n) && n >= 0 && n <= 100 ? n : null; };
-  if (posPercent !== undefined && pct(posPercent) === null) return res.status(400).json({ success: false, message: 'نسبة الكاشير يجب أن تكون بين 0 و 100.' });
-  if (sitePercent !== undefined && pct(sitePercent) === null) return res.status(400).json({ success: false, message: 'نسبة الموقع يجب أن تكون بين 0 و 100.' });
+  const delivery = deliveryPercent !== undefined ? deliveryPercent : sitePercent;
+  const internal = internalPercent !== undefined ? internalPercent : posPercent;
+  if (delivery !== undefined && pct(delivery) === null) return res.status(400).json({ success: false, message: 'نسبة التوصيل يجب أن تكون بين 0 و 100.' });
+  if (internal !== undefined && pct(internal) === null) return res.status(400).json({ success: false, message: 'نسبة الداخلي يجب أن تكون بين 0 و 100.' });
 
   const settings = await ProfitShareSettings.getSingleton();
   const inv = settings.investor || {};
   if (enabled !== undefined) inv.enabled = !!enabled;
   if (name !== undefined && String(name).trim()) inv.name = String(name).trim();
-  if (posPercent !== undefined) inv.posPercent = pct(posPercent);
-  if (sitePercent !== undefined) inv.sitePercent = pct(sitePercent);
+  if (delivery !== undefined) {
+    inv.deliveryPercent = pct(delivery);
+    inv.sitePercent = pct(delivery);
+  }
+  if (internal !== undefined) {
+    inv.internalPercent = pct(internal);
+    inv.posPercent = pct(internal);
+  }
   settings.investor = inv;
   settings.markModified('investor');
   await settings.save();
