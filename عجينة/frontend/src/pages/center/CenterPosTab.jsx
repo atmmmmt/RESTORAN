@@ -4,6 +4,7 @@ import { Search, Plus, Minus, Trash2, ShoppingBag, Package, EyeOff, Eye } from '
 import { centerPortalAPI } from '../../services/api'
 import Button from '../../components/common/Button'
 import PageHeader from '../../components/common/PageHeader'
+import CenterShiftPanel from './CenterShiftPanel'
 import toast from 'react-hot-toast'
 
 const fmt = (n) => `${Number(n || 0).toLocaleString('ar-SY')} ل.س`
@@ -28,6 +29,7 @@ export default function CenterPosTab({ onSale }) {
   const [hiddenProducts, setHiddenProducts] = useState([])
   const [hiddenLoading, setHiddenLoading] = useState(false)
   const [category, setCategory] = useState(null)
+  const [shiftTick, setShiftTick] = useState(0)
 
   const loadProducts = () => {
     setLoading(true)
@@ -133,6 +135,7 @@ export default function CenterPosTab({ onSale }) {
         toast.success(`الإجمالي: ${fmt(res.data.totalAmount)}`, { duration: 4000 })
       }
       clearCart()
+      setShiftTick(t => t + 1)
       onSale?.()
     } catch (e) {
       toast.error(e.message || 'حدث خطأ')
@@ -145,8 +148,10 @@ export default function CenterPosTab({ onSale }) {
     <div>
       <PageHeader
         title="الكاشير"
-        subtitle="بيع مباشر من قائمة المطعم الكاملة — ينعكس فوراً على صندوق فرعك"
+        subtitle="نفس تشغيل الكاشير الإداري — الوردية، البيع، والتصفير ضمن فرعك فقط"
       />
+
+      <CenterShiftPanel tick={shiftTick} onChanged={() => setShiftTick(t => t + 1)} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Products */}
