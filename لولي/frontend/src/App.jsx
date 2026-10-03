@@ -11,7 +11,7 @@ function ScrollToTop() {
   useEffect(() => {
     const link = document.getElementById('app-manifest')
     if (!link) return
-    const admin = pathname.startsWith('/admin') || pathname.startsWith('/center-portal')
+    const admin = pathname.startsWith('/admin') || pathname.startsWith('/center-portal') || pathname.startsWith('/americans')
     const href = admin ? '/manifest-admin.webmanifest' : '/manifest.webmanifest'
     if (link.getAttribute('href') !== href) link.setAttribute('href', href)
   }, [pathname])
@@ -55,6 +55,9 @@ const UsersPage          = lazy(() => import('./pages/admin/UsersPage'))
 const AttendancePage     = lazy(() => import('./pages/admin/AttendancePage'))
 const PosPage            = lazy(() => import('./pages/admin/PosPage'))
 const KitchenPage        = lazy(() => import('./pages/admin/KitchenPage'))
+
+const AmericansLoginPage      = lazy(() => import('./pages/americans/AmericansLoginPage'))
+const AmericansDashboardPage  = lazy(() => import('./pages/americans/AmericansDashboardPage'))
 
 const CenterPortalLogin     = lazy(() => import('./pages/center/CenterPortalLogin'))
 const CenterPortalDashboard = lazy(() => import('./pages/center/CenterPortalDashboard'))
@@ -111,6 +114,10 @@ export default function App() {
             <Route path="/centers"  element={<CustomerCentersPage />} />
             <Route path="/order"    element={<OrderPage />} />
           </Route>
+
+          <Route path="/americans" element={<Navigate to="/americans/dashboard" replace />} />
+          <Route path="/americans/login" element={<AmericansLoginPage />} />
+          <Route path="/americans/dashboard" element={<AmericansDashboardPage />} />
 
           <Route path="/admin/login" element={<LoginPage />} />
           <Route path="/admin/kitchen" element={<PrivateRoute><KitchenPage /></PrivateRoute>} />
