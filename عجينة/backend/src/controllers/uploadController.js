@@ -67,6 +67,20 @@ const uploadImage = async (req, res) => {
     // when the app process starts/restarts.
     if (typeof cloudinary.refreshConfig === 'function') cloudinary.refreshConfig();
 
+    const credentialState = cloudinary.__credentialsState || {};
+    if (!credentialState.apiSecret) {
+      return res.status(503).json({
+        success: false,
+        message: 'API Secret موجود في إعدادات Hostinger لكن لم يصل إلى عملية Node. جرّب حفظ المتغير من جديد أو أضف CLOUDINARY_URL.',
+        diagnostic: {
+          cloudName: Boolean(credentialState.cloudName),
+          apiKey: Boolean(credentialState.apiKey),
+          apiSecret: false,
+          matchedKeys: credentialState.matchedKeys || {},
+        },
+      });
+    }
+
     // Compress and convert to WebP
     const processedBuffer = await processImage(req.file.buffer, req.file.size);
 
