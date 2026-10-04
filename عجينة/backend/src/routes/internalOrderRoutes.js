@@ -14,6 +14,7 @@ const InvestorSettings = require('../models/InvestorSettings');
 const ReturnRecord     = require('../models/ReturnRecord');
 const businessDay      = require('../services/businessDay');
 const shiftService     = require('../services/shiftService');
+const financeService   = require('../services/financeService');
 
 const STATUSES = InternalOrder.STATUSES;
 
@@ -383,6 +384,194 @@ router.post('/', requirePos, async (req, res) => {
   }
 
   res.status(201).json({ success: true, order: presentOrder(order, req.user.role), message: `تم إنشاء الطلب ${orderNumber}` });
+});
+
+/* ── PUT /api/internal-orders/:id — edit an existing POS order ── */
+router.put('/:id', requirePos, async (req, res) => {
+  const order = await InternalOrder.findById(req.params.id);
+  if (!order) return res.status(404).json({ success: false, message: 'الطلب غير موجود' });
+  if (!canAccessOrder(req.user, order)) return res.status(403).json({ success: false, message: 'هذا الطلب تابع لفرع آخر' });
+  if (order.status === 'cancelled') {
+    return res.status(400).json({ success: false, message: 'الطلب الملغى للعرض فقط. أعد تفعيله قبل تعديله.' });
+  }
+
+  const {
+    items,
+    discount = order.discount,
+    discountType = order.discountType || 'amount',
+    discountPercent = order.discountPercent || 0,
+    discountReason = order.discountReason || '',
+    customerName = order.customerName || '',
+    customerPhone = order.customerPhone || '',
+    orderType = order.orderType,
+    paymentMethod = order.paymentMethod,
+    notes = order.notes || '',
+    fulfillmentType = order.fulfillmentType || 'asap',
+    scheduledFor = order.scheduledFor || null,
+  } = req.body;
+
+  if (!Array.isArray(items) || !items.length) {
+    return res.status(400).json({ success: false, message: 'أضف صنفاً واحداً على الأقل' });
+  }
+  if (!['dine_in','takeaway','delivery'].includes(orderType)) {
+    return res.status(400).json({ success: false, message: 'نوع الطلب غير صحيح' });
+  }
+  if (!['cash','card','unpaid'].includes(paymentMethod)) {
+    return res.status(400).json({ success: false, message: 'طريقة الدفع غير صحيحة' });
+  }
+
+  let dueAt = null;
+  if (fulfillmentType === 'scheduled') {
+    dueAt = new Date(scheduledFor);
+    if (!scheduledFor || Number.isNaN(dueAt.getTime())) {
+      return res.status(400).json({ success: false, message: 'موعد الطلب غير صحيح' });
+    }
+  }
+
+  const ids = [...new Set(items.map(i => String(i.productId || '')))].filter(Boolean);
+  const products = await Product.find({ _id: { $in: ids } });
+  const byId = new Map(products.map(p => [String(p._id), p]));
+  const oldByProduct = new Map((order.items || []).map(i => [String(i.productId), i]));
+
+  const lines = [];
+  for (const item of items) {
+    const product = byId.get(String(item.productId));
+    if (!product) return res.status(400).json({ success: false, message: 'أحد الأصناف لم يعد موجوداً' });
+    const quantity = Number(item.quantity) || 0;
+    if (quantity < 1) return res.status(400).json({ success: false, message: `الكمية غير صحيحة لـ ${product.name}` });
+
+    const oldLine = oldByProduct.get(String(product._id));
+    const unitPrice = oldLine ? Number(oldLine.unitPrice) || 0 : Number(product.directPrice) || 0;
+    const unitCost = oldLine ? Number(oldLine.unitCost) || 0 : Number(product.calculatedCost) || 0;
+    lines.push({
+      productId: product._id,
+      name: product.name,
+      unitPrice,
+      unitCost,
+      quantity,
+      lineTotal: unitPrice * quantity,
+      notes: String(item.notes ?? oldLine?.notes ?? '').trim(),
+    });
+  }
+
+  const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0);
+  const byPercent = discountType === 'percent';
+  const pct = byPercent ? Math.min(Math.max(Number(discountPercent) || 0, 0), 100) : 0;
+  const requestedDiscount = byPercent ? Math.round(subtotal * pct / 100) : Math.max(Number(discount) || 0, 0);
+  const disc = Math.min(requestedDiscount, subtotal);
+  const restaurantAmount = subtotal - disc;
+  const totalCost = lines.reduce((sum, line) => sum + line.unitCost * line.quantity, 0);
+  const quote = await financeService.quote(restaurantAmount, order.centerId);
+  const investor = await InvestorSettings.getSingleton();
+
+  const oldTotal = Number(order.total) || 0;
+  const oldPayment = order.paymentMethod;
+  const oldCashPosted = Boolean(order.cashPosted);
+  const oldItems = (order.items || []).map(item => item.toObject ? item.toObject() : { ...item });
+  const oldMovements = order.stockMovements?.length
+    ? order.stockMovements.map(m => m.toObject ? m.toObject() : { ...m })
+    : oldItems.map(line => ({
+        itemType: 'product',
+        itemId: line.productId,
+        quantity: line.quantity,
+        nameSnapshot: line.name,
+      }));
+
+  if (order.stockApplied) {
+    for (const movement of oldMovements) {
+      if (movement.itemType === 'ingredient') {
+        await inventoryService.increaseIngredientStock(movement.itemId, movement.quantity, 0, order.centerId);
+      } else {
+        await inventoryService.increaseProductStock(movement.itemId, movement.quantity, order.centerId);
+      }
+    }
+
+    const applied = [];
+    try {
+      for (const line of lines) {
+        await inventoryService.decreaseProductStock(line.productId, line.quantity, order.centerId);
+        applied.push(line);
+      }
+    } catch (err) {
+      for (const line of applied) {
+        try { await inventoryService.increaseProductStock(line.productId, line.quantity, order.centerId); } catch {}
+      }
+      for (const movement of oldMovements) {
+        try {
+          if (movement.itemType === 'ingredient') {
+            await inventoryService.decreaseIngredientStock(movement.itemId, movement.quantity, order.centerId);
+          } else {
+            await inventoryService.decreaseProductStock(movement.itemId, movement.quantity, order.centerId);
+          }
+        } catch {}
+      }
+      return res.status(409).json({ success: false, message: err.message || 'المخزون لا يكفي لتنفيذ التعديل' });
+    }
+  }
+
+  order.items = lines;
+  order.subtotal = subtotal;
+  order.discount = disc;
+  order.discountType = byPercent && disc > 0 ? 'percent' : 'amount';
+  order.discountPercent = byPercent && disc > 0 ? pct : 0;
+  order.discountReason = disc > 0 ? String(discountReason || '').trim().slice(0, 80) : '';
+  order.netAmount = quote.baseAmount;
+  order.invoiceTaxPercent = quote.invoiceTaxPercent;
+  order.invoiceTaxAmount = quote.invoiceTaxAmount;
+  order.consumptionTaxPercent = quote.consumptionTaxPercent;
+  order.consumptionTaxAmount = quote.consumptionTaxAmount;
+  order.localAdminPercent = quote.localAdminPercent;
+  order.localAdminAmount = quote.localAdminAmount;
+  order.total = quote.customerTotal;
+  order.totalCost = totalCost;
+  order.profit = quote.baseAmount - totalCost;
+  order.investorPercent = investor.percentFor(orderType);
+  order.customerName = String(customerName || '').trim();
+  order.customerPhone = String(customerPhone || '').trim();
+  order.orderType = orderType;
+  order.paymentMethod = paymentMethod;
+  order.notes = String(notes || '').trim();
+  order.fulfillmentType = fulfillmentType === 'scheduled' ? 'scheduled' : 'asap';
+  order.scheduledFor = dueAt || undefined;
+  order.stockMovements = lines.map(line => ({
+    itemType: 'product',
+    itemId: line.productId,
+    quantity: line.quantity,
+    nameSnapshot: line.name,
+  }));
+  order.timeline.push({ status: order.status, at: new Date(), by: `${req.user.name} — تعديل الطلب` });
+
+  await order.save();
+
+  let cashWarning = '';
+  try {
+    const newPaid = isPaid(paymentMethod);
+    if (oldCashPosted && newPaid) {
+      const delta = Number(order.total) - oldTotal;
+      if (delta > 0.009) {
+        await cashService.createTransaction('sale_income', delta, 'in', `فرق تعديل طلب ${order.orderNumber}`, 'InternalOrder', order._id, order.centerId);
+      } else if (delta < -0.009) {
+        await cashService.createTransaction('adjustment', Math.abs(delta), 'out', `إرجاع فرق تعديل طلب ${order.orderNumber}`, 'InternalOrder', order._id, order.centerId);
+      }
+      order.cashPosted = true;
+    } else if (oldCashPosted && !newPaid) {
+      await cashService.createTransaction('adjustment', oldTotal, 'out', `تحويل طلب ${order.orderNumber} إلى آجل`, 'InternalOrder', order._id, order.centerId);
+      order.cashPosted = false;
+    } else if (!oldCashPosted && newPaid) {
+      await cashService.createTransaction('sale_income', order.total, 'in', `تحصيل طلب ${order.orderNumber} بعد التعديل`, 'InternalOrder', order._id, order.centerId);
+      order.cashPosted = true;
+    }
+    await order.save();
+  } catch (err) {
+    cashWarning = ' — تم تعديل الطلب لكن تعذّر تسجيل فرق الكاش، راجع سجل الصندوق';
+    console.error(`⚠️ تعذّر تسجيل فرق تعديل ${order.orderNumber}:`, err.message);
+  }
+
+  res.json({
+    success: true,
+    order: presentOrder(order, req.user.role),
+    message: `تم تعديل الطلب وإعادة احتساب المخزون والمالية${cashWarning}`,
+  });
 });
 
 /* ── PUT /api/internal-orders/:id/status ── */

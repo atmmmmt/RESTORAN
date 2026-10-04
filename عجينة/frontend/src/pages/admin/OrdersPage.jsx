@@ -1,15 +1,21 @@
 import { useEffect, useState } from 'react'
+import { Eye } from 'lucide-react'
 import { ordersAPI, settingsAPI } from '../../services/api'
 import PageHeader from '../../components/common/PageHeader'
 import DataTable from '../../components/common/DataTable'
 import { formatCurrency, formatDate, getStatusText, getStatusColor } from '../../utils/formatters'
 import toast from 'react-hot-toast'
+import OrderDetailsModal from './OrderDetailsModal'
+import { useAuth } from '../../hooks/useAuth'
 
 const STATUSES = ['new', 'confirmed', 'preparing', 'ready', 'delivered', 'cancelled']
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
+  const [selectedOrder, setSelectedOrder] = useState(null)
+  const { user } = useAuth()
+  const canEdit = ['admin', 'supervisor'].includes(user?.role)
 
   const load = () => {
     setLoading(true)
@@ -73,10 +79,16 @@ export default function OrdersPage() {
         }]
       : []),
     { key: 'createdAt', label: 'التاريخ', render: v => formatDate(v) },
-    { key: '_id', label: 'واتساب', render: (v, r) => (
-      <button onClick={() => openWhatsApp(r)} className="text-xs bg-[#25D366]/10 text-[#25D366] px-3 py-1.5 rounded-lg font-bold hover:bg-[#25D366]/20 transition-colors">
-        💬 تواصل
-      </button>
+    { key: '_id', label: 'إجراءات', render: (v, r) => (
+      <div className="flex items-center gap-2 flex-wrap">
+        <button onClick={() => setSelectedOrder(r)}
+          className="text-xs bg-brand-bg text-brand-dark px-3 py-1.5 rounded-lg font-black hover:bg-brand-border transition-colors flex items-center gap-1.5">
+          <Eye size={13}/> {canEdit && r.status !== 'cancelled' ? 'عرض / تعديل' : 'التفاصيل'}
+        </button>
+        <button onClick={() => openWhatsApp(r)} className="text-xs bg-[#25D366]/10 text-[#25D366] px-3 py-1.5 rounded-lg font-bold hover:bg-[#25D366]/20 transition-colors">
+          💬 تواصل
+        </button>
+      </div>
     )},
   ]
 
@@ -108,6 +120,15 @@ export default function OrdersPage() {
         <DataTable columns={columns} data={orders} loading={loading} searchable searchPlaceholder="ابحث في الطلبات..."
           emptyIcon="📋" emptyTitle="لا توجد طلبات" />
       </div>
+
+      <OrderDetailsModal
+        open={!!selectedOrder}
+        order={selectedOrder}
+        kind="site"
+        canEdit={canEdit}
+        onClose={() => setSelectedOrder(null)}
+        onSaved={() => load()}
+      />
     </div>
   )
 }

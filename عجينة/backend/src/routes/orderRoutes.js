@@ -9,6 +9,8 @@ router.post('/', ctrl.create);
 
 // Protected
 router.get('/', protect, requireRole('admin', 'supervisor', 'viewer'), ctrl.getAll);
+router.get('/:id', protect, requireRole('admin', 'supervisor', 'viewer'), ctrl.getOne);
+router.put('/:id', protect, requireRole('admin', 'supervisor'), requireStaff, ctrl.update);
 router.put('/:id/status', protect, requireRole('admin', 'supervisor'), requireStaff, ctrl.updateStatus);
 
 module.exports = router;

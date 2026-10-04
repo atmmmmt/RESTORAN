@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ClipboardList, Trash2, Receipt, Globe } from 'lucide-react'
+import { ClipboardList, Trash2, Receipt, Globe, Eye } from 'lucide-react'
 import WhatsAppIcon from '../../components/common/WhatsAppIcon'
 import { ordersAPI, internalOrdersAPI } from '../../services/api'
 import PageHeader from '../../components/common/PageHeader'
@@ -7,6 +7,7 @@ import DataTable from '../../components/common/DataTable'
 import { formatCurrency, formatDate, getStatusText, getStatusColor, formatShopTime, formatShopDateTime } from '../../utils/formatters'
 import toast from 'react-hot-toast'
 import { useAuth } from '../../hooks/useAuth'
+import OrderDetailsModal from './OrderDetailsModal'
 
 const STATUSES = ['new', 'confirmed', 'preparing', 'ready', 'delivered', 'cancelled']
 
@@ -26,10 +27,11 @@ const todayKey = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-export function CashierOrders({ isAdmin }) {
+export function CashierOrders({ isAdmin, canEdit }) {
   const [date, setDate] = useState(todayKey())
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
+  const [selectedOrder, setSelectedOrder] = useState(null)
 
   const load = () => {
     setLoading(true)
@@ -74,11 +76,19 @@ export function CashierOrders({ isAdmin }) {
       </select>
     )},
     { key: 'createdAt', label: date ? 'الوقت' : 'التاريخ والوقت', render: v => date ? formatShopTime(v) : formatShopDateTime(v) },
-    { key: '_id', label: 'إجراءات', render: (v, r) => isAdmin ? (
-      <button onClick={() => remove(r)} className="text-xs bg-red-50 text-red-500 px-3 py-1.5 rounded-lg font-bold hover:bg-red-100 transition-colors flex items-center gap-1.5">
-        <Trash2 size={13} /> حذف
-      </button>
-    ) : '—' },
+    { key: '_id', label: 'إجراءات', render: (v, r) => (
+      <div className="flex items-center gap-2 flex-wrap">
+        <button onClick={() => setSelectedOrder(r)}
+          className="text-xs bg-brand-bg text-brand-dark px-3 py-1.5 rounded-lg font-black hover:bg-brand-border transition-colors flex items-center gap-1.5">
+          <Eye size={13}/> {canEdit && r.status !== 'cancelled' ? 'عرض / تعديل' : 'التفاصيل'}
+        </button>
+        {isAdmin && (
+          <button onClick={() => remove(r)} className="text-xs bg-red-50 text-red-500 px-3 py-1.5 rounded-lg font-bold hover:bg-red-100 transition-colors flex items-center gap-1.5">
+            <Trash2 size={13}/> حذف
+          </button>
+        )}
+      </div>
+    ) },
   ]
 
   return (
@@ -100,6 +110,15 @@ export function CashierOrders({ isAdmin }) {
       </div>
       <DataTable columns={columns} data={orders} loading={loading} searchable searchPlaceholder="ابحث برقم الطلب..."
         emptyIcon={Receipt} emptyTitle={date ? 'لا توجد طلبات كاشير بهاليوم' : 'لا توجد طلبات كاشير'} />
+
+      <OrderDetailsModal
+        open={!!selectedOrder}
+        order={selectedOrder}
+        kind="cashier"
+        canEdit={canEdit}
+        onClose={() => setSelectedOrder(null)}
+        onSaved={() => load()}
+      />
     </div>
   )
 }
@@ -108,6 +127,7 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('cashier')
+  const [selectedSiteOrder, setSelectedSiteOrder] = useState(null)
 
   const load = () => {
     setLoading(true)
@@ -126,6 +146,7 @@ export default function OrdersPage() {
 
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
+  const canEdit = ['admin', 'supervisor'].includes(user?.role)
 
   const removeOrder = async (order) => {
     if (!confirm(`حذف طلب ${order.customerName} نهائياً؟`)) return
@@ -161,6 +182,10 @@ export default function OrdersPage() {
     { key: 'createdAt', label: 'التاريخ', render: v => formatDate(v) },
     { key: '_id', label: 'إجراءات', render: (v, r) => (
       <div className="flex items-center gap-2">
+        <button onClick={() => setSelectedSiteOrder(r)}
+          className="text-xs bg-brand-bg text-brand-dark px-3 py-1.5 rounded-lg font-black hover:bg-brand-border transition-colors flex items-center gap-1.5">
+          <Eye size={13}/> {canEdit && r.status !== 'cancelled' ? 'عرض / تعديل' : 'التفاصيل'}
+        </button>
         <button onClick={() => openWhatsApp(r)} className="text-xs bg-[#25D366]/10 text-[#25D366] px-3 py-1.5 rounded-lg font-bold hover:bg-[#25D366]/20 transition-colors flex items-center gap-1.5">
           <WhatsAppIcon size={13} /> تواصل
         </button>
@@ -193,12 +218,21 @@ export default function OrdersPage() {
         ))}
       </div>
 
-      {tab === 'cashier' ? <CashierOrders isAdmin={isAdmin} /> : (
+      {tab === 'cashier' ? <CashierOrders isAdmin={isAdmin} canEdit={canEdit} /> : (
         <div className="bg-white rounded-2xl shadow-card p-4">
           <DataTable columns={columns} data={orders} loading={loading} searchable searchPlaceholder="ابحث في الطلبات..."
             emptyIcon={ClipboardList} emptyTitle="لا توجد طلبات" />
         </div>
       )}
+
+      <OrderDetailsModal
+        open={!!selectedSiteOrder}
+        order={selectedSiteOrder}
+        kind="site"
+        canEdit={canEdit}
+        onClose={() => setSelectedSiteOrder(null)}
+        onSaved={() => load()}
+      />
     </div>
   )
 }

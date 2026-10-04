@@ -125,6 +125,143 @@ exports.create = async (req, res) => {
   });
 };
 
+
+exports.getOne = async (req, res) => {
+  const order = await CustomerOrder.findById(req.params.id).populate('productId', 'name image directPrice');
+  if (!order) return res.status(404).json({ success: false, message: 'الطلب غير موجود.' });
+  res.json({ success: true, order });
+};
+
+exports.update = async (req, res) => {
+  const order = await CustomerOrder.findById(req.params.id);
+  if (!order) return res.status(404).json({ success: false, message: 'الطلب غير موجود.' });
+  if (order.status === 'cancelled') {
+    return res.status(400).json({ success: false, message: 'الطلب الملغى للعرض فقط. أعد تفعيله قبل تعديله.' });
+  }
+
+  const oldProductId = String(order.productId);
+  const oldQuantity = Number(order.quantity) || 0;
+  const oldTotal = Number(order.totalPrice || order.totalAmount) || 0;
+  const oldCashPosted = Boolean(order.cashPosted);
+
+  const nextProductId = String(req.body.productId || oldProductId);
+  const nextQuantity = Number(req.body.quantity ?? oldQuantity);
+  if (!(nextQuantity >= 1)) {
+    return res.status(400).json({ success: false, message: 'الكمية يجب أن تكون 1 على الأقل.' });
+  }
+
+  const product = await Product.findById(nextProductId);
+  if (!product) return res.status(404).json({ success: false, message: 'المنتج غير موجود.' });
+
+  const financialChanged = nextProductId !== oldProductId || nextQuantity !== oldQuantity;
+  let pricing = {
+    unitPrice: Number(order.unitPrice) || 0,
+    discountAmount: Number(order.discountAmount) || 0,
+    unitCost: Number(order.unitCost) || 0,
+    totalCost: Number(order.totalCost) || 0,
+    taxQuote: {
+      baseAmount: Number(order.netAmount) || 0,
+      invoiceTaxPercent: Number(order.invoiceTaxPercent) || 0,
+      invoiceTaxAmount: Number(order.invoiceTaxAmount) || 0,
+      consumptionTaxPercent: Number(order.consumptionTaxPercent) || 5,
+      consumptionTaxAmount: Number(order.consumptionTaxAmount) || 0,
+      localAdminPercent: Number(order.localAdminPercent) || 5,
+      localAdminAmount: Number(order.localAdminAmount) || 0,
+      customerTotal: oldTotal,
+    },
+  };
+
+  if (financialChanged) {
+    const now = new Date();
+    const activeOffer = await Offer.findOne({
+      productId: nextProductId,
+      isActive: true,
+      startDate: { $lte: now },
+      endDate: { $gte: now },
+    });
+    const unitPrice = Number(product.directPrice) || 0;
+    let discountAmount = 0;
+    if (activeOffer) {
+      discountAmount = activeOffer.discountType === 'percentage'
+        ? unitPrice * (Number(activeOffer.discountValue) || 0) / 100 * nextQuantity
+        : (Number(activeOffer.discountValue) || 0) * nextQuantity;
+    }
+    const restaurantAmount = Math.max(unitPrice * nextQuantity - discountAmount, 0);
+    const taxQuote = await financeService.quote(restaurantAmount, order.centerId);
+    const unitCost = Number(product.calculatedCost) || 0;
+    pricing = {
+      unitPrice,
+      discountAmount,
+      unitCost,
+      totalCost: unitCost * nextQuantity,
+      taxQuote,
+    };
+
+    if (order.stockApplied) {
+      await Product.findByIdAndUpdate(order.productId, { $inc: { availableQuantity: oldQuantity } });
+      const consumed = await Product.findOneAndUpdate(
+        { _id: product._id, availableQuantity: { $gte: nextQuantity } },
+        { $inc: { availableQuantity: -nextQuantity } },
+        { new: true }
+      );
+      if (!consumed) {
+        await Product.findByIdAndUpdate(order.productId, { $inc: { availableQuantity: -oldQuantity } });
+        return res.status(409).json({ success: false, message: `الكمية المتاحة من "${product.name}" غير كافية للتعديل.` });
+      }
+    }
+  }
+
+  order.productId = product._id;
+  order.productNameSnapshot = product.name;
+  order.quantity = nextQuantity;
+  order.unitPrice = pricing.unitPrice;
+  order.unitCost = pricing.unitCost;
+  order.totalCost = pricing.totalCost;
+  order.discountAmount = pricing.discountAmount;
+  order.netAmount = pricing.taxQuote.baseAmount;
+  order.invoiceTaxPercent = pricing.taxQuote.invoiceTaxPercent;
+  order.invoiceTaxAmount = pricing.taxQuote.invoiceTaxAmount;
+  order.consumptionTaxPercent = pricing.taxQuote.consumptionTaxPercent;
+  order.consumptionTaxAmount = pricing.taxQuote.consumptionTaxAmount;
+  order.localAdminPercent = pricing.taxQuote.localAdminPercent;
+  order.localAdminAmount = pricing.taxQuote.localAdminAmount;
+  order.totalPrice = pricing.taxQuote.customerTotal;
+  order.totalAmount = pricing.taxQuote.customerTotal;
+  order.profit = pricing.taxQuote.baseAmount - pricing.totalCost;
+
+  if (req.body.customerName !== undefined) order.customerName = String(req.body.customerName || '').trim();
+  if (req.body.customerPhone !== undefined || req.body.phone !== undefined) {
+    order.phone = String(req.body.customerPhone ?? req.body.phone ?? '').trim();
+  }
+  if (req.body.deliveryLocation !== undefined || req.body.location !== undefined) {
+    order.location = String(req.body.deliveryLocation ?? req.body.location ?? '').trim();
+  }
+  if (req.body.deliveryMethod !== undefined) order.deliveryMethod = req.body.deliveryMethod;
+  if (req.body.notes !== undefined) order.notes = String(req.body.notes || '').trim();
+
+  await order.save();
+
+  if (oldCashPosted && financialChanged) {
+    const delta = Number(order.totalPrice) - oldTotal;
+    if (delta > 0.009) {
+      await cashService.createTransaction(
+        'sale_income', delta, 'in',
+        `فرق تعديل طلب ${order.productNameSnapshot} — ${order.customerName}`,
+        'CustomerOrder', order._id, order.centerId
+      );
+    } else if (delta < -0.009) {
+      await cashService.createTransaction(
+        'adjustment', Math.abs(delta), 'out',
+        `إرجاع فرق تعديل طلب ${order.productNameSnapshot} — ${order.customerName}`,
+        'CustomerOrder', order._id, order.centerId
+      );
+    }
+  }
+
+  cacheService.invalidate('products:');
+  res.json({ success: true, message: 'تم تعديل الطلب وإعادة احتساب المبلغ بنجاح.', order });
+};
+
 exports.updateStatus = async (req, res) => {
   const order = await CustomerOrder.findById(req.params.id);
   if (!order) return res.status(404).json({ success: false, message: 'الطلب غير موجود.' });

@@ -120,6 +120,7 @@ export const internalOrdersAPI = {
   getAll:     (params) => api.get('/internal-orders', { params }),
   getOne:     (key)    => api.get(`/internal-orders/${key}`),
   create:     (data)   => api.post('/internal-orders', data),
+  update:     (id, data) => api.put(`/internal-orders/${id}`, data),
   setStatus:  (id, status) => api.put(`/internal-orders/${id}/status`, { status }),
   todayStats: (center) => api.get('/internal-orders/stats/today', { params: { center } }),
   printResult: (id, data) => api.post(`/internal-orders/${id}/print-result`, data),
@@ -259,7 +260,9 @@ export const offersAPI = {
 
 export const ordersAPI = {
   getAll: (params) => api.get('/orders', { params }),
+  getOne: (id) => api.get(`/orders/${id}`),
   create: (data) => api.post('/orders', data),
+  update: (id, data) => api.put(`/orders/${id}`, data),
   updateStatus: (id, status) => api.put(`/orders/${id}/status`, { status }),
 }
 
