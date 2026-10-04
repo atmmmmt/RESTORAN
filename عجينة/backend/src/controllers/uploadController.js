@@ -21,12 +21,10 @@ const uploadImage = async (req, res) => {
   }
 
   try {
-    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
-      return res.status(503).json({
-        success: false,
-        message: 'إعدادات رفع الصور غير مكتملة على السيرفر (Cloudinary)',
-      });
-    }
+    // Re-read runtime credentials for every upload. This avoids false
+    // "missing settings" errors on hosts that inject environment variables
+    // when the app process starts/restarts.
+    if (typeof cloudinary.refreshConfig === 'function') cloudinary.refreshConfig();
 
     // Compress and convert to WebP
     const processedBuffer = await processImage(req.file.buffer, req.file.size);
@@ -72,12 +70,24 @@ const uploadImage = async (req, res) => {
     });
   } catch (err) {
     console.error('❌ خطأ في رفع الصورة:', err);
-    const sharpError = /unsupported|heif|heic|input buffer/i.test(String(err?.message || ''));
+    const rawMessage = String(err?.message || '');
+    const sharpError = /unsupported|heif|heic|input buffer/i.test(rawMessage);
+    const authError = Number(err?.http_code) === 401 || /invalid.*key|unknown api key|authentication|signature/i.test(rawMessage);
+    const cloudNameError = /cloud.?name|must supply cloud_name/i.test(rawMessage);
+
+    let message = 'فشل رفع الصورة إلى Cloudinary. حاول مجدداً.';
+    if (sharpError) message = 'تعذّر معالجة صيغة الصورة. استخدم JPG أو PNG أو WebP.';
+    else if (authError) message = 'Cloudinary رفض بيانات الدخول. تحقق من API Key و API Secret.';
+    else if (cloudNameError) message = 'Cloudinary لم يتعرّف على Cloud Name المرسل من السيرفر.';
+
     return res.status(500).json({
       success: false,
-      message: sharpError
-        ? 'تعذّر معالجة صيغة الصورة. استخدم JPG أو PNG أو WebP.'
-        : 'فشل رفع الصورة إلى التخزين. تحقق من إعدادات Cloudinary أو الاتصال وحاول مجدداً.',
+      message,
+      diagnostic: {
+        cloudName: Boolean(cloudinary.__credentialsState?.cloudName),
+        apiKey: Boolean(cloudinary.__credentialsState?.apiKey),
+        apiSecret: Boolean(cloudinary.__credentialsState?.apiSecret),
+      },
     });
   }
 };
