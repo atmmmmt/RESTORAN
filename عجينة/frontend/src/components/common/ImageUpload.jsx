@@ -26,6 +26,9 @@ export default function ImageUpload({
   const [progress, setProgress] = useState(0)
   const [dragOver, setDragOver] = useState(false)
   const inputRef = useRef(null)
+  // Asset uploaded during the current unsaved form session.
+  // Existing product images are never deleted until the product save succeeds.
+  const pendingUploadRef = useRef(null)
 
   // Determine if current value is a real URL (not an emoji)
   const isUrl = value && (value.startsWith('http') || value.startsWith('/'))
@@ -47,26 +50,33 @@ export default function ImageUpload({
 
     setUploading(true)
     setProgress(10)
+    let progressInterval = null
 
     try {
-      // Simulate progress while uploading
-      const progressInterval = setInterval(() => {
+      progressInterval = setInterval(() => {
         setProgress(p => Math.min(p + 15, 85))
       }, 300)
 
       const res = await uploadAPI.upload(file)
-      clearInterval(progressInterval)
       setProgress(100)
 
       const { url, publicId: newPublicId, sizeKB } = res.data
+      if (!url || !newPublicId) throw new Error('السيرفر لم يرجع بيانات الصورة بشكل صحيح')
+
+      const previousPending = pendingUploadRef.current
+      if (previousPending && previousPending !== newPublicId) {
+        uploadAPI.delete(previousPending).catch(() => {})
+      }
+      pendingUploadRef.current = newPublicId
       onChange(url, newPublicId)
 
       const originalKB = Math.round(file.size / 1024)
       const saved = originalKB > sizeKB ? `وُفِّر ${originalKB - sizeKB} KB` : ''
       toast.success(`✅ تم الرفع${saved ? ` — ${saved}` : ''} (WebP ${sizeKB} KB)`)
     } catch (err) {
-      toast.error(err?.response?.data?.message || 'فشل رفع الصورة')
+      toast.error(err?.message || err?.response?.data?.message || 'فشل رفع الصورة')
     } finally {
+      if (progressInterval) clearInterval(progressInterval)
       setUploading(false)
       setProgress(0)
     }
@@ -86,12 +96,12 @@ export default function ImageUpload({
   }
 
   const handleRemove = async () => {
-    if (publicId && publicId.startsWith('luliz/')) {
-      try {
-        await uploadAPI.delete(publicId)
-      } catch {
-        // Non-critical: continue even if Cloudinary delete fails
-      }
+    // Only delete immediately when this was uploaded in the current,
+    // still-unsaved form session. Persisted images are removed by the backend
+    // only after the product update is safely saved.
+    if (pendingUploadRef.current && publicId === pendingUploadRef.current) {
+      try { await uploadAPI.delete(publicId) } catch { /* orphan cleanup only */ }
+      pendingUploadRef.current = null
     }
     onDelete?.()
     onChange('', null)

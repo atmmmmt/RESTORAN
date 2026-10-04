@@ -21,6 +21,13 @@ const uploadImage = async (req, res) => {
   }
 
   try {
+    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+      return res.status(503).json({
+        success: false,
+        message: 'إعدادات رفع الصور غير مكتملة على السيرفر (Cloudinary)',
+      });
+    }
+
     // Compress and convert to WebP
     const processedBuffer = await processImage(req.file.buffer, req.file.size);
 
@@ -65,7 +72,13 @@ const uploadImage = async (req, res) => {
     });
   } catch (err) {
     console.error('❌ خطأ في رفع الصورة:', err);
-    return res.status(500).json({ success: false, message: 'فشل رفع الصورة، حاول مجدداً' });
+    const sharpError = /unsupported|heif|heic|input buffer/i.test(String(err?.message || ''));
+    return res.status(500).json({
+      success: false,
+      message: sharpError
+        ? 'تعذّر معالجة صيغة الصورة. استخدم JPG أو PNG أو WebP.'
+        : 'فشل رفع الصورة إلى التخزين. تحقق من إعدادات Cloudinary أو الاتصال وحاول مجدداً.',
+    });
   }
 };
 

@@ -218,10 +218,10 @@ exports.update = async (req, res) => {
     'status', 'showInTodayMenu', 'allergyNotes', 'notes', 'modifiers',
   ];
 
-  // If image is being replaced, delete old Cloudinary image first
-  if (req.body.image !== undefined && req.body.image !== product.image) {
-    await deleteCloudinaryImage(product.imagePublicId);
-  }
+  // Keep the old file alive until the database update succeeds.
+  const oldImage = product.image;
+  const oldImagePublicId = product.imagePublicId;
+  const imageIsChanging = req.body.image !== undefined && req.body.image !== oldImage;
 
   for (const field of allowedFields) {
     if (req.body[field] !== undefined) {
@@ -238,6 +238,10 @@ exports.update = async (req, res) => {
   }
 
   await product.save();
+
+  if (imageIsChanging && oldImagePublicId && oldImagePublicId !== product.imagePublicId) {
+    await deleteCloudinaryImage(oldImagePublicId);
+  }
 
   cacheService.invalidate('products:');
   res.json({ success: true, message: 'تم تحديث المنتج بنجاح.', product });

@@ -26,7 +26,7 @@ api.interceptors.request.use(config => {
 
 /* Requests that must never be cached or replayed — auth and live device
    commands are meaningless once the moment has passed. */
-const NO_OFFLINE = [/\/auth\//, /\/attendance\/device\//, /\/attendance\/stream/]
+const NO_OFFLINE = [/\/auth\//, /\/attendance\/device\//, /\/attendance\/stream/, /\/upload(?:\/|$)/]
 const skipOffline = url => NO_OFFLINE.some(re => re.test(url || ''))
 
 /* A stray 401 from an unrelated background request (e.g. a list refresh
@@ -355,15 +355,40 @@ export const advancesAPI = {
 }
 
 export const uploadAPI = {
-  /** Upload an image file. Returns { url, publicId, width, height, sizeKB } */
-  upload: (file) => {
+  /** Upload an image directly. The browser must set the multipart boundary.
+   * File uploads are never queued for offline replay. */
+  upload: async (file) => {
     const formData = new FormData()
     formData.append('image', file)
-    return api.post('/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
+
+    const token = localStorage.getItem('luliz_admin_token')
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 60000)
+
+    try {
+      const response = await fetch(`${API_URL.replace(/\/$/, '')}/upload`, {
+        method: 'POST',
+        headers: {
+          'X-Tenant': TENANT,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: formData,
+        signal: controller.signal,
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        const error = new Error(data.message || 'فشل رفع الصورة')
+        error.status = response.status
+        throw error
+      }
+      return { data }
+    } catch (err) {
+      if (err?.name === 'AbortError') throw new Error('رفع الصورة استغرق وقتاً طويلاً — تحقق من الإنترنت وحاول مجدداً')
+      throw err
+    } finally {
+      clearTimeout(timer)
+    }
   },
-  /** Delete an image from Cloudinary by publicId */
   delete: (publicId) => api.delete('/upload', { data: { publicId } }),
 }
 
