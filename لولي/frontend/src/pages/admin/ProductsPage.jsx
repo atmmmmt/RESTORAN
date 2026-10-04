@@ -81,9 +81,14 @@ export default function ProductsPage() {
   }
 
   const del = async (id) => {
-    if (!confirm('إخفاء هذا المنتج؟')) return
-    try { await productsAPI.delete(id); toast.success('تم إخفاء المنتج'); load() }
-    catch (e) { toast.error(e.message) }
+    if (!confirm('حذف هذا المنتج نهائياً من قائمة المنتجات؟\n\nلن تتأثر الفواتير والطلبات القديمة.')) return
+    try {
+      await productsAPI.delete(id)
+      toast.success('تم حذف المنتج')
+      setProducts(list => list.filter(p => p._id !== id))
+    } catch (e) {
+      toast.error(e.message || 'تعذّر حذف المنتج')
+    }
   }
 
   return (
@@ -154,7 +159,7 @@ export default function ProductsPage() {
                     <Link to={`/admin/products/${p._id}/edit`}>
                       <button className="text-xs bg-fuchsia-bg text-fuchsia px-3 py-1.5 rounded-lg font-bold hover:bg-fuchsia-light transition-colors">تعديل</button>
                     </Link>
-                    <button onClick={() => del(p._id)} className="text-xs bg-red-50 text-red-500 px-3 py-1.5 rounded-lg font-bold hover:bg-red-100 transition-colors">إخفاء</button>
+                    <button onClick={() => del(p._id)} className="text-xs bg-red-50 text-red-500 px-3 py-1.5 rounded-lg font-bold hover:bg-red-100 transition-colors">حذف</button>
                   </div>
                 </div>
 

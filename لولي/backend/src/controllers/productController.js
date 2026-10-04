@@ -4,6 +4,7 @@ const { validationResult } = require('express-validator');
 const Product = require('../models/Product');
 const Offer = require('../models/Offer');
 const CustomerOrder = require('../models/CustomerOrder');
+const InternalOrder = require('../models/InternalOrder');
 const cloudinary = require('../config/cloudinary');
 const cacheService = require('../services/cacheService');
 const { SPACE_TYPES, BODY_TRACKED_TYPES } = require('../models/schemas/virtualTryOnSchema');
@@ -251,24 +252,37 @@ exports.delete = async (req, res) => {
     return res.status(404).json({ success: false, message: 'المنتج غير موجود.' });
   }
 
-  // Check for active orders
-  const activeOrders = await CustomerOrder.countDocuments({
-    productId: req.params.id,
-    status: { $in: ['new', 'confirmed', 'preparing'] },
-  });
+  // Never remove a catalogue item while the kitchen is actively working on it.
+  // Historical orders are safe: both order models snapshot the product name,
+  // price/cost and line data, so deleting the catalogue row does not rewrite old invoices.
+  const [activeSiteOrders, activePosOrders] = await Promise.all([
+    CustomerOrder.countDocuments({
+      productId: req.params.id,
+      status: { $in: ['new', 'confirmed', 'preparing', 'ready'] },
+    }),
+    InternalOrder.countDocuments({
+      'items.productId': req.params.id,
+      status: { $in: ['new', 'preparing', 'ready'] },
+    }),
+  ]);
 
+  const activeOrders = activeSiteOrders + activePosOrders;
   if (activeOrders > 0) {
     return res.status(400).json({
       success: false,
-      message: `لا يمكن حذف المنتج. يوجد ${activeOrders} طلب نشط مرتبط به.`,
+      message: `لا يمكن حذف المنتج الآن. يوجد ${activeOrders} طلب نشط مرتبط به. أنهِ أو ألغِ الطلب أولاً.`,
     });
   }
 
-  product.status = 'hidden';
-  product.showInTodayMenu = false;
-  await product.save();
+  // Remove catalogue-only dependencies. Past sales/production records remain untouched.
+  await Promise.all([
+    Offer.deleteMany({ productId: product._id }),
+    deleteCloudinaryImage(product.imagePublicId),
+  ]);
+
+  await product.deleteOne();
 
   cacheService.invalidate('products:');
-  res.json({ success: true, message: 'تم إخفاء المنتج بنجاح.' });
+  res.json({ success: true, message: 'تم حذف المنتج نهائياً من قائمة المنتجات.' });
 
 };
