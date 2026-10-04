@@ -1,5 +1,16 @@
 'use strict';
 
+// Cloudinary auto-parses CLOUDINARY_URL while the package is being required.
+// A malformed value crashes the whole Node process before our own config runs.
+// Hostinger can retain an old/invalid CLOUDINARY_URL even when the three
+// explicit CLOUDINARY_* variables are correct, so neutralize only malformed
+// values before requiring the SDK.
+const rawCloudinaryUrl = String(process.env.CLOUDINARY_URL || '').trim();
+if (rawCloudinaryUrl && !rawCloudinaryUrl.toLowerCase().startsWith('cloudinary://')) {
+  console.warn('⚠️ Ignoring malformed CLOUDINARY_URL and using explicit Cloudinary variables instead');
+  delete process.env.CLOUDINARY_URL;
+}
+
 const cloudinary = require('cloudinary').v2;
 
 const clean = (value) => {
