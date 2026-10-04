@@ -2,7 +2,48 @@
 
 const cloudinary = require('../config/cloudinary');
 const { processImage } = require('../middleware/upload');
-const { Readable } = require('stream');
+
+
+const redact = (value) => {
+  let text = String(value || '');
+  for (const secret of [
+    process.env.CLOUDINARY_API_SECRET,
+    process.env.CLOUDINARY_API_KEY,
+    process.env.CLOUDINARY_CLOUD_NAME,
+  ]) {
+    if (secret) text = text.split(String(secret)).join('[hidden]');
+  }
+  return text.replace(/api_secret=[^&\s]+/gi, 'api_secret=[hidden]').slice(0, 220);
+};
+
+const safeCloudinaryError = (err) => ({
+  message: redact(err?.message || err?.error?.message || err || ''),
+  httpCode: Number(err?.http_code || err?.status || 0) || null,
+  name: String(err?.name || err?.error?.name || ''),
+  code: String(err?.code || ''),
+});
+
+const uploadOptions = (folder) => ({
+  folder,
+  format: 'webp',
+  resource_type: 'image',
+  transformation: [{ quality: 'auto' }],
+});
+
+const uploadViaStream = (buffer, folder) => new Promise((resolve, reject) => {
+  const uploadStream = cloudinary.uploader.upload_stream(
+    uploadOptions(folder),
+    (error, result) => error ? reject(error) : resolve(result)
+  );
+  uploadStream.on?.('error', reject);
+  uploadStream.end(buffer);
+});
+
+const uploadViaDataUri = (buffer, folder) => {
+  const dataUri = `data:image/webp;base64,${buffer.toString('base64')}`;
+  return cloudinary.uploader.upload(dataUri, uploadOptions(folder));
+};
+
 
 /**
  * Upload a single image to Cloudinary.
@@ -29,28 +70,71 @@ const uploadImage = async (req, res) => {
     // Compress and convert to WebP
     const processedBuffer = await processImage(req.file.buffer, req.file.size);
 
-    // Upload to Cloudinary via stream
-    const result = await new Promise((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        {
-          folder: 'luliz/products',
-          format: 'webp',
-          resource_type: 'image',
-          // Cloudinary-side optimisation as a fallback
-          transformation: [{ quality: 'auto' }],
-        },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
-      );
+    const tenant = String(req.get('X-Tenant') || '').toLowerCase();
+    const folder = tenant === 'ajeena' ? 'ajeena/products' : 'luliz/products';
 
-      // Pipe the processed buffer into the stream
-      const readable = new Readable();
-      readable.push(processedBuffer);
-      readable.push(null);
-      readable.pipe(uploadStream);
-    });
+    // Primary path: stream upload. If Hostinger/network stream handling fails,
+    // retry once using Cloudinary's supported base64 Data URI upload method.
+    let result;
+    let streamError = null;
+    try {
+      result = await uploadViaStream(processedBuffer, folder);
+    } catch (err) {
+      streamError = err;
+      console.error('⚠️ Cloudinary stream upload failed, trying Data URI fallback:', safeCloudinaryError(err));
+
+      try {
+        result = await uploadViaDataUri(processedBuffer, folder);
+        console.log('✅ Cloudinary Data URI fallback succeeded');
+      } catch (fallbackError) {
+        let pingError = null;
+        let pingStatus = null;
+        try {
+          const ping = await cloudinary.api.ping();
+          pingStatus = ping?.status || 'ok';
+        } catch (err2) {
+          pingError = err2;
+        }
+
+        const primary = safeCloudinaryError(streamError);
+        const fallback = safeCloudinaryError(fallbackError);
+        const ping = pingError ? safeCloudinaryError(pingError) : { message: pingStatus || 'ok' };
+
+        const raw = fallback.message || primary.message || ping.message || '';
+        const authError =
+          [primary, fallback, ping].some(e =>
+            Number(e.httpCode) === 401 ||
+            /invalid.*key|unknown api key|authentication|signature/i.test(String(e.message || ''))
+          );
+        const cloudNameError =
+          [primary, fallback, ping].some(e =>
+            /cloud.?name|must supply cloud_name|unknown cloud/i.test(String(e.message || ''))
+          );
+        const networkError =
+          [primary, fallback, ping].some(e =>
+            /ENOTFOUND|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|socket hang up|network/i.test(
+              `${e.code || ''} ${e.message || ''}`
+            )
+          );
+
+        let message = 'فشل رفع الصورة إلى Cloudinary.';
+        if (authError) message = 'Cloudinary رفض بيانات الدخول (API Key / API Secret).';
+        else if (cloudNameError) message = 'Cloudinary لم يتعرّف على Cloud Name.';
+        else if (networkError) message = 'السيرفر غير قادر على الوصول إلى Cloudinary عبر الشبكة.';
+        if (raw) message += ` السبب: ${raw}`;
+
+        return res.status(502).json({
+          success: false,
+          message,
+          diagnostic: {
+            stream: primary,
+            fallback,
+            ping,
+            credentials: cloudinary.__credentialsState || null,
+          },
+        });
+      }
+    }
 
     const originalKB = Math.round(req.file.size / 1024);
     const processedKB = Math.round(processedBuffer.length / 1024);
@@ -69,25 +153,16 @@ const uploadImage = async (req, res) => {
       sizeKB: processedKB,
     });
   } catch (err) {
-    console.error('❌ خطأ في رفع الصورة:', err);
-    const rawMessage = String(err?.message || '');
-    const sharpError = /unsupported|heif|heic|input buffer/i.test(rawMessage);
-    const authError = Number(err?.http_code) === 401 || /invalid.*key|unknown api key|authentication|signature/i.test(rawMessage);
-    const cloudNameError = /cloud.?name|must supply cloud_name/i.test(rawMessage);
-
-    let message = 'فشل رفع الصورة إلى Cloudinary. حاول مجدداً.';
-    if (sharpError) message = 'تعذّر معالجة صيغة الصورة. استخدم JPG أو PNG أو WebP.';
-    else if (authError) message = 'Cloudinary رفض بيانات الدخول. تحقق من API Key و API Secret.';
-    else if (cloudNameError) message = 'Cloudinary لم يتعرّف على Cloud Name المرسل من السيرفر.';
+    console.error('❌ خطأ في معالجة/رفع الصورة:', err);
+    const safe = safeCloudinaryError(err);
+    const sharpError = /unsupported|heif|heic|input buffer|Input file/i.test(safe.message);
 
     return res.status(500).json({
       success: false,
-      message,
-      diagnostic: {
-        cloudName: Boolean(cloudinary.__credentialsState?.cloudName),
-        apiKey: Boolean(cloudinary.__credentialsState?.apiKey),
-        apiSecret: Boolean(cloudinary.__credentialsState?.apiSecret),
-      },
+      message: sharpError
+        ? 'تعذّر معالجة صيغة الصورة. استخدم JPG أو PNG أو WebP.'
+        : `تعذّر تجهيز الصورة قبل الرفع${safe.message ? `: ${safe.message}` : ''}`,
+      diagnostic: safe,
     });
   }
 };
