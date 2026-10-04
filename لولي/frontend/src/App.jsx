@@ -46,6 +46,7 @@ const AdminOffersPage    = lazy(() => import('./pages/admin/OffersPage'))
 const CashPage           = lazy(() => import('./pages/admin/CashPage'))
 const ReportsPage        = lazy(() => import('./pages/admin/ReportsPage'))
 const FinancePage        = lazy(() => import('./pages/admin/FinancePage'))
+const FinancialReportsPage = lazy(() => import('./pages/admin/FinancialReportsPage'))
 const DailyClosingPage   = lazy(() => import('./pages/admin/DailyClosingPage'))
 const SettingsPage       = lazy(() => import('./pages/admin/SettingsPage'))
 const ReviewsPage        = lazy(() => import('./pages/admin/ReviewsPage'))
@@ -139,6 +140,7 @@ export default function App() {
             <Route path="cash"         element={<CashPage />} />
             <Route path="reports"      element={<ReportsPage />} />
             <Route path="finance"      element={<FinancePage />} />
+            <Route path="financial-reports" element={<FinancialReportsPage />} />
             <Route path="daily-closing" element={<DailyClosingPage />} />
             <Route path="reviews"      element={<ReviewsPage />} />
             <Route path="pos"          element={<PosPage />} />

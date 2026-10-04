@@ -38,6 +38,7 @@ const AdminOffersPage    = lazy(() => import('./pages/admin/OffersPage'))
 const CashPage           = lazy(() => import('./pages/admin/CashPage'))
 const ReportsPage        = lazy(() => import('./pages/admin/ReportsPage'))
 const FinancePage        = lazy(() => import('./pages/admin/FinancePage'))
+const FinancialReportsPage = lazy(() => import('./pages/admin/FinancialReportsPage'))
 const AmericansManagementPage = lazy(() => import('./pages/admin/AmericansManagementPage'))
 const DailyClosingPage   = lazy(() => import('./pages/admin/DailyClosingPage'))
 const SettingsPage       = lazy(() => import('./pages/admin/SettingsPage'))
@@ -143,6 +144,7 @@ export default function App() {
             <Route path="cash" element={<RoleRoute roles={['admin', 'supervisor']}><CashPage /></RoleRoute>} />
             <Route path="reports" element={<RoleRoute roles={['admin', 'supervisor', 'viewer']}><ReportsPage /></RoleRoute>} />
             <Route path="finance" element={<RoleRoute roles={['admin', 'supervisor', 'viewer']}><FinancePage /></RoleRoute>} />
+            <Route path="financial-reports" element={<RoleRoute roles={['admin', 'supervisor', 'viewer']}><FinancialReportsPage /></RoleRoute>} />
             <Route path="daily-closing" element={<RoleRoute roles={['admin', 'supervisor']}><DailyClosingPage /></RoleRoute>} />
             <Route path="reviews" element={<RoleRoute roles={['admin', 'supervisor']}><ReviewsPage /></RoleRoute>} />
             <Route path="pos" element={<RoleRoute roles={['admin', 'supervisor', 'cashier']}><PosPage /></RoleRoute>} />

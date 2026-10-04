@@ -296,6 +296,95 @@ router.get('/summary', visibleToFinance, async (req, res) => {
   });
 });
 
+
+/* GET /api/finance/report
+   Printable sales statement matching the finance form used by the restaurant. */
+router.get('/report', visibleToFinance, async (req, res) => {
+  const defaults = defaultRange();
+  const start = parseDate(req.query.start, defaults.start);
+  const end = parseDate(req.query.end, defaults.end);
+  if (end <= start) return res.status(400).json({ success: false, message: 'نهاية الفترة يجب أن تكون بعد بدايتها' });
+
+  const selector = normalizeCenterSelector(req.query.center);
+  const internalFilter = { createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } };
+  const siteFilter = { createdAt: { $gte: start, $lt: end }, status: 'delivered' };
+  applyCenter(internalFilter, selector);
+  applyCenter(siteFilter, selector);
+
+  const [settings, centers, internalOrders, siteOrders] = await Promise.all([
+    FinanceSettings.getSingleton(),
+    SalesCenter.find({}).select('name isActive'),
+    InternalOrder.find(internalFilter).select(
+      'centerId netAmount total invoiceTaxAmount consumptionTaxAmount localAdminAmount createdAt'
+    ),
+    CustomerOrder.find(siteFilter).select(
+      'centerId netAmount totalPrice invoiceTaxAmount consumptionTaxAmount localAdminAmount createdAt'
+    ),
+  ]);
+
+  const centerNames = new Map(centers.map(center => [String(center._id), center.name]));
+  const rows = new Map();
+
+  const ensureRow = rawCenterId => {
+    const key = rawCenterId ? String(rawCenterId) : 'hq';
+    if (!rows.has(key)) rows.set(key, {
+      centerId: key === 'hq' ? null : key,
+      pointOfSale: key === 'hq' ? 'الفرع الرئيسي' : (centerNames.get(key) || 'نقطة بيع'),
+      ordersCount: 0,
+      foodAndBeverageValue: 0,
+      consumptionTax: 0,
+      localAdministration: 0,
+      grandTotal: 0,
+    });
+    return rows.get(key);
+  };
+
+  if (selector.mode === 'one') ensureRow(selector.centerId);
+
+  const addOrder = (order, totalField) => {
+    const row = ensureRow(order.centerId);
+    const base = financeService.revenueOf(order, totalField);
+    const consumption = financeService.consumptionTaxOf(order);
+    const local = financeService.localAdminTaxOf(order);
+    row.ordersCount += 1;
+    row.foodAndBeverageValue += base;
+    row.consumptionTax += consumption;
+    row.localAdministration += local;
+    row.grandTotal += financeService.money(base + consumption + local);
+  };
+
+  internalOrders.forEach(order => addOrder(order, 'total'));
+  siteOrders.forEach(order => addOrder(order, 'totalPrice'));
+
+  const resultRows = [...rows.values()]
+    .map(row => ({
+      ...row,
+      foodAndBeverageValue: financeService.money(row.foodAndBeverageValue),
+      consumptionTax: financeService.money(row.consumptionTax),
+      localAdministration: financeService.money(row.localAdministration),
+      grandTotal: financeService.money(row.grandTotal),
+    }))
+    .sort((a, b) => a.pointOfSale.localeCompare(b.pointOfSale, 'ar'));
+
+  const total = key => financeService.money(resultRows.reduce((sum, row) => sum + Number(row[key] || 0), 0));
+
+  res.json({
+    success: true,
+    title: 'إجمالي المبيعات',
+    period: { start, end },
+    rates: { consumptionTaxPercent: 5, localAdminPercent: 5, localAdminBase: 'consumption_tax' },
+    currency: settings.currency || 'SYP',
+    rows: resultRows,
+    totals: {
+      ordersCount: resultRows.reduce((sum, row) => sum + Number(row.ordersCount || 0), 0),
+      foodAndBeverageValue: total('foodAndBeverageValue'),
+      consumptionTax: total('consumptionTax'),
+      localAdministration: total('localAdministration'),
+      grandTotal: total('grandTotal'),
+    },
+  });
+});
+
 router.get('/payments', visibleToFinance, async (req, res) => {
   const selector = normalizeCenterSelector(req.query.center);
   const filter = {};

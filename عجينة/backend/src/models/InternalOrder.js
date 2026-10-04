@@ -29,6 +29,10 @@ const internalOrderSchema = new mongoose.Schema(
     netAmount:         { type: Number, default: 0, min: 0 },
     invoiceTaxPercent: { type: Number, default: 0, min: 0, max: 100 },
     invoiceTaxAmount:  { type: Number, default: 0, min: 0 },
+    consumptionTaxPercent: { type: Number, default: 5, min: 0, max: 100 },
+    consumptionTaxAmount:  { type: Number, default: 0, min: 0 },
+    localAdminPercent: { type: Number, default: 5, min: 0, max: 100 },
+    localAdminAmount:  { type: Number, default: 0, min: 0 },
     total:             { type: Number, default: 0 },
     investorPercent: { type: Number, min: 0, max: 100 },
     shiftId: { type: mongoose.Schema.Types.ObjectId, ref: 'CashierShift', default: null, index: true },
@@ -72,15 +76,16 @@ internalOrderSchema.pre('validate', async function (next) {
   try {
     if (!this.isNew) return next();
     const base = Math.max((Number(this.subtotal) || 0) - (Number(this.discount) || 0), 0);
-    const FinanceSettings = require('./FinanceSettings');
-    const settings = await FinanceSettings.getSingleton();
-    const resolved = settings.resolveFor(this.centerId);
-    const pct = resolved.invoiceTax.enabled ? Number(resolved.invoiceTax.percent || 0) : 0;
-    const tax = Math.round(base * pct) / 100;
-    this.netAmount = base;
-    this.invoiceTaxPercent = pct;
-    this.invoiceTaxAmount = tax;
-    this.total = Math.round((base + tax) * 100) / 100;
+    const financeService = require('../services/financeService');
+    const quote = await financeService.quote(base, this.centerId);
+    this.netAmount = quote.baseAmount;
+    this.consumptionTaxPercent = quote.consumptionTaxPercent;
+    this.consumptionTaxAmount = quote.consumptionTaxAmount;
+    this.localAdminPercent = quote.localAdminPercent;
+    this.localAdminAmount = quote.localAdminAmount;
+    this.invoiceTaxPercent = quote.invoiceTaxPercent;
+    this.invoiceTaxAmount = quote.invoiceTaxAmount;
+    this.total = quote.customerTotal;
     this.profit = Math.round((base - (Number(this.totalCost) || 0)) * 100) / 100;
     return next();
   } catch (err) {

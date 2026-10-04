@@ -143,7 +143,24 @@ export default function PosPage() {
   const discountAmount = meta.discountType === 'percent'
     ? Math.round(subtotal * Math.min(Math.max(Number(meta.discountPercent) || 0, 0), 100) / 100)
     : Math.max(Number(meta.discount) || 0, 0)
-  const total    = Math.max(subtotal - discountAmount, 0)
+  const netTotal = Math.max(subtotal - discountAmount, 0)
+  const consumptionTaxAmount = Math.round(netTotal * 0.05 * 100) / 100
+  const localAdminAmount = Math.round(consumptionTaxAmount * 0.05 * 100) / 100
+  const total = Math.round((netTotal + consumptionTaxAmount + localAdminAmount) * 100) / 100
+
+  const investorDay = useMemo(() => {
+    const active = orders.filter(o => o.status !== 'cancelled')
+    const internal = active.filter(o => o.orderType !== 'delivery')
+    const external = active.filter(o => o.orderType === 'delivery')
+    const baseOf = o => Number(o.netAmount ?? Math.max((Number(o.total) || 0) - (Number(o.invoiceTaxAmount) || 0), 0))
+    const sum = list => list.reduce((s, o) => s + baseOf(o), 0)
+    const internalBase = sum(internal)
+    const externalBase = sum(external)
+    return {
+      internal: { count: internal.length, base: internalBase, share: Math.round(internalBase * 0.20) },
+      external: { count: external.length, base: externalBase, share: Math.round(externalBase * 0.15) },
+    }
+  }, [orders])
 
   const submit = async () => {
     if (!cart.length) return toast.error('السلة فارغة')
@@ -606,6 +623,9 @@ export default function PosPage() {
                   </div>
                 </>
               )}
+              <div className="flex justify-between text-sm"><span className="text-brand-gray font-bold">قيمة المأكولات والمشروبات</span><span className="font-black text-brand-dark">{formatCurrency(netTotal)}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-brand-gray font-bold">إنفاق استهلاكي (5%)</span><span className="font-black text-brand-dark">{formatCurrency(consumptionTaxAmount)}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-brand-gray font-bold">إدارة محلية (5%)</span><span className="font-black text-brand-dark">{formatCurrency(localAdminAmount)}</span></div>
               <div className="flex justify-between pt-2 border-t border-brand-border">
                 <span className="font-black text-brand-dark">الإجمالي</span>
                 <span className="font-black text-fuchsia text-lg">{formatCurrency(total)}</span>
@@ -627,6 +647,23 @@ export default function PosPage() {
             className="fixed bottom-6 left-6 z-40 flex items-center gap-2 px-5 py-3.5 rounded-2xl font-black text-sm text-white shadow-2xl bg-fuchsia hover:bg-fuchsia-dark transition-transform hover:-translate-y-0.5 disabled:opacity-60">
             <Printer size={18} /> {printingDay ? 'جاري الطباعة…' : 'طباعة طلبات اليوم'}
           </button>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div className="bg-white rounded-2xl shadow-card p-4 border border-brand-border">
+              <div className="text-xs font-black text-brand-gray">الداخلي — 20%</div>
+              <div className="mt-2 flex items-end justify-between gap-3">
+                <div><div className="text-xl font-black text-brand-dark">{formatCurrency(investorDay.internal.base)}</div><div className="text-xs text-brand-gray">{investorDay.internal.count} طلب</div></div>
+                <div className="text-left"><div className="text-xs text-brand-gray font-bold">حصة الأميركان</div><div className="font-black text-fuchsia">{formatCurrency(investorDay.internal.share)}</div></div>
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl shadow-card p-4 border border-brand-border">
+              <div className="text-xs font-black text-brand-gray">الخارجي / التوصيل — 15%</div>
+              <div className="mt-2 flex items-end justify-between gap-3">
+                <div><div className="text-xl font-black text-brand-dark">{formatCurrency(investorDay.external.base)}</div><div className="text-xs text-brand-gray">{investorDay.external.count} طلب</div></div>
+                <div className="text-left"><div className="text-xs text-brand-gray font-bold">حصة الأميركان</div><div className="font-black text-fuchsia">{formatCurrency(investorDay.external.share)}</div></div>
+              </div>
+            </div>
+          </div>
+
           {!orders.length ? (
             <div className="bg-white rounded-2xl p-12 text-center shadow-card">
               <Receipt size={34} className="mx-auto mb-3 text-brand-gray-light" />
@@ -763,6 +800,18 @@ export default function PosPage() {
                   )}
                 </tbody>
               </table>
+
+              <div style={{ borderTop: '1px dashed #8a7a6d', paddingTop: 6, marginTop: 6, fontSize: 13 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                  <span>قيمة المأكولات والمشروبات</span><strong>{formatCurrency(ticket.netAmount ?? Math.max((ticket.subtotal || 0) - (ticket.discount || 0), 0))}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                  <span>إنفاق استهلاكي (5%)</span><strong>{formatCurrency(ticket.consumptionTaxAmount || 0)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span>إدارة محلية (5%)</span><strong>{formatCurrency(ticket.localAdminAmount || 0)}</strong>
+                </div>
+              </div>
 
               <div className="bar" style={{
                 background: '#1b1512', color: '#fff', borderRadius: 6, padding: '8px 10px',

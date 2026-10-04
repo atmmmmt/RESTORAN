@@ -13,7 +13,6 @@ const toCenterId = centerId => (centerId && mongoose.isValidObjectId(centerId) ?
 /** The partner's rate on one order: the rate it was sold at, else today's. */
 const rateOf = (order, settings) => {
   if (settings.enabled === false) return 0;
-  if (order?.investorPercent !== undefined && order?.investorPercent !== null) return Number(order.investorPercent);
   return settings.percentFor(order?.orderType);
 };
 const cut = (amount, pct) => Math.round((Number(amount) || 0) * (Number(pct) || 0) / 100);

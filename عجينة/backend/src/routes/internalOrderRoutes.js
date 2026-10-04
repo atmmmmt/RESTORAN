@@ -115,7 +115,10 @@ router.get('/daily-report', requireRole('admin', 'supervisor', 'cashier', 'viewe
         kind: 'pos', number: o.orderNumber, at: o.createdAt, orderType: o.orderType,
         items: (o.items || []).map(i => ({ name: i.name, quantity: i.quantity })),
         discount: o.discount || 0,
-        total: o.total || 0, investorPercent: pct, investorShare: cut(o.total, pct),
+        total: o.total || 0,
+        investorBase: Number(o.netAmount ?? Math.max((Number(o.total) || 0) - (Number(o.invoiceTaxAmount) || 0), 0)),
+        investorPercent: pct,
+        investorShare: cut(Number(o.netAmount ?? Math.max((Number(o.total) || 0) - (Number(o.invoiceTaxAmount) || 0), 0)), pct),
       };
     }),
     ...site.map(o => {
@@ -123,7 +126,10 @@ router.get('/daily-report', requireRole('admin', 'supervisor', 'cashier', 'viewe
       return {
         kind: 'site', number: 'موقع', at: o.createdAt, orderType: 'site',
         items: [{ name: o.productNameSnapshot, quantity: o.quantity }],
-        total: o.totalPrice || 0, investorPercent: pct, investorShare: cut(o.totalPrice, pct),
+        total: o.totalPrice || 0,
+        investorBase: Number(o.netAmount ?? Math.max((Number(o.totalPrice) || 0) - (Number(o.invoiceTaxAmount) || 0), 0)),
+        investorPercent: pct,
+        investorShare: cut(Number(o.netAmount ?? Math.max((Number(o.totalPrice) || 0) - (Number(o.invoiceTaxAmount) || 0), 0)), pct),
       };
     }),
   ].sort((a, b) => new Date(a.at) - new Date(b.at));
@@ -173,6 +179,8 @@ router.get('/daily-report', requireRole('admin', 'supervisor', 'cashier', 'viewe
   const grossSales    = sum(orders, 'total');
   const refundedTotal = sum(returns, 'amount');
   const netSales      = grossSales - refundedTotal;
+  const internalOrders = orders.filter(o => o.kind === 'pos' && o.orderType !== 'delivery');
+  const externalOrders = orders.filter(o => o.kind === 'site' || o.orderType === 'delivery');
 
   res.json({
     success: true,
@@ -191,6 +199,20 @@ router.get('/daily-report', requireRole('admin', 'supervisor', 'cashier', 'viewe
       returnCount: returns.length,
       refunded: refundedTotal,
       netSales,
+      internal: {
+        percent: 20,
+        count: internalOrders.length,
+        sales: sum(internalOrders, 'total'),
+        base: sum(internalOrders, 'investorBase'),
+        investorShare: sum(internalOrders, 'investorShare'),
+      },
+      external: {
+        percent: 15,
+        count: externalOrders.length,
+        sales: sum(externalOrders, 'total'),
+        base: sum(externalOrders, 'investorBase'),
+        investorShare: sum(externalOrders, 'investorShare'),
+      },
       investorShare: sum(orders, 'investorShare') - sum(returns, 'investorShare'),
     },
   });

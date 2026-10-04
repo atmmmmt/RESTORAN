@@ -9,14 +9,22 @@ async function resolvedSettings(centerId = null) {
   return settings.resolveFor(centerId);
 }
 
+const CONSUMPTION_TAX_PERCENT = 5;
+const LOCAL_ADMIN_PERCENT = 5;
+
 async function quote(baseAmount, centerId = null) {
   const base = money(baseAmount);
   const settings = await resolvedSettings(centerId);
-  const pct = settings.invoiceTax.enabled ? Number(settings.invoiceTax.percent || 0) : 0;
-  const invoiceTaxAmount = money(base * pct / 100);
+  const consumptionTaxAmount = money(base * CONSUMPTION_TAX_PERCENT / 100);
+  const localAdminAmount = money(consumptionTaxAmount * LOCAL_ADMIN_PERCENT / 100);
+  const invoiceTaxAmount = money(consumptionTaxAmount + localAdminAmount);
   return {
     baseAmount: base,
-    invoiceTaxPercent: pct,
+    consumptionTaxPercent: CONSUMPTION_TAX_PERCENT,
+    consumptionTaxAmount,
+    localAdminPercent: LOCAL_ADMIN_PERCENT,
+    localAdminAmount,
+    invoiceTaxPercent: money(invoiceTaxAmount && base ? invoiceTaxAmount / base * 100 : 0),
     invoiceTaxAmount,
     customerTotal: money(base + invoiceTaxAmount),
     currency: settings.currency,
@@ -32,7 +40,16 @@ function revenueOf(order, totalField = 'total') {
 }
 
 function invoiceTaxOf(order) {
-  return money(order?.invoiceTaxAmount || 0);
+  if (order?.invoiceTaxAmount !== undefined && order?.invoiceTaxAmount !== null) return money(order.invoiceTaxAmount);
+  return money((Number(order?.consumptionTaxAmount) || 0) + (Number(order?.localAdminAmount) || 0));
+}
+
+function consumptionTaxOf(order) {
+  return money(order?.consumptionTaxAmount || 0);
+}
+
+function localAdminTaxOf(order) {
+  return money(order?.localAdminAmount || 0);
 }
 
 function profitTaxEstimate(profitBeforeTax, settings) {
@@ -45,4 +62,8 @@ function profitTaxEstimate(profitBeforeTax, settings) {
   };
 }
 
-module.exports = { money, resolvedSettings, quote, revenueOf, invoiceTaxOf, profitTaxEstimate };
+module.exports = {
+  money, resolvedSettings, quote, revenueOf, invoiceTaxOf,
+  consumptionTaxOf, localAdminTaxOf, profitTaxEstimate,
+  CONSUMPTION_TAX_PERCENT, LOCAL_ADMIN_PERCENT,
+};

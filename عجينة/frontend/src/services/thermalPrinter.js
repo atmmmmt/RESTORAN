@@ -391,6 +391,11 @@ function drawReceipt(order, settings, { duplicate = false, logo = null } = {}) {
     p.pair('المجموع', money(order.subtotal))
     p.pair(discountLabel(order), `− ${money(order.discount)}`)
   }
+  const invoiceBase = Number(order.netAmount ?? Math.max((Number(order.subtotal || 0) - Number(order.discount || 0)), 0))
+  p.space(4)
+  p.pair('قيمة المأكولات والمشروبات', money(invoiceBase), { size: 21, bold: true })
+  p.pair('إنفاق استهلاكي (5%)', money(order.consumptionTaxAmount || 0), { size: 21, bold: true })
+  p.pair('إدارة محلية (5%)', money(order.localAdminAmount || 0), { size: 21, bold: true })
   p.banner('الإجمالي', money(order.total))
 
   /* The partner's cut belongs on the end-of-day report, not on the
@@ -619,16 +624,15 @@ function drawDailyReport(report, settings, logo) {
   }
   p.banner('صافي المبيعات', money(t.netSales ?? t.sales), { size: 28 })
 
-  /* The partner's rate differs by order type, so the cut is shown per type
-     and then summed — one line each, with the rate beside the sales. */
   const byType = report.byType || []
   if (inv.enabled !== false && (t.investorShare || byType.some(l => l.investorShare))) {
     p.space(4)
     p.line(`نسبة ${inv.name}`, { size: 24, bold: true, gap: 10 })
-    for (const line of byType) {
-      if (!line.percent) continue
-      p.pair(`${ORDER_TYPE_LABEL[line.orderType] || line.orderType} ${line.percent}% من ${money(line.netSales)}`,
-        money(line.investorShare), { size: 21, bold: true })
+    if (t.internal?.count) {
+      p.pair(`داخلي 20% من ${money(t.internal.base)}`, money(t.internal.investorShare), { size: 21, bold: true })
+    }
+    if (t.external?.count) {
+      p.pair(`خارجي / توصيل 15% من ${money(t.external.base)}`, money(t.external.investorShare), { size: 21, bold: true })
     }
     p.banner('المستحق', money(t.investorShare), { size: 28 })
     p.space(4)

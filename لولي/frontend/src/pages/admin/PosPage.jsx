@@ -166,7 +166,24 @@ export default function PosPage() {
   const clearCart  = () => { setCart([]); setMeta(m => ({ ...m, discount: 0, notes: '' })) }
 
   const subtotal = useMemo(() => cart.reduce((s, i) => s + i.unitPrice * i.quantity, 0), [cart])
-  const total    = Math.max(subtotal - (Number(meta.discount) || 0), 0)
+  const netTotal = Math.max(subtotal - (Number(meta.discount) || 0), 0)
+  const consumptionTaxAmount = Math.round(netTotal * 0.05 * 100) / 100
+  const localAdminAmount = Math.round(consumptionTaxAmount * 0.05 * 100) / 100
+  const total = Math.round((netTotal + consumptionTaxAmount + localAdminAmount) * 100) / 100
+
+  const investorDay = useMemo(() => {
+    const active = orders.filter(o => o.status !== 'cancelled')
+    const internal = active.filter(o => o.orderType !== 'delivery')
+    const external = active.filter(o => o.orderType === 'delivery')
+    const baseOf = o => Number(o.netAmount ?? Math.max((Number(o.total) || 0) - (Number(o.invoiceTaxAmount) || 0), 0))
+    const sum = list => list.reduce((s, o) => s + baseOf(o), 0)
+    const internalBase = sum(internal)
+    const externalBase = sum(external)
+    return {
+      internal: { count: internal.length, base: internalBase, share: Math.round(internalBase * 0.20) },
+      external: { count: external.length, base: externalBase, share: Math.round(externalBase * 0.15) },
+    }
+  }, [orders])
 
   const submit = async () => {
     if (!cart.length) return toast.error('السلة فارغة')
@@ -608,6 +625,18 @@ export default function PosPage() {
                   onChange={e => setMeta(m => ({ ...m, discount: e.target.value }))}
                   className="w-24 px-2 py-1 border-2 border-brand-border rounded-lg text-left font-black text-sm focus:border-fuchsia focus:outline-none" />
               </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-brand-gray font-bold">قيمة المأكولات والمشروبات</span>
+                <span className="font-black text-brand-dark">{formatCurrency(netTotal)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-brand-gray font-bold">إنفاق استهلاكي (5%)</span>
+                <span className="font-black text-brand-dark">{formatCurrency(consumptionTaxAmount)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-brand-gray font-bold">إدارة محلية (5%)</span>
+                <span className="font-black text-brand-dark">{formatCurrency(localAdminAmount)}</span>
+              </div>
               <div className="flex justify-between pt-2 border-t border-brand-border">
                 <span className="font-black text-brand-dark">الإجمالي</span>
                 <span className="font-black text-fuchsia text-lg">{formatCurrency(total)}</span>
@@ -630,6 +659,23 @@ export default function PosPage() {
             style={{ background: 'linear-gradient(135deg, #2b1a10, #6A4422)' }}>
             <Printer size={18} /> {printingDay ? 'جاري الطباعة…' : 'طباعة طلبات اليوم'}
           </button>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div className="bg-white rounded-2xl shadow-card p-4 border border-brand-border">
+              <div className="text-xs font-black text-brand-gray">الداخلي — 20%</div>
+              <div className="mt-2 flex items-end justify-between gap-3">
+                <div><div className="text-xl font-black text-brand-dark">{formatCurrency(investorDay.internal.base)}</div><div className="text-xs text-brand-gray">{investorDay.internal.count} طلب</div></div>
+                <div className="text-left"><div className="text-xs text-brand-gray font-bold">حصة الأميركان</div><div className="font-black text-fuchsia">{formatCurrency(investorDay.internal.share)}</div></div>
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl shadow-card p-4 border border-brand-border">
+              <div className="text-xs font-black text-brand-gray">الخارجي / التوصيل — 15%</div>
+              <div className="mt-2 flex items-end justify-between gap-3">
+                <div><div className="text-xl font-black text-brand-dark">{formatCurrency(investorDay.external.base)}</div><div className="text-xs text-brand-gray">{investorDay.external.count} طلب</div></div>
+                <div className="text-left"><div className="text-xs text-brand-gray font-bold">حصة الأميركان</div><div className="font-black text-fuchsia">{formatCurrency(investorDay.external.share)}</div></div>
+              </div>
+            </div>
+          </div>
+
           {!orders.length ? (
             <div className="bg-white rounded-2xl p-12 text-center shadow-card">
               <Receipt size={34} className="mx-auto mb-3 text-brand-gray-light" />
@@ -743,6 +789,18 @@ export default function PosPage() {
                       <td style={{ padding: '4px 0', fontSize: 13, textAlign: 'left' }}>−{formatCurrency(ticket.discount)}</td>
                     </tr>
                   )}
+                  <tr>
+                    <td style={{ padding: '4px 0', borderTop: '1px dashed #999', fontSize: 13 }}>قيمة المأكولات والمشروبات</td>
+                    <td style={{ padding: '4px 0', borderTop: '1px dashed #999', fontSize: 13, textAlign: 'left' }}>{formatCurrency(ticket.netAmount ?? Math.max((ticket.subtotal || 0) - (ticket.discount || 0), 0))}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ padding: '4px 0', fontSize: 13 }}>إنفاق استهلاكي (5%)</td>
+                    <td style={{ padding: '4px 0', fontSize: 13, textAlign: 'left' }}>{formatCurrency(ticket.consumptionTaxAmount || 0)}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ padding: '4px 0', fontSize: 13 }}>إدارة محلية (5%)</td>
+                    <td style={{ padding: '4px 0', fontSize: 13, textAlign: 'left' }}>{formatCurrency(ticket.localAdminAmount || 0)}</td>
+                  </tr>
                   <tr className="tot">
                     <td style={{ padding: '6px 0', borderTop: '1px dashed #999', fontWeight: 800 }}>الإجمالي</td>
                     <td style={{ padding: '6px 0', borderTop: '1px dashed #999', fontWeight: 800, textAlign: 'left' }}>

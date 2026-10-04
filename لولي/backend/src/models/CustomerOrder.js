@@ -20,6 +20,10 @@ const customerOrderSchema = new mongoose.Schema(
     netAmount: { type: Number, default: 0, min: 0 },
     invoiceTaxPercent: { type: Number, default: 0, min: 0, max: 100 },
     invoiceTaxAmount: { type: Number, default: 0, min: 0 },
+    consumptionTaxPercent: { type: Number, default: 5, min: 0, max: 100 },
+    consumptionTaxAmount: { type: Number, default: 0, min: 0 },
+    localAdminPercent: { type: Number, default: 5, min: 0, max: 100 },
+    localAdminAmount: { type: Number, default: 0, min: 0 },
     totalPrice: { type: Number, default: 0 },
     /* Kept during migration because older Luliz screens/report code used
        totalAmount. New writes set both values to the same customer total. */

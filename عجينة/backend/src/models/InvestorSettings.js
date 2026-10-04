@@ -15,8 +15,8 @@ const investorSettingsSchema = new mongoose.Schema(
   {
     enabled: { type: Boolean, default: true },
     name:    { type: String, trim: true, default: 'الأميركان' },
-    takeawayPercent: { type: Number, min: 0, max: 100, default: 10 },
-    dineInPercent:   { type: Number, min: 0, max: 100, default: 15 },
+    takeawayPercent: { type: Number, min: 0, max: 100, default: 20 },
+    dineInPercent:   { type: Number, min: 0, max: 100, default: 20 },
     percent: { type: Number, min: 0, max: 100, default: 15 },   // delivery + website
   },
   { timestamps: true }
@@ -25,8 +25,8 @@ const investorSettingsSchema = new mongoose.Schema(
 /** The rate that applies to an order of this type, or 0 when switched off. */
 investorSettingsSchema.methods.percentFor = function (orderType) {
   if (this.enabled === false) return 0;
-  if (orderType === 'takeaway') return Number(this.takeawayPercent ?? 10);
-  if (orderType === 'dine_in') return Number(this.dineInPercent ?? 15);
+  if (orderType === 'takeaway') return Number(this.takeawayPercent ?? 20);
+  if (orderType === 'dine_in') return Number(this.dineInPercent ?? 20);
   return Number(this.percent ?? 15);
 };
 
@@ -34,15 +34,22 @@ investorSettingsSchema.methods.present = function () {
   return {
     enabled: this.enabled !== false,
     name: this.name || 'الأميركان',
-    takeawayPercent: Number(this.takeawayPercent ?? 10),
-    dineInPercent: Number(this.dineInPercent ?? 15),
+    takeawayPercent: Number(this.takeawayPercent ?? 20),
+    dineInPercent: Number(this.dineInPercent ?? 20),
     percent: Number(this.percent ?? 15),
+    internalPercent: 20,
+    deliveryPercent: 15,
   };
 };
 
 investorSettingsSchema.statics.getSingleton = async function () {
   let doc = await this.findOne();
-  if (!doc) doc = await this.create({});
+  if (!doc) doc = await this.create({ takeawayPercent: 20, dineInPercent: 20, percent: 15 });
+  let changed = false;
+  if (Number(doc.takeawayPercent) !== 20) { doc.takeawayPercent = 20; changed = true; }
+  if (Number(doc.dineInPercent) !== 20) { doc.dineInPercent = 20; changed = true; }
+  if (Number(doc.percent) !== 15) { doc.percent = 15; changed = true; }
+  if (changed) await doc.save();
   return doc;
 };
 

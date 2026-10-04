@@ -7,7 +7,7 @@ import {
   Menu, LayoutDashboard, Croissant, LayoutGrid, Wheat, ShoppingCart, CookingPot,
   Banknote, Trash2, Store, ClipboardList, Tag, Landmark, TrendingUp,
   Lock, Users, Wallet, Star, Settings, LogOut, Bell, ChefHat,
-  Fingerprint, UserCog, Receipt, WifiOff, UploadCloud, Undo2, BadgePercent, Building2,
+  Fingerprint, UserCog, Receipt, WifiOff, UploadCloud, Undo2, BadgePercent, Building2, FileSpreadsheet,
 } from 'lucide-react'
 
 function ConnectionStatus() {
@@ -66,6 +66,7 @@ const NAV_ITEMS = [
   { path: '/admin/cash', Icon: Landmark, label: 'الكاش', roles: MANAGEMENT },
   { path: '/admin/reports', Icon: TrendingUp, label: 'التقارير', roles: [...MANAGEMENT, 'viewer'] },
   { path: '/admin/finance', Icon: BadgePercent, label: 'المالية والضرائب', roles: [...MANAGEMENT, 'viewer'] },
+  { path: '/admin/financial-reports', Icon: FileSpreadsheet, label: 'تقارير المالية', roles: [...MANAGEMENT, 'viewer'] },
   { path: '/admin/daily-closing', Icon: Lock, label: 'الجرد اليومي', roles: ['admin', 'supervisor'] },
   { path: '/admin/attendance', Icon: Fingerprint, label: 'الحضور والبصمة', roles: ['admin', 'supervisor'] },
   { path: '/admin/employees', Icon: Users, label: 'الموظفين', roles: ['admin'] },

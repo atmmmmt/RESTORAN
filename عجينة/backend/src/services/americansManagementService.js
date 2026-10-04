@@ -120,14 +120,9 @@ function collectionOf(order, totalField) {
 
 function investorRate(brand, order, settings, kind) {
   if (brand === 'ajeena') {
-    if (order?.investorPercent !== undefined && order?.investorPercent !== null) {
-      return Number(order.investorPercent) || 0;
-    }
     if (!settings || settings.enabled === false) return 0;
-    if (kind === 'site') return Number(settings.percent || 0);
-    if (order?.orderType === 'takeaway') return Number(settings.takeawayPercent ?? 10) || 0;
-    if (order?.orderType === 'dine_in') return Number(settings.dineInPercent ?? 15) || 0;
-    return Number(settings.percent ?? 15) || 0;
+    if (kind === 'site' || order?.orderType === 'delivery') return 15;
+    return 20;
   }
 
   const investor = settings?.investor || {};

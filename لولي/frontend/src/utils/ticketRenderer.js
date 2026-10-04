@@ -225,6 +225,10 @@ export async function renderCashierTicket(t, { logoUrl = '/brand/luliz-logo-roun
     p.row('الخصم', `−${formatCurrency(t.discount)}`, { size: 21, weight: 400 })
   }
   p.gap(4)
+  const invoiceBase = Number(t.netAmount ?? Math.max((Number(t.subtotal || 0) - Number(t.discount || 0)), 0))
+  p.row('قيمة المأكولات والمشروبات', formatCurrency(invoiceBase), { size: 21, weight: 700 })
+  p.row('إنفاق استهلاكي (5%)', formatCurrency(t.consumptionTaxAmount || 0), { size: 21, weight: 700 })
+  p.row('إدارة محلية (5%)', formatCurrency(t.localAdminAmount || 0), { size: 21, weight: 700 })
   p.band(`الإجمالي  ${formatCurrency(t.total)}`, { size: 30 })
 
   if (t.notes) p.box(() => p.text(`ملاحظات: ${t.notes}`, { size: 20, weight: 700, align: 'right', inset: 12 }))
@@ -302,7 +306,7 @@ export async function renderDailyReport(r, { logoUrl = '/brand/luliz-logo-round.
     p.box(() => {
       p.text(`نسبة ${inv.name}`, { size: 24, weight: 900 })
       if (t.internal?.count) p.row(`داخلي / سفري ${inv.internalPercent}%`, formatCurrency(t.internal.investorShare), { size: 21, weight: 700 })
-      if (t.delivery?.count) p.row(`توصيل ${inv.deliveryPercent}%`, formatCurrency(t.delivery.investorShare), { size: 21, weight: 700 })
+      if ((t.external || t.delivery)?.count) p.row(`خارجي / توصيل ${inv.deliveryPercent}%`, formatCurrency((t.external || t.delivery).investorShare), { size: 21, weight: 700 })
       p.row('المجموع', formatCurrency(t.investorShare || 0), { size: 26, weight: 900, valueWeight: 900 })
     }, { width: 4 })
   }
