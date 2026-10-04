@@ -670,6 +670,96 @@ export async function printThermalDailyReport(report) {
   return result
 }
 
+
+/* ── Finance statement ──────────────────────────────────────── */
+function drawFinancialReport(report, settings, logo) {
+  const width = Number(settings.paperWidth) === 58 ? 384 : 576
+  const rows = report.rows || []
+  const totals = report.totals || {}
+  const period = report.period || {}
+  const { canvas, ctx } = newCanvas(width, 1000 + rows.length * 260)
+  const p = painter(ctx, width)
+
+  drawHeader(ctx, p, width, settings, logo)
+  p.rule(3)
+  p.line('تقرير المالية', { size: 30, bold: true, gap: 6 })
+  p.line('إجمالي المبيعات', { size: 26, bold: true, gap: 6 })
+
+  if (period.start && period.end) {
+    const from = new Date(period.start).toLocaleDateString('ar-EG')
+    const to = new Date(new Date(period.end).getTime() - 1).toLocaleDateString('ar-EG')
+    p.box(() => {
+      p.pair('من تاريخ', from, { size: 20, bold: true })
+      p.pair('إلى تاريخ', to, { size: 20, bold: true })
+    }, { padding: 10 })
+  }
+
+  if (!rows.length) p.line('لا توجد مبيعات ضمن الفترة', { size: 24, bold: true })
+
+  for (const row of rows) {
+    p.rule(2)
+    p.line(row.pointOfSale || 'نقطة بيع', { size: 25, bold: true, align: 'right', gap: 7 })
+    p.pair('عدد الفواتير', String(row.ordersCount || 0), { size: 20 })
+    p.pair('قيمة المأكولات والمشروبات', money(row.foodAndBeverageValue), { size: 21, bold: true })
+    p.pair('إنفاق استهلاكي (5%)', money(row.consumptionTax), { size: 21 })
+    p.pair('إدارة محلية (5%)', money(row.localAdministration), { size: 21 })
+    p.banner('المجموع', money(row.grandTotal), { size: 27 })
+  }
+
+  p.rule(4)
+  p.line('الإجمالي العام', { size: 28, bold: true, gap: 10 })
+  p.pair('قيمة المأكولات والمشروبات', money(totals.foodAndBeverageValue), { size: 22, bold: true })
+  p.pair('إنفاق استهلاكي (5%)', money(totals.consumptionTax), { size: 22, bold: true })
+  p.pair('إدارة محلية (5%)', money(totals.localAdministration), { size: 22, bold: true })
+  p.banner('الإجمالي', money(totals.grandTotal), { size: 30 })
+
+  p.space(8)
+  p.line('الإدارة المحلية 5% من قيمة الإنفاق الاستهلاكي', { size: 18, gap: 5 })
+  p.rule(2)
+  p.line(`طُبع ${new Date().toLocaleString('ar-EG')}`, { size: 18, gap: 8 })
+  return { canvas, height: Math.min(canvas.height, p.y + 24) }
+}
+
+const rasterFinancialReport = (report, settings, logo) => {
+  const { canvas, height } = drawFinancialReport(report, settings, logo)
+  return toEscPos(canvas, height, settings)
+}
+
+export async function getThermalFinancialReportPreview(report) {
+  const settings = getPrinterSettings()
+  await readyFont()
+  const logo = settings.showLogo === false ? null : await loadLogo(settings.logoUrl)
+  const { canvas, height } = drawFinancialReport(report, settings, logo)
+  const cropped = document.createElement('canvas')
+  cropped.width = canvas.width
+  cropped.height = height
+  cropped.getContext('2d').drawImage(canvas, 0, 0, canvas.width, height, 0, 0, canvas.width, height)
+  return cropped.toDataURL('image/png')
+}
+
+export async function printThermalFinancialReport(report) {
+  const settings = getPrinterSettings()
+  if (!settings.enabled) throw new Error('الطابعة الحرارية غير مفعّلة')
+  if (settings.connection === 'usb' && !settings.printerName) throw new Error('اختر طابعة USB من الإعدادات')
+  await readyFont()
+  const logo = settings.showLogo === false ? null : await loadLogo(settings.logoUrl)
+  let response
+  try {
+    response = await fetch(`${settings.agentUrl.replace(/\/$/, '')}/print`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...printerTarget(settings), copies: 1,
+        dataBase64: rasterFinancialReport(report, settings, logo),
+      }),
+    })
+  } catch {
+    throw new Error('وكيل الطباعة لا يعمل على هذا الجهاز — شغّل برنامج الطباعة')
+  }
+  const result = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(result.message || 'تعذّر الاتصال بطابعة الفواتير')
+  return { ...result, printerId: printerLabel(settings) }
+}
+
 /* ── Shift close ("تصفير الوردية") ─────────────────────────────
    What the drawer should hold, what was counted, and the difference — the
    slip the cashier signs and hands over with the cash. */
