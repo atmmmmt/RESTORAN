@@ -5,7 +5,7 @@ import {
   Receipt, Search, Plus, Minus, Trash2, ShoppingBag, Printer,
   ChefHat, CheckCircle2, Truck, XCircle, Clock, Package,
   Store, Bike, Wallet, RefreshCw, ChevronLeft, ChevronRight, TrendingUp,
-  CalendarClock, Zap, LayoutGrid, FileText, Percent,
+  CalendarClock, Zap, LayoutGrid, FileText, Percent, Eye,
 } from 'lucide-react'
 import { internalOrdersAPI, productsAPI, categoriesAPI, shiftsAPI } from '../../services/api'
 import { formatCurrency, isImageUrl } from '../../utils/formatters'
@@ -18,6 +18,7 @@ import {
   getPrinterSettings, printThermalReceipt, printThermalDailyReport, printKitchenTicket, discountLabel,
 } from '../../services/thermalPrinter'
 import ShiftPanel from '../../components/pos/ShiftPanel'
+import OrderDetailsModal from './OrderDetailsModal'
 
 const STATUS_META = {
   new:       { label: 'جديد',        color: '#4A6AB8', bg: 'rgba(74,106,184,0.12)', Icon: Receipt },
@@ -72,6 +73,7 @@ export default function PosPage() {
   const [orders, setOrders] = useState([])
   const [stats,  setStats]  = useState(null)
   const [ticket, setTicket] = useState(null)
+  const [selectedOrder, setSelectedOrder] = useState(null)
   /* Bumped after every sale so the shift panel re-reads its live figures. */
   const [shiftTick, setShiftTick] = useState(0)
 
@@ -716,6 +718,10 @@ export default function PosPage() {
                     className="text-xs bg-brand-bg text-brand-gray px-3 py-1.5 rounded-lg font-bold hover:bg-brand-offwhite transition-colors flex items-center gap-1">
                     <FileText size={12} /> الفاتورة
                   </button>
+                  <button onClick={() => setSelectedOrder(o)}
+                    className="text-xs bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg font-black hover:bg-blue-100 transition-colors flex items-center gap-1">
+                    <Eye size={12} /> عرض / تعديل
+                  </button>
                   {next && (
                     <button onClick={() => advance(o)}
                       className="text-xs bg-fuchsia-bg text-fuchsia px-3 py-1.5 rounded-lg font-bold hover:bg-fuchsia-light transition-colors flex items-center gap-1">
@@ -736,6 +742,15 @@ export default function PosPage() {
       )}
 
       {/* ── Ticket ── */}
+      <OrderDetailsModal
+        open={!!selectedOrder}
+        order={selectedOrder}
+        kind="cashier"
+        canEdit={true}
+        onClose={() => setSelectedOrder(null)}
+        onSaved={() => loadOrders()}
+      />
+
       <Modal open={!!ticket} onClose={() => setTicket(null)} title={`فاتورة ${ticket?.orderNumber || ''}`} size="sm">
         {ticket && (
           <div>
