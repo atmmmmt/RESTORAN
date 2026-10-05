@@ -702,20 +702,17 @@ function drawFinancialReport(report, settings, logo) {
     if (!row.manual) p.pair('عدد الفواتير', String(row.ordersCount || 0), { size: 20 })
     if (row.manual) p.line('مبلغ إجمالي من البرنامج السابق', { size: 19, bold: true, gap: 6 })
     p.pair('قيمة المأكولات والمشروبات', money(row.foodAndBeverageValue), { size: 21, bold: true })
-    p.pair('إنفاق استهلاكي (5%)', money(row.consumptionTax), { size: 21 })
-    p.pair('إدارة محلية (5%)', money(row.localAdministration), { size: 21 })
+    p.pair('الضريبة', money(Number(row.consumptionTax || 0) + Number(row.localAdministration || 0)), { size: 21, bold: true })
     p.banner('المجموع', money(row.grandTotal), { size: 27 })
   }
 
   p.rule(4)
   p.line('الإجمالي العام', { size: 28, bold: true, gap: 10 })
   p.pair('قيمة المأكولات والمشروبات', money(totals.foodAndBeverageValue), { size: 22, bold: true })
-  p.pair('إنفاق استهلاكي (5%)', money(totals.consumptionTax), { size: 22, bold: true })
-  p.pair('إدارة محلية (5%)', money(totals.localAdministration), { size: 22, bold: true })
+  p.pair('الضريبة', money(Number(totals.consumptionTax || 0) + Number(totals.localAdministration || 0)), { size: 22, bold: true })
   p.banner('الإجمالي', money(totals.grandTotal), { size: 30 })
 
   p.space(8)
-  p.line('الإدارة المحلية 5% من قيمة الإنفاق الاستهلاكي', { size: 18, gap: 5 })
   p.rule(2)
   p.line(`طُبع ${new Date().toLocaleString('ar-EG')}`, { size: 18, gap: 8 })
   return { canvas, height: Math.min(canvas.height, p.y + 24) }
