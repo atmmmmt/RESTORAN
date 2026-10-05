@@ -141,7 +141,7 @@ export default function FinancialReportsPage(){
   return <div className="space-y-5" dir="rtl">
     <PageHeader
       title="تقارير المالية"
-      subtitle="كشف المبيعات والضريبة — يطبع على نفس طابعة الفواتير"
+      subtitle="كشف المبيعات والإنفاق الاستهلاكي والإدارة المحلية والضريبة — يطبع على نفس طابعة الفواتير"
     />
 
     <section className="bg-white rounded-2xl shadow-card border-2 border-fuchsia/20 p-5">
@@ -184,10 +184,12 @@ export default function FinancialReportsPage(){
         </button>
       </div>
       {!!legacyAmount && Number(legacyAmount)>0 && (
-        <div className="mt-4 grid sm:grid-cols-3 gap-2 text-xs font-bold">
+        <div className="mt-4 grid sm:grid-cols-5 gap-2 text-xs font-bold">
           <div className="rounded-xl bg-brand-bg p-3"><span className="text-brand-gray block mb-1">المبلغ الأساسي</span>{money(Number(legacyAmount))}</div>
-          <div className="rounded-xl bg-brand-bg p-3"><span className="text-brand-gray block mb-1">الضريبة</span>{money((Number(legacyAmount)*0.05)+(Number(legacyAmount)*0.05*0.05))}</div>
+          <div className="rounded-xl bg-brand-bg p-3"><span className="text-brand-gray block mb-1">إنفاق استهلاكي (5%)</span>{money(Number(legacyAmount)*0.05)}</div>
+          <div className="rounded-xl bg-brand-bg p-3"><span className="text-brand-gray block mb-1">إدارة محلية (5%)</span>{money(Number(legacyAmount)*0.05*0.05)}</div>
           <div className="rounded-xl bg-brand-dark text-white p-3"><span className="text-white/60 block mb-1">الإجمالي</span>{money(Number(legacyAmount)*1.0525)}</div>
+          <div className="rounded-xl bg-fuchsia/10 text-fuchsia p-3"><span className="block mb-1">الضريبة</span>{money((Number(legacyAmount)*0.05)+(Number(legacyAmount)*0.05*0.05))}</div>
         </div>
       )}
     </section>
@@ -236,7 +238,7 @@ export default function FinancialReportsPage(){
           <table className="w-full min-w-[900px] text-sm">
             <thead className="bg-brand-bg text-brand-gray">
               <tr>
-                {['اسم نقطة البيع','قيمة المأكولات والمشروبات','الضريبة','المجموع']
+                {['اسم نقطة البيع','قيمة المأكولات والمشروبات','الإنفاق الاستهلاكي 5%','الإدارة المحلية 5%','المجموع','الضريبة']
                   .map(x=><th key={x} className="p-3 text-right font-black">{x}</th>)}
               </tr>
             </thead>
@@ -247,19 +249,23 @@ export default function FinancialReportsPage(){
                   <div className="text-[11px] text-brand-gray mt-1">{row.manual ? 'مبلغ إجمالي من البرنامج السابق' : `${row.ordersCount} فاتورة`}</div>
                 </td>
                 <td className="p-3 font-bold">{money(row.foodAndBeverageValue,currency)}</td>
-                <td className="p-3 font-bold">{money(Number(row.consumptionTax||0)+Number(row.localAdministration||0),currency)}</td>
-                <td className="p-3 font-black text-fuchsia">{money(row.grandTotal,currency)}</td>
+                <td className="p-3 font-bold">{money(row.consumptionTax,currency)}</td>
+                <td className="p-3 font-bold">{money(row.localAdministration,currency)}</td>
+                <td className="p-3 font-black text-brand-dark">{money(row.grandTotal,currency)}</td>
+                <td className="p-3 font-black text-fuchsia">{money(Number(row.consumptionTax||0)+Number(row.localAdministration||0),currency)}</td>
               </tr>)}
               {!rows.length&&!loading&&<tr>
-                <td colSpan="4" className="p-10 text-center text-brand-gray font-bold">لا توجد مبيعات ضمن الفترة</td>
+                <td colSpan="6" className="p-10 text-center text-brand-gray font-bold">لا توجد مبيعات ضمن الفترة</td>
               </tr>}
             </tbody>
             {!!rows.length&&<tfoot>
               <tr className="border-t-2 border-brand-dark bg-brand-bg font-black">
                 <td className="p-3">الإجمالي</td>
                 <td className="p-3">{money(totals.foodAndBeverageValue,currency)}</td>
-                <td className="p-3">{money(Number(totals.consumptionTax||0)+Number(totals.localAdministration||0),currency)}</td>
-                <td className="p-3 text-fuchsia">{money(totals.grandTotal,currency)}</td>
+                <td className="p-3">{money(totals.consumptionTax,currency)}</td>
+                <td className="p-3">{money(totals.localAdministration,currency)}</td>
+                <td className="p-3">{money(totals.grandTotal,currency)}</td>
+                <td className="p-3 text-fuchsia">{money(Number(totals.consumptionTax||0)+Number(totals.localAdministration||0),currency)}</td>
               </tr>
             </tfoot>}
           </table>
