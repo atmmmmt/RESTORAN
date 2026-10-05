@@ -699,7 +699,8 @@ function drawFinancialReport(report, settings, logo) {
   for (const row of rows) {
     p.rule(2)
     p.line(row.pointOfSale || 'نقطة بيع', { size: 25, bold: true, align: 'right', gap: 7 })
-    p.pair('عدد الفواتير', String(row.ordersCount || 0), { size: 20 })
+    if (!row.manual) p.pair('عدد الفواتير', String(row.ordersCount || 0), { size: 20 })
+    if (row.manual) p.line('مبلغ إجمالي من البرنامج السابق', { size: 19, bold: true, gap: 6 })
     p.pair('قيمة المأكولات والمشروبات', money(row.foodAndBeverageValue), { size: 21, bold: true })
     p.pair('إنفاق استهلاكي (5%)', money(row.consumptionTax), { size: 21 })
     p.pair('إدارة محلية (5%)', money(row.localAdministration), { size: 21 })
