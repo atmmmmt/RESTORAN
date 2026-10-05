@@ -9,6 +9,7 @@ function noCache(res) {
     'Pragma': 'no-cache',
     'Expires': '0',
     'Surrogate-Control': 'no-store',
+    'Access-Control-Allow-Origin': '*',
   });
 }
 
@@ -33,7 +34,7 @@ function presentProduct(product) {
 }
 
 async function loadProducts() {
-  return Product.find({})
+  return Product.find({ status: 'available', showInTodayMenu: { $ne: false } })
     .select('_id slug name description image directPrice category status showInTodayMenu updatedAt')
     .sort({ category: 1, name: 1 })
     .lean();
@@ -43,9 +44,8 @@ async function loadCategories(products) {
   const map = new Map();
   for (const product of products) {
     const name = normalizeCategory(product.category);
-    const row = map.get(name) || { id: name, name, productCount: 0, visibleProductCount: 0 };
+    const row = map.get(name) || { id: name, name, productCount: 0 };
     row.productCount += 1;
-    if (product.status === 'available' && product.showInTodayMenu !== false) row.visibleProductCount += 1;
     map.set(name, row);
   }
   return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'ar'));

@@ -10,6 +10,7 @@ function noCache(res) {
     'Pragma': 'no-cache',
     'Expires': '0',
     'Surrogate-Control': 'no-store',
+    'Access-Control-Allow-Origin': '*',
   });
 }
 
@@ -48,11 +49,11 @@ function presentCategory(category, counts) {
 
 async function loadData() {
   const [products, categories] = await Promise.all([
-    Product.find({})
+    Product.find({ status: 'available', showInTodayMenu: { $ne: false } })
       .select('_id slug name description image directPrice category status showInTodayMenu updatedAt')
       .sort({ category: 1, name: 1 })
       .lean(),
-    Category.find({}).sort({ sortOrder: 1, name: 1 }).lean(),
+    Category.find({ isActive: { $ne: false } }).sort({ sortOrder: 1, name: 1 }).lean(),
   ]);
   const counts = new Map();
   for (const p of products) {
