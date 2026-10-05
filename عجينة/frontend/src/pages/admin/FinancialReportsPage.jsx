@@ -151,9 +151,6 @@ export default function FinancialReportsPage(){
         </div>
         <div>
           <h2 className="font-black text-brand-dark">إصدار فاتورة مالية من مبلغ مبيعات سابق</h2>
-          <p className="text-xs text-brand-gray font-bold mt-1">
-            للمبيعات التي تمت على البرنامج القديم فقط. هذا المبلغ لا يُضاف للكاش أو المخزون أو سجل الطلبات.
-          </p>
         </div>
       </div>
 
