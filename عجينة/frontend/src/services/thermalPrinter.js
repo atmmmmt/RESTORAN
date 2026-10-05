@@ -722,6 +722,7 @@ function drawFinancialReport(report, settings, logo) {
 
   p.space(8)
   p.line('الضريبة', { size: 26, bold: true, gap: 8 })
+  p.line('الضريبة = الإنفاق الاستهلاكي + الإدارة المحلية', { size: 18, bold: true, gap: 8 })
   p.banner('القيمة', money(Number(totals.consumptionTax || 0) + Number(totals.localAdministration || 0)), { size: 28 })
   p.space(8)
   p.rule(2)
