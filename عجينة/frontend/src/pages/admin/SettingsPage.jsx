@@ -32,7 +32,7 @@ export default function SettingsPage() {
      end-of-day report. Kept here so the owner can change it without
      anyone touching the code. */
   const [investor, setInvestor] = useState({
-    enabled: true, name: 'الأميركان', takeawayPercent: 10, dineInPercent: 15, percent: 15,
+    enabled: true, name: 'الأميركان', takeawayPercent: 15, dineInPercent: 20, percent: 15,
   })
   const [invLoading, setInvLoading] = useState(true)
   const [invSaving, setInvSaving]   = useState(false)
@@ -45,9 +45,8 @@ export default function SettingsPage() {
   }, [])
 
   const RATE_FIELDS = [
-    ['takeawayPercent', 'سفري %'],
-    ['dineInPercent',   'بالمحل %'],
-    ['percent',         'توصيل وطلبات الموقع %'],
+    ['dineInPercent', 'بالمحل %'],
+    ['percent',       'سفري + توصيل + طلبات الموقع %'],
   ]
 
   const saveInvestor = async () => {
