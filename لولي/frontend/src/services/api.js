@@ -338,6 +338,14 @@ export const employeesAPI = {
   remove:  (id)     => api.delete(`/employees/${id}`),
 }
 
+export const dailyWagesAPI = {
+  day:         (date)       => api.get('/daily-wages/day', { params: { date } }),
+  saveDay:     (date, rows) => api.put('/daily-wages/day', { date, rows }),
+  summary:     (from, to)   => api.get('/daily-wages/summary', { params: { from, to } }),
+  settle:      (data)       => api.post('/daily-wages/settle', data),
+  settlements: ()           => api.get('/daily-wages/settlements'),
+}
+
 export const salaryAPI = {
   getMonth:      (month, periodType) => api.get('/salary', { params: { month } }),
   getEmployee:   (empId)             => api.get(`/salary/employee/${empId}`),

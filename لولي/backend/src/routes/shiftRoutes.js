@@ -42,7 +42,13 @@ router.post('/close', async (req,res)=>{
   const shift=await shiftService.close(null,req.user,req.body);
   const diff=shift.difference;
   const note=diff===0?'الدرج مطابق':diff>0?`زيادة ${diff}`:`نقص ${Math.abs(diff)}`;
-  res.json({success:true,shift:shift.toObject(),message:`تم تصفير الوردية رقم ${shift.number} — ${note}`});
+  const handed=Number(shift.handedOverCash)||0;
+  const keep=Number(shift.nextOpeningCash)||0;
+  res.json({
+    success:true,
+    shift:shift.toObject(),
+    message:`تم تسليم ${handed.toLocaleString('ar-SY')} ل.س وإغلاق الوردية رقم ${shift.number} — بقي بالدرج ${keep.toLocaleString('ar-SY')} ل.س — ${note}`
+  });
 });
 
 module.exports = router;

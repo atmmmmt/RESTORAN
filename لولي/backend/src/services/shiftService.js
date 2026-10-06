@@ -61,17 +61,21 @@ async function summarize(shift) {
     expectedCash:(shift.openingCash||0)+cashSales,
   };
 }
-async function close(centerId,user,{countedCash,notes=''}={}){
+async function close(centerId,user,{countedCash,nextOpeningCash=0,notes=''}={}){
   const shift=await getOpen(centerId);
   if(!shift){ const err=new Error('لا توجد وردية مفتوحة'); err.statusCode=404; throw err; }
   const counted=Number(countedCash);
   if(!Number.isFinite(counted)||counted<0){ const err=new Error('أدخل المبلغ الموجود في الدرج'); err.statusCode=400; throw err; }
+  const keep=Math.max(Number(nextOpeningCash)||0,0);
+  if(keep>counted){ const err=new Error('الرصيد الذي سيبقى في الدرج لا يمكن أن يكون أكبر من المبلغ المعدود'); err.statusCode=400; throw err; }
   const {summary,expectedCash}=await summarize(shift);
   shift.closedAt=new Date();
   shift.summary=summary;
   shift.expectedCash=expectedCash;
   shift.countedCash=counted;
   shift.difference=counted-expectedCash;
+  shift.nextOpeningCash=keep;
+  shift.handedOverCash=Math.max(counted-keep,0);
   shift.notes=String(notes||'').trim();
   shift.closedBy=user?._id;
   shift.closedByName=user?.name||'';

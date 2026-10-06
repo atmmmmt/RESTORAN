@@ -20,14 +20,21 @@ router.get('/', async (req, res) => {
 
 router.post('/', requireAdmin, async (req, res) => {
   const {
-    name, hireDate, monthlySalary, dailyHours, workingDays,
+    name, hireDate, payMode, dailyWage, monthlySalary, dailyHours, workingDays,
     role, department, phone, notes, hourlyRateOverride, devicePin, payPeriod, centerId,
   } = req.body;
-  if (!name || monthlySalary === undefined) {
-    return res.status(400).json({ success: false, message: 'الاسم والراتب مطلوبان' });
+  if (!name) {
+    return res.status(400).json({ success: false, message: 'اسم الموظف مطلوب' });
+  }
+  if ((payMode || 'daily') === 'daily' && !(Number(dailyWage) > 0)) {
+    return res.status(400).json({ success: false, message: 'أدخل الأجرة اليومية للموظف' });
   }
   const emp = await Employee.create({
-    name, hireDate, monthlySalary, dailyHours, workingDays,
+    name, hireDate,
+    payMode: payMode || 'daily',
+    dailyWage: Math.max(Number(dailyWage) || 0, 0),
+    monthlySalary: Math.max(Number(monthlySalary) || 0, 0),
+    dailyHours, workingDays,
     role, department, phone, notes, hourlyRateOverride, devicePin, payPeriod, centerId,
   });
   res.status(201).json({ success: true, employee: emp });

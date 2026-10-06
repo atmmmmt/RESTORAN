@@ -53,7 +53,7 @@ exports.getPublic = async (req, res) => {
     showInTodayMenu: true,
     // Nothing left to sell → don't show it on the storefront at all.
     availableQuantity: { $gt: 0 },
-  }).select('-ingredients.costSnapshot -ingredients.nutritionSnapshot').sort({ name: 1 });
+  }).select('-ingredients -packagingCost -extraCost -calculatedCost -directCost -costMode -regularCenterPrice -specializedCenterDefaultCommissionPercent -notes').sort({ name: 1 });
 
   const offers = await Offer.find({
     isActive: true,
@@ -118,7 +118,7 @@ exports.getPublicById = async (req, res) => {
     _id: req.params.id,
     status: 'available',
     showInTodayMenu: true,
-  }).select('-ingredients -packagingCost -extraCost -calculatedCost -regularCenterPrice -specializedCenterDefaultCommissionPercent -notes');
+  }).select('-ingredients -packagingCost -extraCost -calculatedCost -directCost -costMode -regularCenterPrice -specializedCenterDefaultCommissionPercent -notes');
 
   if (!product) {
     return res.status(404).json({ success: false, message: 'المنتج غير موجود أو غير متاح حاليًا.' });

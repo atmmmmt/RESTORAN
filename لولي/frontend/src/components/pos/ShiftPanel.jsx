@@ -45,7 +45,11 @@ export default function ShiftPanel({ tick=0, onChanged }) {
     if(closeForm.countedCash===''||Number(closeForm.countedCash)<0) return toast.error('أدخل المبلغ الموجود في الدرج')
     setBusy(true)
     try{
-      const r=await shiftsAPI.close({countedCash:Number(closeForm.countedCash),notes:closeForm.notes})
+      const r=await shiftsAPI.close({
+        countedCash:Number(closeForm.countedCash),
+        nextOpeningCash:Number(closeForm.nextOpeningCash)||0,
+        notes:closeForm.notes
+      })
       toast.success(r.data.message)
       setCloseForm(null); await load(); onChanged?.()
     }catch(e){toast.error(e.message)} finally{setBusy(false)}
@@ -63,6 +67,8 @@ export default function ShiftPanel({ tick=0, onChanged }) {
   const expected=shift?.expectedCash||0
   const counted=closeForm&&closeForm.countedCash!==''?Number(closeForm.countedCash):null
   const diff=counted===null?null:counted-expected
+  const keep=closeForm?Math.max(Number(closeForm.nextOpeningCash)||0,0):0
+  const handover=counted===null?null:Math.max(counted-keep,0)
 
   return <>
     <div className={`rounded-2xl shadow-card p-4 mb-5 flex flex-wrap items-center gap-3 ${shift?'bg-white':'bg-amber-50 border-2 border-amber-200'}`}>
@@ -86,7 +92,7 @@ export default function ShiftPanel({ tick=0, onChanged }) {
       <div className="flex gap-2">
         <Button size="sm" variant="ghost" onClick={showHistory} icon={<History size={14}/>}>الورديات</Button>
         {shift
-          ? <Button size="sm" onClick={()=>setCloseForm({countedCash:'',notes:''})} icon={<Lock size={14}/>}>تصفير الكاش</Button>
+          ? <Button size="sm" onClick={()=>setCloseForm({countedCash:'',nextOpeningCash:0,notes:''})} icon={<Lock size={14}/>}>تسليم / تصفير الكاش</Button>
           : <Button size="sm" onClick={()=>setOpenForm({openingCash:''})} icon={<Unlock size={14}/>}>بداية وردية</Button>}
       </div>
     </div>
@@ -104,7 +110,7 @@ export default function ShiftPanel({ tick=0, onChanged }) {
       </div>}
     </Modal>
 
-    <Modal open={!!closeForm&&!!shift} onClose={()=>setCloseForm(null)} title={`تصفير الكاش — وردية ${shift?.number||''}`} size="sm">
+    <Modal open={!!closeForm&&!!shift} onClose={()=>setCloseForm(null)} title={`تسليم وتصفير الصندوق — وردية ${shift?.number||''}`} size="sm">
       {closeForm&&shift&&<div>
         <div className="rounded-2xl bg-brand-bg p-4 space-y-2 text-sm">
           <div className="flex justify-between"><span className="font-bold text-brand-gray">عدد الطلبات</span><span className="font-black">{s.ordersCount||0}</span></div>
@@ -120,11 +126,27 @@ export default function ShiftPanel({ tick=0, onChanged }) {
         {diff!==null&&<div className={`mt-2 text-sm font-black ${diff===0?'text-green-600':diff>0?'text-blue-600':'text-red-500'}`}>
           {diff===0?'الدرج مطابق':diff>0?`زيادة ${formatCurrency(diff)}`:`نقص ${formatCurrency(Math.abs(diff))}`}
         </div>}
+
+        <div className="mt-4 rounded-2xl bg-amber-50 border border-amber-200 p-3">
+          <label className="text-xs font-black text-amber-800 mb-1 block">المبلغ الذي سيبقى في الدرج للوردية الجاية</label>
+          <input type="number" min="0" max={counted??undefined} value={closeForm.nextOpeningCash}
+            onChange={e=>setCloseForm(f=>({...f,nextOpeningCash:e.target.value}))}
+            className="w-full px-3 py-2.5 border-2 border-amber-200 rounded-xl focus:border-amber-400 focus:outline-none font-black bg-white"/>
+          <div className="text-[11px] font-bold text-amber-700 mt-2">
+            إذا بدك تصفري الصندوق بالكامل خليها 0.
+          </div>
+        </div>
+
+        {handover!==null&&<div className="mt-3 rounded-2xl bg-green-50 border border-green-200 p-3 flex justify-between items-center">
+          <span className="text-sm font-black text-green-800">المبلغ الذي سيتم تسليمه</span>
+          <span className="font-black text-green-700">{formatCurrency(handover)}</span>
+        </div>}
+
         <input value={closeForm.notes} onChange={e=>setCloseForm(f=>({...f,notes:e.target.value}))}
           placeholder="ملاحظات (اختياري)"
           className="w-full mt-3 px-3 py-2.5 border-2 border-brand-border rounded-xl focus:border-fuchsia focus:outline-none font-bold text-sm"/>
         <div className="flex gap-3 mt-4">
-          <Button onClick={closeShift} loading={busy} className="flex-1">تأكيد التصفير</Button>
+          <Button onClick={closeShift} loading={busy} className="flex-1">تسليم وإغلاق الوردية</Button>
           <Button variant="ghost" onClick={()=>setCloseForm(null)}>إلغاء</Button>
         </div>
       </div>}

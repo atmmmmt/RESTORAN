@@ -25,7 +25,7 @@ export default function ProductFormPage() {
   const [form, setForm] = useState({
     name: '', description: '', category: 'باستا', image: '', imagePublicId: null,
     directPrice: '', regularCenterPrice: '', specializedCenterDefaultCommissionPercent: 20,
-    packagingCost: 150, extraCost: 0, availableQuantity: 0,
+    costMode: 'direct', directCost: '', packagingCost: 150, extraCost: 0, availableQuantity: 0,
     status: 'available', showInTodayMenu: true, allergyNotes: '', notes: '',
     nutrition: { calories: 0, protein: 0, carbs: 0, fat: 0, saturatedFat: 0, sugars: 0, sodium: 0, fiber: 0, portionSize: '', basis: 'estimated', confidence: 'medium', source: '' },
     ingredients: [],
@@ -45,6 +45,8 @@ export default function ProductFormPage() {
           image: p.image || '', imagePublicId: p.imagePublicId || null,
           directPrice: p.directPrice, regularCenterPrice: p.regularCenterPrice,
           specializedCenterDefaultCommissionPercent: p.specializedCenterDefaultCommissionPercent || 20,
+          costMode: p.costMode || (p.ingredients?.length ? 'recipe' : 'direct'),
+          directCost: p.directCost ?? p.calculatedCost ?? 0,
           packagingCost: p.packagingCost || 150, extraCost: p.extraCost || 0,
           availableQuantity: p.availableQuantity || 0, status: p.status, showInTodayMenu: p.showInTodayMenu,
           allergyNotes: p.allergyNotes || '', notes: p.notes || '',
@@ -107,6 +109,7 @@ export default function ProductFormPage() {
 
   /* ── Live cost & nutrition from selected ingredients ── */
   const calcCost = () => {
+    if (form.costMode === 'direct') return Math.max(Number(form.directCost) || 0, 0)
     const ingCost = form.ingredients.reduce((sum, ing) => {
       const found = ingredients.find(i => i._id === ing.ingredientId)
       return sum + (found ? found.averageCostPerUnit * ing.quantityUsed : 0)
@@ -234,8 +237,8 @@ export default function ProductFormPage() {
             </div>
           </div>
 
-          {/* Ingredients */}
-          <div className="bg-white rounded-2xl shadow-card p-6">
+          {/* Ingredients — advanced mode only. Day-to-day entry uses one direct cost. */}
+          {form.costMode === 'recipe' && <div className="bg-white rounded-2xl shadow-card p-6">
             <div className="flex items-center justify-between mb-1">
               <h2 className="font-black text-brand-dark flex items-center gap-2"><ClipboardList size={18} className="text-brand-gray-light" /> المكونات والوصفة</h2>
               <button onClick={addIngredient}
@@ -275,7 +278,7 @@ export default function ProductFormPage() {
                 <div className="text-center py-6 text-brand-gray font-bold text-sm">لا توجد مكونات — اضغط "+ إضافة مكون"</div>
               )}
             </div>
-          </div>
+          </div>}
 
           {/* Modifiers — selectable extras/reductions the cashier picks per order line,
               e.g. "Extra لحمة" (+) or "لحمة أقل" (−), so one product covers every variant
@@ -330,18 +333,55 @@ export default function ProductFormPage() {
           <div className="bg-white rounded-2xl shadow-card p-6">
             <h2 className="font-black text-brand-dark mb-4 flex items-center gap-2"><DollarSign size={18} className="text-brand-gray-light" /> التسعير</h2>
             <div className="space-y-3">
-              {[
-                ['سعر البيع المباشر', 'directPrice'],
-                ['سعر المراكز العادية', 'regularCenterPrice'],
-                ['تكلفة التغليف', 'packagingCost'],
-                ['تكاليف إضافية', 'extraCost'],
-              ].map(([l, k]) => (
-                <div key={k}>
-                  <label className="text-xs font-bold text-brand-gray mb-1 block">{l}</label>
-                  <input type="number" value={form[k]} onChange={e => set(k, Number(e.target.value))}
-                    className="w-full px-3 py-2.5 border-2 border-brand-border rounded-xl focus:border-fuchsia focus:outline-none font-bold text-sm" />
+              <div>
+                <label className="text-xs font-bold text-brand-gray mb-1 block">سعر البيع المباشر</label>
+                <input type="number" value={form.directPrice} onChange={e => set('directPrice', Number(e.target.value))}
+                  className="w-full px-3 py-2.5 border-2 border-brand-border rounded-xl focus:border-fuchsia focus:outline-none font-bold text-sm" />
+              </div>
+
+              <div className="rounded-2xl bg-brand-bg p-3">
+                <div className="text-xs font-black text-brand-dark mb-2">طريقة حساب الكلفة</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => set('costMode','direct')}
+                    className={`px-3 py-2.5 rounded-xl text-xs font-black transition-all ${form.costMode === 'direct' ? 'bg-fuchsia text-white' : 'bg-white text-brand-gray border border-brand-border'}`}>
+                    كلفة مباشرة
+                  </button>
+                  <button type="button" onClick={() => set('costMode','recipe')}
+                    className={`px-3 py-2.5 rounded-xl text-xs font-black transition-all ${form.costMode === 'recipe' ? 'bg-fuchsia text-white' : 'bg-white text-brand-gray border border-brand-border'}`}>
+                    متقدم بالمكونات
+                  </button>
                 </div>
-              ))}
+              </div>
+
+              {form.costMode === 'direct' ? (
+                <div>
+                  <label className="text-xs font-bold text-brand-gray mb-1 block">كلفة المنتج كاملة</label>
+                  <input type="number" min="0" value={form.directCost} onChange={e => set('directCost', Number(e.target.value))}
+                    placeholder="مثال: 25000"
+                    className="w-full px-3 py-2.5 border-2 border-fuchsia/30 rounded-xl focus:border-fuchsia focus:outline-none font-black text-sm bg-fuchsia-bg/30" />
+                  <p className="text-[11px] text-brand-gray mt-1 font-bold">اكتب الكلفة النهائية للصنف وخلاص — بدون مواد أو غرامات.</p>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <label className="text-xs font-bold text-brand-gray mb-1 block">تكلفة التغليف</label>
+                    <input type="number" value={form.packagingCost} onChange={e => set('packagingCost', Number(e.target.value))}
+                      className="w-full px-3 py-2.5 border-2 border-brand-border rounded-xl focus:border-fuchsia focus:outline-none font-bold text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-brand-gray mb-1 block">تكاليف إضافية</label>
+                    <input type="number" value={form.extraCost} onChange={e => set('extraCost', Number(e.target.value))}
+                      className="w-full px-3 py-2.5 border-2 border-brand-border rounded-xl focus:border-fuchsia focus:outline-none font-bold text-sm" />
+                  </div>
+                </>
+              )}
+
+              <div>
+                <label className="text-xs font-bold text-brand-gray mb-1 block">سعر المراكز العادية</label>
+                <input type="number" value={form.regularCenterPrice} onChange={e => set('regularCenterPrice', Number(e.target.value))}
+                  className="w-full px-3 py-2.5 border-2 border-brand-border rounded-xl focus:border-fuchsia focus:outline-none font-bold text-sm" />
+              </div>
+
               <div>
                 <label className="text-xs font-bold text-brand-gray mb-1 block">عمولة المراكز المتخصصة (%)</label>
                 <input type="number" value={form.specializedCenterDefaultCommissionPercent}
@@ -355,10 +395,14 @@ export default function ProductFormPage() {
           <div className="bg-gradient-to-br from-fuchsia-bg to-brand-offwhite rounded-2xl p-5">
             <h2 className="font-black text-brand-dark mb-4 flex items-center gap-2"><PieChart size={18} className="text-brand-gray-light" /> ملخص التكلفة</h2>
             <div className="space-y-2">
-              <div className="flex justify-between text-sm"><span className="text-brand-gray font-bold">تكلفة المكونات</span><span className="font-black text-brand-dark">{formatCurrency(estimatedCost - Number(form.packagingCost) - Number(form.extraCost))}</span></div>
-              <div className="flex justify-between text-sm"><span className="text-brand-gray font-bold">التغليف</span><span className="font-black text-brand-dark">{formatCurrency(form.packagingCost)}</span></div>
-              <div className="flex justify-between text-sm"><span className="text-brand-gray font-bold">أخرى</span><span className="font-black text-brand-dark">{formatCurrency(form.extraCost)}</span></div>
-              <div className="h-px bg-brand-border my-2" />
+              {form.costMode === 'recipe' ? <>
+                <div className="flex justify-between text-sm"><span className="text-brand-gray font-bold">تكلفة المكونات</span><span className="font-black text-brand-dark">{formatCurrency(estimatedCost - Number(form.packagingCost) - Number(form.extraCost))}</span></div>
+                <div className="flex justify-between text-sm"><span className="text-brand-gray font-bold">التغليف</span><span className="font-black text-brand-dark">{formatCurrency(form.packagingCost)}</span></div>
+                <div className="flex justify-between text-sm"><span className="text-brand-gray font-bold">أخرى</span><span className="font-black text-brand-dark">{formatCurrency(form.extraCost)}</span></div>
+                <div className="h-px bg-brand-border my-2" />
+              </> : (
+                <div className="rounded-xl bg-white/70 p-3 text-xs font-bold text-brand-gray">الكلفة مدخلة مباشرة — بدون تفصيل مكونات.</div>
+              )}
               <div className="flex justify-between"><span className="font-black text-brand-dark">إجمالي التكلفة</span><span className="font-black text-fuchsia">{formatCurrency(estimatedCost)}</span></div>
               <div className="flex justify-between"><span className="font-black text-brand-dark">الربح المتوقع</span>
                 <span className={`font-black ${profit >= 0 ? 'text-green-600' : 'text-red-500'}`}>{formatCurrency(profit)}</span>
@@ -366,8 +410,8 @@ export default function ProductFormPage() {
             </div>
           </div>
 
-          {/* Nutrition summary */}
-          <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-5 border border-green-100">
+          {/* Nutrition summary is useful only in advanced recipe mode. */}
+          {form.costMode === 'recipe' && <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-5 border border-green-100">
             <h2 className="font-black text-brand-dark mb-1 flex items-center gap-2">
               <Salad size={18} className="text-green-600" /> القيمة الغذائية
             </h2>
@@ -403,7 +447,7 @@ export default function ProductFormPage() {
                   {nutrition.source && <div className="mt-1 font-medium opacity-75">{nutrition.source}</div>}
                 </div>
               </div>
-          </div>
+          </div>}
 
           {/* Settings */}
           <div className="bg-white rounded-2xl shadow-card p-5">

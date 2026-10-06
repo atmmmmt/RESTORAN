@@ -99,6 +99,18 @@ const productSchema = new mongoose.Schema(
       default: 0,
       min: [0, 'التكلفة الإضافية لا تكون سالبة'],
     },
+    /* Cost can be entered directly for day-to-day simplicity, or calculated
+       from the ingredient recipe when the advanced mode is explicitly used. */
+    costMode: {
+      type: String,
+      enum: ['direct', 'recipe'],
+      default: 'recipe',
+    },
+    directCost: {
+      type: Number,
+      default: 0,
+      min: [0, 'الكلفة المباشرة لا تكون سالبة'],
+    },
     calculatedCost: {
       type: Number,
       default: 0,
@@ -224,8 +236,13 @@ productSchema.pre('save', function (next) {
     this.slug = generateSlug(this.name);
   }
 
-  // Auto-calculate cost from ingredients
-  if (this.ingredients.length > 0 && (this.isModified('ingredients') || this.isModified('packagingCost') || this.isModified('extraCost'))) {
+  // Simple mode wins: the manager enters one final product cost.
+  if (this.costMode === 'direct' && (this.isModified('costMode') || this.isModified('directCost') || this.isNew)) {
+    this.calculatedCost = Math.max(Number(this.directCost) || 0, 0);
+  }
+
+  // Advanced mode: calculate cost from the saved recipe.
+  if (this.costMode !== 'direct' && this.ingredients.length > 0 && (this.isModified('ingredients') || this.isModified('packagingCost') || this.isModified('extraCost') || this.isModified('costMode'))) {
     let ingredientCost = 0;
     let totalCalories = 0;
     let totalProtein = 0;

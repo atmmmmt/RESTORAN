@@ -66,7 +66,7 @@ const NAV_ITEMS = [
   { path: '/admin/daily-closing', Icon: Lock,            label: 'الجرد اليومي' },
   { path: '/admin/attendance',    Icon: Fingerprint,     label: 'الحضور والبصمة' },
   { path: '/admin/employees',     Icon: Users,           label: 'الموظفين',       adminOnly: true },
-  { path: '/admin/payroll',       Icon: Wallet,          label: 'الرواتب',        adminOnly: true },
+  { path: '/admin/payroll',       Icon: Wallet,          label: 'الأجور اليومية', adminOnly: true },
   { path: '/admin/users',         Icon: UserCog,         label: 'المستخدمين',     adminOnly: true },
   { path: '/admin/reviews',       Icon: Star,            label: 'آراء العملاء' },
   { path: '/admin/settings',      Icon: Settings,        label: 'الإعدادات',      adminOnly: true },

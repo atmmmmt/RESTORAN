@@ -5,7 +5,11 @@ const employeeSchema = new mongoose.Schema({
   centerId:      { type: mongoose.Schema.Types.ObjectId, ref: 'SalesCenter', default: null },
   name:          { type: String, required: [true, 'اسم الموظف مطلوب'], trim: true },
   hireDate:      { type: Date,   default: Date.now },
-  monthlySalary: { type: Number, required: [true, 'الراتب الشهري مطلوب'], min: 0 },
+  /* Luliz primarily pays day-by-day. Old monthly/weekly fields remain for
+     historical records and compatibility, but new employees can use daily. */
+  payMode:       { type: String, enum: ['daily', 'monthly', 'weekly'], default: 'monthly' },
+  dailyWage:     { type: Number, default: 0, min: 0 },
+  monthlySalary: { type: Number, default: 0, min: 0 },
   dailyHours:    { type: Number, default: 8, min: 1, max: 24 },   // ساعات الدوام اليومي
   workingDays:   { type: Number, default: 26 },                   // أيام العمل بالشهر
   payPeriod:     { type: String, enum: ['monthly', 'weekly'], default: 'monthly' }, // دورية الراتب

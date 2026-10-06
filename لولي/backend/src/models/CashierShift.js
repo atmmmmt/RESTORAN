@@ -23,6 +23,10 @@ const schema = new mongoose.Schema({
   countedCash: { type: Number, default: null },
   expectedCash: { type: Number, default: 0 },
   difference: { type: Number, default: 0 },
+  /* Physical drawer handover. This is operational till state, not a P&L
+     expense: the money may simply be handed to management/safe. */
+  nextOpeningCash: { type: Number, default: 0, min: 0 },
+  handedOverCash: { type: Number, default: 0, min: 0 },
   notes: { type: String, trim: true, default: '' },
   summary: {
     ordersCount: { type: Number, default: 0 },
