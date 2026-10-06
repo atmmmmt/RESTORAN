@@ -180,8 +180,8 @@ router.get('/daily-report', requireRole('admin', 'supervisor', 'cashier', 'viewe
   const grossSales    = sum(orders, 'total');
   const refundedTotal = sum(returns, 'amount');
   const netSales      = grossSales - refundedTotal;
-  const internalOrders = orders.filter(o => o.kind === 'pos' && o.orderType !== 'delivery');
-  const externalOrders = orders.filter(o => o.kind === 'site' || o.orderType === 'delivery');
+  const internalOrders = orders.filter(o => o.kind === 'pos' && o.orderType === 'dine_in');
+  const externalOrders = orders.filter(o => o.kind === 'site' || o.orderType === 'takeaway' || o.orderType === 'delivery');
 
   res.json({
     success: true,
