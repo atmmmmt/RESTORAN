@@ -629,10 +629,10 @@ function drawDailyReport(report, settings, logo) {
     p.space(4)
     p.line(`نسبة ${inv.name}`, { size: 24, bold: true, gap: 10 })
     if (t.internal?.count) {
-      p.pair(`داخلي 20% من ${money(t.internal.base)}`, money(t.internal.investorShare), { size: 21, bold: true })
+      p.pair(`بالمحل 20% من ${money(t.internal.base)}`, money(t.internal.investorShare), { size: 21, bold: true })
     }
     if (t.external?.count) {
-      p.pair(`خارجي / توصيل 15% من ${money(t.external.base)}`, money(t.external.investorShare), { size: 21, bold: true })
+      p.pair(`سفري / توصيل 15% من ${money(t.external.base)}`, money(t.external.investorShare), { size: 21, bold: true })
     }
     p.banner('المستحق', money(t.investorShare), { size: 28 })
     p.space(4)
