@@ -152,8 +152,8 @@ export default function PosPage() {
 
   const investorDay = useMemo(() => {
     const active = orders.filter(o => o.status !== 'cancelled')
-    const internal = active.filter(o => o.orderType !== 'delivery')
-    const external = active.filter(o => o.orderType === 'delivery')
+    const internal = active.filter(o => o.orderType === 'dine_in')
+    const external = active.filter(o => o.orderType === 'takeaway' || o.orderType === 'delivery')
     const baseOf = o => Number(o.netAmount ?? Math.max((Number(o.total) || 0) - (Number(o.invoiceTaxAmount) || 0), 0))
     const sum = list => list.reduce((s, o) => s + baseOf(o), 0)
     const internalBase = sum(internal)
@@ -651,14 +651,14 @@ export default function PosPage() {
           </button>
           <div className="grid sm:grid-cols-2 gap-3">
             <div className="bg-white rounded-2xl shadow-card p-4 border border-brand-border">
-              <div className="text-xs font-black text-brand-gray">الداخلي — 20%</div>
+              <div className="text-xs font-black text-brand-gray">بالمحل — 20%</div>
               <div className="mt-2 flex items-end justify-between gap-3">
                 <div><div className="text-xl font-black text-brand-dark">{formatCurrency(investorDay.internal.base)}</div><div className="text-xs text-brand-gray">{investorDay.internal.count} طلب</div></div>
                 <div className="text-left"><div className="text-xs text-brand-gray font-bold">حصة الأميركان</div><div className="font-black text-fuchsia">{formatCurrency(investorDay.internal.share)}</div></div>
               </div>
             </div>
             <div className="bg-white rounded-2xl shadow-card p-4 border border-brand-border">
-              <div className="text-xs font-black text-brand-gray">الخارجي / التوصيل — 15%</div>
+              <div className="text-xs font-black text-brand-gray">سفري / توصيل — 15%</div>
               <div className="mt-2 flex items-end justify-between gap-3">
                 <div><div className="text-xl font-black text-brand-dark">{formatCurrency(investorDay.external.base)}</div><div className="text-xs text-brand-gray">{investorDay.external.count} طلب</div></div>
                 <div className="text-left"><div className="text-xs text-brand-gray font-bold">حصة الأميركان</div><div className="font-black text-fuchsia">{formatCurrency(investorDay.external.share)}</div></div>
