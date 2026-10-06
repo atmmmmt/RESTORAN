@@ -17,6 +17,9 @@ export function exportFinancialReportPdf(report, {
 
   const c={dark:'#352017',accent:'#A96734',soft:'#F6EDDF',paper:'#FBF7F0',line:'#E7D2B7',muted:'#6B5A4A',...colors}
   const currency=report.currency||'SYP', rows=report.rows||[], t=report.totals||{}, p=period(report)
+  const logoSrc=logoUrl?(logoUrl.startsWith('/')?`${window.location.origin}${logoUrl}`:logoUrl):''
+  const inheritedStyles=[...document.querySelectorAll('link[rel="stylesheet"]')]
+    .map(node=>`<link rel="stylesheet" href="${esc(node.href)}">`).join('')
   const tax=x=>Number(x?.consumptionTax||0)+Number(x?.localAdministration||0)
   const cols=[
     ['pointOfSale','اسم نقطة البيع'],['foodAndBeverageValue','قيمة المأكولات والمشروبات'],
@@ -33,7 +36,7 @@ export function exportFinancialReportPdf(report, {
     [includeTaxColumn?'إجمالي الضريبة':'الإدارة المحلية 5%',money(includeTaxColumn?tax(t):t.localAdministration,currency)]
   ]
   const title=`${fileTitle} - ${brandName} - ${p.from} - ${p.to}`
-  w.document.write(`<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>${esc(title)}</title>
+  w.document.write(`<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>${esc(title)}</title>${inheritedStyles}
   <style>
     @page{size:A4 landscape;margin:10mm}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:${c.dark}}
     body{font-family:Cairo,Tajawal,Arial,sans-serif;direction:rtl;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -53,7 +56,7 @@ export function exportFinancialReportPdf(report, {
     .note{margin-top:10px;padding:9px 12px;background:${c.paper};border-right:4px solid ${c.accent};border-radius:10px;color:${c.muted};font-size:9.5px;font-weight:700}
     footer{margin-top:12px;border-top:1px solid ${c.line};padding-top:8px;display:flex;justify-content:space-between;color:${c.muted};font-size:8.5px;font-weight:700}
     @media print{.no-print{display:none!important}body{background:#fff}.page{padding:0}}
-  </style></head><body><div class="page"><div class="topline"></div><header><div class="brand">${logoUrl?`<img class="logo" src="${esc(logoUrl)}">`:''}<div><div class="brandname">${esc(brandName)}</div><h1>${esc(fileTitle)}</h1><div class="sub">نسخة A4 مرتبة للحفظ والمشاركة</div></div></div><div class="meta"><div>من تاريخ: ${esc(p.from)}</div><div>إلى تاريخ: ${esc(p.to)}</div><div>تاريخ الإصدار: ${esc(new Date().toLocaleString('ar-SY'))}</div></header>
+  </style></head><body><div class="page"><div class="topline"></div><header><div class="brand">${logoSrc?`<img class="logo" src="${esc(logoSrc)}">`:''}<div><div class="brandname">${esc(brandName)}</div><h1>${esc(fileTitle)}</h1><div class="sub">نسخة A4 مرتبة للحفظ والمشاركة</div></div></div><div class="meta"><div>من تاريخ: ${esc(p.from)}</div><div>إلى تاريخ: ${esc(p.to)}</div><div>تاريخ الإصدار: ${esc(new Date().toLocaleString('ar-SY'))}</div></header>
   <section class="summary">${summary.map(([l,v])=>`<div class="card"><span>${esc(l)}</span><b>${esc(v)}</b></div>`).join('')}</section>
   <table><thead><tr>${cols.map(([,l])=>`<th>${esc(l)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${cols.map(([k])=>`<td>${cell(r,k)}</td>`).join('')}</tr>`).join('')}</tbody>
   <tfoot><tr>${cols.map(([k],i)=>`<td>${i===0?'الإجمالي':esc(money(k==='tax'?tax(t):t[k],currency))}</td>`).join('')}</tr></tfoot></table>
