@@ -122,7 +122,7 @@ router.get('/daily-report', async (req, res) => {
   const invOn = inv.enabled !== false;
   const deliveryPct = invOn ? Number(inv.deliveryPercent ?? 15) : 0;
   const internalPct = invOn ? Number(inv.internalPercent ?? 20) : 0;
-  const rateForPos = orderType => orderType === 'delivery' ? deliveryPct : internalPct;
+  const rateForPos = orderType => orderType === 'dine_in' ? internalPct : deliveryPct;
   const share = (amount, pct) => Math.round((amount || 0) * pct / 100);
   const netOf = order => Number(order.netAmount ?? Math.max((Number(order.total || 0) - Number(order.invoiceTaxAmount || 0)), 0)) || 0;
   const siteNetOf = order => Number(order.netAmount ?? Math.max((Number(order.totalPrice || order.totalAmount || 0) - Number(order.invoiceTaxAmount || 0)), 0)) || 0;
@@ -151,8 +151,8 @@ router.get('/daily-report', async (req, res) => {
   const sum = (list, k) => list.reduce((s, o) => s + (o[k] || 0), 0);
   const posList = orders.filter(o => o.kind === 'pos');
   const siteList = orders.filter(o => o.kind === 'site');
-  const deliveryList = orders.filter(o => o.kind === 'site' || o.orderType === 'delivery');
-  const internalList = orders.filter(o => o.kind === 'pos' && o.orderType !== 'delivery');
+  const deliveryList = orders.filter(o => o.kind === 'site' || o.orderType === 'takeaway' || o.orderType === 'delivery');
+  const internalList = orders.filter(o => o.kind === 'pos' && o.orderType === 'dine_in');
 
   res.json({
     success: true,
@@ -161,6 +161,7 @@ router.get('/daily-report', async (req, res) => {
       enabled: invOn,
       name: inv.name || 'الأميركان',
       deliveryPercent: deliveryPct,
+      takeawayPercent: deliveryPct,
       internalPercent: internalPct,
       // legacy aliases for old print layouts
       posPercent: internalPct,
