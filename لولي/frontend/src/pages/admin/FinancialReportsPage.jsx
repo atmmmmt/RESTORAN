@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { FileText, Printer, RefreshCw, Eye } from 'lucide-react'
+import { FileText, Printer, RefreshCw, Eye, FileDown } from 'lucide-react'
 import { api } from '../../services/api'
 import PageHeader from '../../components/common/PageHeader'
 import toast from 'react-hot-toast'
 import { renderFinancialReport } from '../../utils/ticketRenderer'
 import { printToStation } from '../../utils/printTicket'
+import { exportFinancialReportPdf } from '../../utils/financialPdf'
 
 const today = () => new Date().toISOString().slice(0,10)
 const monthStart = () => today().slice(0,8) + '01'
@@ -83,6 +84,23 @@ export default function FinancialReportsPage(){
     }
   }
 
+  const exportPdf=()=>{
+    try{
+      exportFinancialReportPdf(report,{
+        brandName:'لوليز',
+        logoUrl:'/brand/luliz-logo-round.png',
+        fileTitle:'تقرير المالية والمبيعات',
+        colors:{
+          dark:'#20160F', accent:'#C18A4A', soft:'#F6EFE6',
+          paper:'#FBF7F2', line:'#EAD9C2', muted:'#7A6855',
+        },
+        note:'نسخة PDF A4 مرتبة من اليمين إلى اليسار ومهيأة للطباعة أو الحفظ والمشاركة.',
+      })
+    }catch(e){
+      toast.error(e.message||'تعذّر تجهيز ملف PDF')
+    }
+  }
+
   const currency=report?.currency||'SYP'
   const rows=report?.rows||[]
   const totals=report?.totals||{}
@@ -90,7 +108,7 @@ export default function FinancialReportsPage(){
   return <div className="space-y-5" dir="rtl">
     <PageHeader
       title="تقارير المالية"
-      subtitle="كشف المبيعات والإنفاق الاستهلاكي والإدارة المحلية — يطبع على نفس طابعة الفواتير"
+      subtitle="كشف مالي مرتب — متوفر كطباعة حرارية ونسخة PDF A4"
     />
 
     <section className="bg-white rounded-2xl shadow-card border border-brand-border p-5">
@@ -191,13 +209,20 @@ export default function FinancialReportsPage(){
           </div>
 
           <div className="p-4">
-            <button onClick={printReport} disabled={printing||loading||!rows.length}
-              className="w-full px-4 py-3 rounded-xl bg-brand-dark text-white font-black flex items-center justify-center gap-2 disabled:opacity-50">
-              <Printer size={17}/>
-              {printing?'جاري الإرسال للطابعة…':'طباعة على طابعة الفواتير'}
-            </button>
+            <div className="space-y-2.5">
+              <button onClick={printReport} disabled={printing||loading||!rows.length}
+                className="w-full px-4 py-3 rounded-xl bg-brand-dark text-white font-black flex items-center justify-center gap-2 disabled:opacity-50">
+                <Printer size={17}/>
+                {printing?'جاري الإرسال للطابعة…':'طباعة حرارية'}
+              </button>
+              <button onClick={exportPdf} disabled={loading||!rows.length}
+                className="w-full px-4 py-3 rounded-xl bg-fuchsia text-white font-black flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm">
+                <FileDown size={17}/>
+                تصدير PDF — A4
+              </button>
+            </div>
             <p className="text-[11px] text-brand-gray font-bold leading-5 mt-3">
-              يستخدم نفس طابعة الكاشير ونفس إعداداتها. إذا اخترت كل نقاط البيع، يظهر كل فرع بقسم مستقل ثم الإجمالي العام.
+              الحراري يطبع على طابعة الكاشير. زر PDF يفتح نسخة A4 وRTL؛ من نافذة الطباعة اختاري «حفظ بصيغة PDF» لإرسالها أو أرشفتها.
             </p>
           </div>
         </div>
