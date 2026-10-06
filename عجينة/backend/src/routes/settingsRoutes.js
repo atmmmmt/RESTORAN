@@ -48,6 +48,8 @@ router.put('/investor', requireAdmin, async (req, res) => {
     }
     s[field] = pct;
   }
+  // سفري دائماً يأخذ نفس نسبة التوصيل/الموقع.
+  s.takeawayPercent = Number(s.percent || 0);
   await s.save();
   res.json({ success: true, message: 'تم حفظ نسبة الشريك', investor: s.present() });
 });
