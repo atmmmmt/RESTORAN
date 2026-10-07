@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ClipboardList, Trash2, Receipt, Globe, Eye } from 'lucide-react'
+import { ClipboardList, Trash2, Receipt, Globe, Eye, CalendarRange } from 'lucide-react'
 import WhatsAppIcon from '../../components/common/WhatsAppIcon'
 import { ordersAPI, internalOrdersAPI } from '../../services/api'
 import PageHeader from '../../components/common/PageHeader'
@@ -22,25 +22,86 @@ const POS_STATUSES = {
 }
 const ORDER_TYPE = { takeaway: 'سفري', dine_in: 'بالمحل', delivery: 'توصيل' }
 const PAYMENT = { cash: 'نقداً', card: 'بطاقة', unpaid: 'آجل' }
-const todayKey = () => {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const syriaDayKey = (offsetDays = 0) => {
+  const d = new Date(Date.now() + offsetDays * 86400000)
+  const parts = new Intl.DateTimeFormat('en', {
+    timeZone: 'Asia/Damascus', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(d)
+  const get = type => parts.find(p => p.type === type)?.value || ''
+  return `${get('year')}-${get('month')}-${get('day')}`
+}
+
+function DateFilterBar({ from, to, setFrom, setTo, status, setStatus, statuses, summary }) {
+  const today = syriaDayKey()
+  const yesterday = syriaDayKey(-1)
+  const preset = (label, value) => (
+    <button key={label} type="button"
+      onClick={() => { setFrom(value); setTo(value) }}
+      className={`px-3 py-2 rounded-xl text-xs font-black transition-colors ${
+        from === value && to === value ? 'bg-fuchsia text-white' : 'bg-brand-bg text-brand-gray hover:text-brand-dark'
+      }`}>
+      {label}
+    </button>
+  )
+  return (
+    <div className="rounded-2xl border border-brand-border bg-white p-3 mb-4">
+      <div className="flex flex-wrap items-end gap-3">
+        <div>
+          <div className="text-[11px] font-black text-brand-gray mb-1.5 flex items-center gap-1"><CalendarRange size={13}/> الفترة</div>
+          <div className="flex gap-1.5">
+            {preset('اليوم', today)}
+            {preset('أمس', yesterday)}
+            <button type="button" onClick={() => { setFrom(''); setTo('') }}
+              className={`px-3 py-2 rounded-xl text-xs font-black transition-colors ${!from && !to ? 'bg-fuchsia text-white' : 'bg-brand-bg text-brand-gray hover:text-brand-dark'}`}>
+              كل الأيام
+            </button>
+          </div>
+        </div>
+        <div>
+          <label className="text-[11px] font-black text-brand-gray block mb-1">من تاريخ</label>
+          <input type="date" value={from} onChange={e=>setFrom(e.target.value)}
+            className="px-3 py-2 border-2 border-brand-border rounded-xl font-bold text-sm focus:border-fuchsia focus:outline-none"/>
+        </div>
+        <div>
+          <label className="text-[11px] font-black text-brand-gray block mb-1">إلى تاريخ</label>
+          <input type="date" value={to} onChange={e=>setTo(e.target.value)}
+            className="px-3 py-2 border-2 border-brand-border rounded-xl font-bold text-sm focus:border-fuchsia focus:outline-none"/>
+        </div>
+        <div>
+          <label className="text-[11px] font-black text-brand-gray block mb-1">الحالة</label>
+          <select value={status} onChange={e=>setStatus(e.target.value)}
+            className="px-3 py-2 border-2 border-brand-border rounded-xl font-bold text-sm bg-white focus:border-fuchsia focus:outline-none">
+            <option value="all">كل الحالات</option>
+            {statuses.map(([value,label])=><option key={value} value={value}>{label}</option>)}
+          </select>
+        </div>
+        {summary&&<div className="mr-auto text-sm font-black text-brand-dark pb-2">{summary}</div>}
+      </div>
+    </div>
+  )
 }
 
 export function CashierOrders({ isAdmin, canEdit }) {
-  const [date, setDate] = useState(todayKey())
+  const [from, setFrom] = useState(syriaDayKey())
+  const [to, setTo] = useState(syriaDayKey())
+  const [statusFilter, setStatusFilter] = useState('all')
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedOrder, setSelectedOrder] = useState(null)
 
   const load = () => {
     setLoading(true)
-    internalOrdersAPI.getAll({ ...(date ? { date } : {}), limit: 500 }) // no date → all days
+    internalOrdersAPI.getAll({
+      ...(from ? { startDate: from } : {}),
+      ...(to ? { endDate: to } : {}),
+      ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
+      limit: 500,
+    })
       .then(r => setOrders(r.data.orders || []))
       .catch(e => toast.error(e.message))
       .finally(() => setLoading(false))
   }
-  useEffect(() => { load() }, [date])
+  useEffect(() => { load() }, [from, to, statusFilter])
 
   const setStatus = async (o, status) => {
     try { const r = await internalOrdersAPI.setStatus(o._id, status); toast.success(r.data.message); load() }
@@ -75,7 +136,7 @@ export function CashierOrders({ isAdmin, canEdit }) {
         {Object.entries(POS_STATUSES).map(([k, s]) => <option key={k} value={k}>{s.label}</option>)}
       </select>
     )},
-    { key: 'createdAt', label: date ? 'الوقت' : 'التاريخ والوقت', render: v => date ? formatShopTime(v) : formatShopDateTime(v) },
+    { key: 'createdAt', label: 'التاريخ والوقت', render: v => formatShopDateTime(v) },
     { key: '_id', label: 'إجراءات', render: (v, r) => (
       <div className="flex items-center gap-2 flex-wrap">
         <button onClick={() => setSelectedOrder(r)}
@@ -93,21 +154,12 @@ export function CashierOrders({ isAdmin, canEdit }) {
 
   return (
     <div className="bg-white rounded-2xl shadow-card p-4">
-      <div className="flex flex-wrap items-center gap-3 mb-4">
-        <div className="flex gap-1.5">
-          {[['اليوم', todayKey()], ['كل الأيام', '']].map(([label, val]) => (
-            <button key={label} type="button" onClick={() => setDate(val)}
-              className={`px-3 py-2.5 rounded-xl font-black text-sm transition-colors ${date === val ? 'bg-fuchsia text-white' : 'bg-brand-bg text-brand-gray hover:text-brand-dark'}`}>
-              {label}
-            </button>
-          ))}
-        </div>
-        <input type="date" value={date} onChange={e => setDate(e.target.value)}
-          className="px-3 py-2.5 border-2 border-brand-border rounded-xl font-bold text-sm focus:border-fuchsia focus:outline-none" />
-        <div className="text-sm font-black text-brand-dark">
-          {live.length} طلب · <span className="text-fuchsia">{formatCurrency(total)}</span>
-        </div>
-      </div>
+      <DateFilterBar
+        from={from} to={to} setFrom={setFrom} setTo={setTo}
+        status={statusFilter} setStatus={setStatusFilter}
+        statuses={Object.entries(POS_STATUSES).map(([key,value])=>[key,value.label])}
+        summary={<>{live.length} طلب · <span className="text-fuchsia">{formatCurrency(total)}</span></>}
+      />
       <DataTable columns={columns} data={orders} loading={loading} searchable searchPlaceholder="ابحث برقم الطلب..."
         emptyIcon={Receipt} emptyTitle={date ? 'لا توجد طلبات كاشير بهاليوم' : 'لا توجد طلبات كاشير'} />
 
@@ -128,13 +180,21 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('cashier')
   const [selectedSiteOrder, setSelectedSiteOrder] = useState(null)
+  const [siteFrom, setSiteFrom] = useState(syriaDayKey())
+  const [siteTo, setSiteTo] = useState(syriaDayKey())
+  const [siteStatus, setSiteStatus] = useState('all')
 
   const load = () => {
     setLoading(true)
-    ordersAPI.getAll().then(r => setOrders(r.data.orders || [])).finally(() => setLoading(false))
+    ordersAPI.getAll({
+      ...(siteFrom ? { startDate: siteFrom } : {}),
+      ...(siteTo ? { endDate: siteTo } : {}),
+      ...(siteStatus !== 'all' ? { status: siteStatus } : {}),
+      limit: 500,
+    }).then(r => setOrders(r.data.orders || [])).finally(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [siteFrom, siteTo, siteStatus])
 
   const updateStatus = async (id, status) => {
     try {
@@ -220,8 +280,14 @@ export default function OrdersPage() {
 
       {tab === 'cashier' ? <CashierOrders isAdmin={isAdmin} canEdit={canEdit} /> : (
         <div className="bg-white rounded-2xl shadow-card p-4">
+          <DateFilterBar
+            from={siteFrom} to={siteTo} setFrom={setSiteFrom} setTo={setSiteTo}
+            status={siteStatus} setStatus={setSiteStatus}
+            statuses={STATUSES.map(s=>[s,getStatusText(s)])}
+            summary={<>{orders.length} طلب</>}
+          />
           <DataTable columns={columns} data={orders} loading={loading} searchable searchPlaceholder="ابحث في الطلبات..."
-            emptyIcon={ClipboardList} emptyTitle="لا توجد طلبات" />
+            emptyIcon={ClipboardList} emptyTitle="لا توجد طلبات ضمن الفترة المحددة" />
         </div>
       )}
 
