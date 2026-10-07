@@ -10,6 +10,7 @@ const InternalOrder = require('../models/InternalOrder');
 const CustomerOrder = require('../models/CustomerOrder');
 const CashTransaction = require('../models/CashTransaction');
 const financeService = require('../services/financeService');
+const InvestorSettings = require('../models/InvestorSettings');
 
 router.use(protect);
 
@@ -311,17 +312,25 @@ router.get('/report', visibleToFinance, async (req, res) => {
   applyCenter(internalFilter, selector);
   applyCenter(siteFilter, selector);
 
-  const [settings, centers, internalOrders, siteOrders] = await Promise.all([
+  const [settings, investorSettings, centers, internalOrders, siteOrders] = await Promise.all([
     FinanceSettings.getSingleton(),
+    InvestorSettings.getSingleton(),
     SalesCenter.find({}).select('name isActive'),
     InternalOrder.find(internalFilter).select(
-      'centerId netAmount total invoiceTaxAmount consumptionTaxAmount localAdminAmount createdAt'
+      'centerId orderType netAmount total invoiceTaxAmount consumptionTaxAmount localAdminAmount createdAt'
     ),
     CustomerOrder.find(siteFilter).select(
       'centerId netAmount totalPrice invoiceTaxAmount consumptionTaxAmount localAdminAmount createdAt'
     ),
   ]);
 
+  const investor = investorSettings.present();
+  const investorOn = investor.enabled !== false;
+  const internalPct = investorOn ? Number(investor.dineInPercent ?? investor.internalPercent ?? 20) : 0;
+  const deliveryPct = investorOn ? Number(investor.percent ?? investor.deliveryPercent ?? 15) : 0;
+  const investorName = investor.name || 'الأميركان';
+
+  const investorRate = orderType => orderType === 'dine_in' ? internalPct : deliveryPct;
   const centerNames = new Map(centers.map(center => [String(center._id), center.name]));
   const rows = new Map();
 
@@ -334,6 +343,11 @@ router.get('/report', visibleToFinance, async (req, res) => {
       foodAndBeverageValue: 0,
       consumptionTax: 0,
       localAdministration: 0,
+      taxTotal: 0,
+      investorInternal: 0,
+      investorExternal: 0,
+      investorShare: 0,
+      obligationsTotal: 0,
       grandTotal: 0,
     });
     return rows.get(key);
@@ -341,29 +355,38 @@ router.get('/report', visibleToFinance, async (req, res) => {
 
   if (selector.mode === 'one') ensureRow(selector.centerId);
 
-  const addOrder = (order, totalField) => {
+  const addOrder = (order, totalField, orderType = 'delivery') => {
     const row = ensureRow(order.centerId);
     const base = financeService.revenueOf(order, totalField);
     const consumption = financeService.consumptionTaxOf(order);
     const local = financeService.localAdminTaxOf(order);
+    const rate = investorRate(orderType);
+    const share = investorOn ? financeService.money(base * rate / 100) : 0;
     row.ordersCount += 1;
     row.foodAndBeverageValue += base;
     row.consumptionTax += consumption;
     row.localAdministration += local;
+    row.taxTotal += consumption + local;
+    row.investorShare += share;
+    if (orderType === 'dine_in') row.investorInternal += share;
+    else row.investorExternal += share;
+    row.obligationsTotal += consumption + local + share;
     row.grandTotal += financeService.money(base + consumption + local);
   };
 
-  internalOrders.forEach(order => addOrder(order, 'total'));
-  siteOrders.forEach(order => addOrder(order, 'totalPrice'));
+  internalOrders.forEach(order => addOrder(order, 'total', order.orderType));
+  siteOrders.forEach(order => addOrder(order, 'totalPrice', 'delivery'));
 
+  const moneyFields = [
+    'foodAndBeverageValue', 'consumptionTax', 'localAdministration', 'taxTotal',
+    'investorInternal', 'investorExternal', 'investorShare', 'obligationsTotal', 'grandTotal',
+  ];
   const resultRows = [...rows.values()]
-    .map(row => ({
-      ...row,
-      foodAndBeverageValue: financeService.money(row.foodAndBeverageValue),
-      consumptionTax: financeService.money(row.consumptionTax),
-      localAdministration: financeService.money(row.localAdministration),
-      grandTotal: financeService.money(row.grandTotal),
-    }))
+    .map(row => {
+      const value = { ...row };
+      moneyFields.forEach(key => { value[key] = financeService.money(value[key]); });
+      return value;
+    })
     .sort((a, b) => a.pointOfSale.localeCompare(b.pointOfSale, 'ar'));
 
   const total = key => financeService.money(resultRows.reduce((sum, row) => sum + Number(row[key] || 0), 0));
@@ -374,12 +397,24 @@ router.get('/report', visibleToFinance, async (req, res) => {
     period: { start, end },
     rates: { consumptionTaxPercent: 5, localAdminPercent: 5, localAdminBase: 'consumption_tax' },
     currency: settings.currency || 'SYP',
+    investor: {
+      enabled: investorOn,
+      name: investorName,
+      internalPercent: internalPct,
+      deliveryPercent: deliveryPct,
+      takeawayPercent: deliveryPct,
+    },
     rows: resultRows,
     totals: {
       ordersCount: resultRows.reduce((sum, row) => sum + Number(row.ordersCount || 0), 0),
       foodAndBeverageValue: total('foodAndBeverageValue'),
       consumptionTax: total('consumptionTax'),
       localAdministration: total('localAdministration'),
+      taxTotal: total('taxTotal'),
+      investorInternal: total('investorInternal'),
+      investorExternal: total('investorExternal'),
+      investorShare: total('investorShare'),
+      obligationsTotal: total('obligationsTotal'),
       grandTotal: total('grandTotal'),
     },
   });
