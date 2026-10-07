@@ -148,6 +148,63 @@ function toEscPos(canvas, height, settings) {
   return btoa(binary)
 }
 
+/* Some low-cost ESC/POS boards lose sync when one very tall GS v 0 image is
+   sent in a single command. Once that happens the remaining raster bytes are
+   interpreted as text and come out as Chinese/random glyphs. Shift reports
+   are taller than normal receipts, so send them as a sequence of small raster
+   bands while keeping the exact same Arabic canvas rendering. */
+function toEscPosBanded(canvas, height, settings, bandHeight = 192) {
+  const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, height).data
+  const bytesPerRow = Math.ceil(canvas.width / 8)
+  const chunks = [new Uint8Array([0x1b, 0x40])] // ESC @ once
+
+  for (let y0 = 0; y0 < height; y0 += bandHeight) {
+    const h = Math.min(bandHeight, height - y0)
+    const raster = new Uint8Array(bytesPerRow * h)
+
+    for (let row = 0; row < h; row++) {
+      const py = y0 + row
+      for (let px = 0; px < canvas.width; px++) {
+        const i = (py * canvas.width + px) * 4
+        const luminance = pixels[i] * 0.299 + pixels[i + 1] * 0.587 + pixels[i + 2] * 0.114
+        if (luminance < INK_CUTOFF && pixels[i + 3] > 32) {
+          raster[row * bytesPerRow + (px >> 3)] |= 0x80 >> (px & 7)
+        }
+      }
+    }
+
+    chunks.push(new Uint8Array([
+      0x1d, 0x76, 0x30, 0,
+      bytesPerRow & 255, bytesPerRow >> 8,
+      h & 255, h >> 8,
+    ]))
+    chunks.push(raster)
+    // A single LF between bands keeps clone printers synchronized without
+    // adding a visible blank section.
+    chunks.push(new Uint8Array([0x0a]))
+  }
+
+  chunks.push(new Uint8Array(
+    settings.autoCut
+      ? [0x0a, 0x0a, 0x1d, 0x56, 0x41, 3]
+      : [0x0a, 0x0a, 0x0a]
+  ))
+
+  const total = chunks.reduce((sum, part) => sum + part.length, 0)
+  const bytes = new Uint8Array(total)
+  let offset = 0
+  for (const part of chunks) {
+    bytes.set(part, offset)
+    offset += part.length
+  }
+
+  let binary = ''
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+  }
+  return btoa(binary)
+}
+
 /**
  * A small drawing kit over the receipt canvas. Everything below is written
  * in terms of these, which is what keeps the two printouts looking like they
@@ -893,7 +950,7 @@ export async function printThermalShiftReport(shift) {
   const { canvas, height } = drawShiftReport(shift, settings, logo)
   const response = await fetch(`${settings.agentUrl.replace(/\/$/, '')}/print`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...printerTarget(settings), copies: 1, dataBase64: toEscPos(canvas, height, settings) }),
+    body: JSON.stringify({ ...printerTarget(settings), copies: 1, dataBase64: toEscPosBanded(canvas, height, settings) }),
   })
   const result = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(result.message || 'تعذّر الاتصال بالطابعة')
