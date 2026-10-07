@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Eye } from 'lucide-react'
+import { Eye, CalendarRange } from 'lucide-react'
 import { ordersAPI, settingsAPI } from '../../services/api'
 import PageHeader from '../../components/common/PageHeader'
 import DataTable from '../../components/common/DataTable'
@@ -10,19 +10,81 @@ import { useAuth } from '../../hooks/useAuth'
 
 const STATUSES = ['new', 'confirmed', 'preparing', 'ready', 'delivered', 'cancelled']
 
+const syriaDayKey = (offsetDays = 0) => {
+  const d = new Date(Date.now() + offsetDays * 86400000)
+  const parts = new Intl.DateTimeFormat('en', {
+    timeZone: 'Asia/Damascus', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(d)
+  const get = type => parts.find(p => p.type === type)?.value || ''
+  return `${get('year')}-${get('month')}-${get('day')}`
+}
+
+function DateFilterBar({ from, to, setFrom, setTo, status, setStatus, summary }) {
+  const today = syriaDayKey()
+  const yesterday = syriaDayKey(-1)
+  const preset = (label, value) => (
+    <button key={label} type="button" onClick={() => { setFrom(value); setTo(value) }}
+      className={`px-3 py-2 rounded-xl text-xs font-black transition-colors ${from===value&&to===value?'bg-fuchsia text-white':'bg-brand-bg text-brand-gray hover:text-brand-dark'}`}>
+      {label}
+    </button>
+  )
+  return <div className="rounded-2xl border border-brand-border bg-white p-3 mb-4">
+    <div className="flex flex-wrap items-end gap-3">
+      <div>
+        <div className="text-[11px] font-black text-brand-gray mb-1.5 flex items-center gap-1"><CalendarRange size={13}/> الفترة</div>
+        <div className="flex gap-1.5">
+          {preset('اليوم',today)}
+          {preset('أمس',yesterday)}
+          <button type="button" onClick={()=>{setFrom('');setTo('')}}
+            className={`px-3 py-2 rounded-xl text-xs font-black transition-colors ${!from&&!to?'bg-fuchsia text-white':'bg-brand-bg text-brand-gray hover:text-brand-dark'}`}>
+            كل الأيام
+          </button>
+        </div>
+      </div>
+      <div>
+        <label className="text-[11px] font-black text-brand-gray block mb-1">من تاريخ</label>
+        <input type="date" value={from} onChange={e=>setFrom(e.target.value)}
+          className="px-3 py-2 border-2 border-brand-border rounded-xl font-bold text-sm focus:border-fuchsia focus:outline-none"/>
+      </div>
+      <div>
+        <label className="text-[11px] font-black text-brand-gray block mb-1">إلى تاريخ</label>
+        <input type="date" value={to} onChange={e=>setTo(e.target.value)}
+          className="px-3 py-2 border-2 border-brand-border rounded-xl font-bold text-sm focus:border-fuchsia focus:outline-none"/>
+      </div>
+      <div>
+        <label className="text-[11px] font-black text-brand-gray block mb-1">الحالة</label>
+        <select value={status} onChange={e=>setStatus(e.target.value)}
+          className="px-3 py-2 border-2 border-brand-border rounded-xl font-bold text-sm bg-white focus:border-fuchsia focus:outline-none">
+          <option value="all">كل الحالات</option>
+          {STATUSES.map(s=><option key={s} value={s}>{getStatusText(s)}</option>)}
+        </select>
+      </div>
+      {summary&&<div className="mr-auto text-sm font-black text-brand-dark pb-2">{summary}</div>}
+    </div>
+  </div>
+}
+
 export default function OrdersPage() {
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedOrder, setSelectedOrder] = useState(null)
+  const [from, setFrom] = useState(syriaDayKey())
+  const [to, setTo] = useState(syriaDayKey())
+  const [statusFilter, setStatusFilter] = useState('all')
   const { user } = useAuth()
   const canEdit = ['admin', 'supervisor'].includes(user?.role)
 
   const load = () => {
     setLoading(true)
-    ordersAPI.getAll().then(r => setOrders(r.data.orders || [])).finally(() => setLoading(false))
+    ordersAPI.getAll({
+      ...(from ? { startDate: from } : {}),
+      ...(to ? { endDate: to } : {}),
+      ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
+      limit: 500,
+    }).then(r => setOrders(r.data.orders || [])).finally(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [from, to, statusFilter])
 
   /* The partner's flat cut, shown here as well as on the receipt so the
      figure is never something anyone has to work out by hand. */
@@ -101,6 +163,12 @@ export default function OrdersPage() {
       />
 
 
+      <DateFilterBar
+        from={from} to={to} setFrom={setFrom} setTo={setTo}
+        status={statusFilter} setStatus={setStatusFilter}
+        summary={<>{orders.length} طلب</>}
+      />
+
       {investor && investor.enabled !== false && Number(investor.percent) > 0 && (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
           {[
@@ -118,7 +186,7 @@ export default function OrdersPage() {
 
       <div className="bg-white rounded-2xl shadow-card p-4">
         <DataTable columns={columns} data={orders} loading={loading} searchable searchPlaceholder="ابحث في الطلبات..."
-          emptyIcon="📋" emptyTitle="لا توجد طلبات" />
+          emptyIcon="📋" emptyTitle="لا توجد طلبات ضمن الفترة المحددة" />
       </div>
 
       <OrderDetailsModal
