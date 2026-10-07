@@ -672,13 +672,16 @@ export async function printThermalDailyReport(report) {
 
 
 /* ── Finance statement ──────────────────────────────────────── */
-function drawFinancialReport(report, settings, logo) {
+function drawFinancialReport(report, settings, logo, mode = 'combined') {
+  const validMode = ['finance', 'americans', 'combined'].includes(mode) ? mode : 'combined'
   const width = Number(settings.paperWidth) === 58 ? 384 : 576
   const rows = report.rows || []
   const totals = report.totals || {}
   const period = report.period || {}
   const investor = report.investor || {}
   const investorName = investor.name || 'الأميركان'
+  const internalPercent = investor.internalPercent ?? 20
+  const deliveryPercent = investor.deliveryPercent ?? 15
   const taxOf = x => Number(x?.taxTotal ?? (Number(x?.consumptionTax || 0) + Number(x?.localAdministration || 0)))
   const obligationsOf = x => Number(x?.obligationsTotal ?? (taxOf(x) + Number(x?.investorShare || 0)))
   const { canvas, ctx } = newCanvas(width, 1500 + rows.length * 390)
@@ -686,8 +689,18 @@ function drawFinancialReport(report, settings, logo) {
 
   drawHeader(ctx, p, width, settings, logo)
   p.rule(3)
-  p.line('تقرير المالية', { size: 30, bold: true, gap: 6 })
-  p.line('الضريبة ونسبة الأميركان مفصولتان', { size: 20, bold: true, gap: 8 })
+  p.line(
+    validMode === 'finance' ? 'فاتورة المالية والضرائب'
+      : validMode === 'americans' ? `فاتورة ${investorName}`
+        : 'فاتورة المالية والأميركان',
+    { size: 30, bold: true, gap: 6 }
+  )
+  p.line(
+    validMode === 'finance' ? 'الضرائب والتفاصيل المالية فقط'
+      : validMode === 'americans' ? 'مستحقات الأميركان فقط'
+        : 'نسخة مشتركة للمالية والأميركان',
+    { size: 20, bold: true, gap: 8 }
+  )
 
   if (period.start && period.end) {
     const from = new Date(period.start).toLocaleDateString('ar-EG')
@@ -701,64 +714,77 @@ function drawFinancialReport(report, settings, logo) {
   if (!rows.length) p.line('لا توجد مبيعات ضمن الفترة', { size: 24, bold: true })
 
   for (const row of rows) {
-    if (row.manual) continue
+    if (row.manual && validMode === 'americans') continue
     p.rule(2)
     p.line(row.pointOfSale || 'نقطة بيع', { size: 25, bold: true, align: 'right', gap: 7 })
-    p.pair('عدد الفواتير', String(row.ordersCount || 0), { size: 20 })
+    if (!row.manual) p.pair('عدد الفواتير', String(row.ordersCount || 0), { size: 20 })
     p.pair('المبيعات قبل الضريبة', money(row.foodAndBeverageValue), { size: 21, bold: true })
 
-    p.space(5)
-    p.line('الضرائب', { size: 23, bold: true, gap: 6 })
-    p.pair('إنفاق استهلاكي (5%)', money(row.consumptionTax), { size: 20 })
-    p.pair('إدارة محلية (5%)', money(row.localAdministration), { size: 20 })
-    p.banner('إجمالي الضريبة', money(taxOf(row)), { size: 25 })
+    if (validMode !== 'americans') {
+      p.space(5)
+      p.line('المالية والضرائب', { size: 23, bold: true, gap: 6 })
+      p.pair('إنفاق استهلاكي (5%)', money(row.consumptionTax), { size: 20 })
+      p.pair('إدارة محلية (5%)', money(row.localAdministration), { size: 20 })
+      p.banner('إجمالي الضريبة', money(taxOf(row)), { size: 25 })
+      p.pair('الإجمالي مع الضريبة', money(row.grandTotal), { size: 21, bold: true })
+    }
 
-    p.space(5)
-    p.line(`نسبة ${investorName}`, { size: 23, bold: true, gap: 6 })
-    if (Number(row.investorInternal || 0) > 0) p.pair(`بالمحل ${investor.internalPercent ?? 20}%`, money(row.investorInternal), { size: 20 })
-    if (Number(row.investorExternal || 0) > 0) p.pair(`سفري / توصيل ${investor.deliveryPercent ?? 15}%`, money(row.investorExternal), { size: 20 })
-    p.banner('إجمالي نسبة الأميركان', money(row.investorShare), { size: 25 })
+    if (validMode !== 'finance') {
+      p.space(5)
+      p.line(`نسبة ${investorName}`, { size: 23, bold: true, gap: 6 })
+      p.pair(`بالمحل ${internalPercent}%`, money(row.investorInternal), { size: 20 })
+      p.pair(`سفري / توصيل ${deliveryPercent}%`, money(row.investorExternal), { size: 20 })
+      p.banner(`إجمالي ${investorName}`, money(row.investorShare), { size: 25 })
+    }
 
-    p.space(5)
-    p.banner('الضريبة + الأميركان', money(obligationsOf(row)), { size: 27 })
-    p.pair('الإجمالي مع الضريبة', money(row.grandTotal), { size: 21, bold: true })
+    if (validMode === 'combined') {
+      p.space(5)
+      p.banner('الضريبة + الأميركان', money(obligationsOf(row)), { size: 27 })
+    }
   }
 
   p.rule(4)
   p.line('الإجمالي العام', { size: 28, bold: true, gap: 10 })
   p.pair('المبيعات قبل الضريبة', money(totals.foodAndBeverageValue), { size: 22, bold: true })
 
-  p.space(6)
-  p.line('الضرائب', { size: 25, bold: true, gap: 6 })
-  p.pair('إنفاق استهلاكي (5%)', money(totals.consumptionTax), { size: 21 })
-  p.pair('إدارة محلية (5%)', money(totals.localAdministration), { size: 21 })
-  p.banner('إجمالي الضريبة', money(taxOf(totals)), { size: 27 })
+  if (validMode !== 'americans') {
+    p.space(6)
+    p.line('المالية والضرائب', { size: 25, bold: true, gap: 6 })
+    p.pair('إنفاق استهلاكي (5%)', money(totals.consumptionTax), { size: 21 })
+    p.pair('إدارة محلية (5%)', money(totals.localAdministration), { size: 21 })
+    p.banner('إجمالي الضريبة', money(taxOf(totals)), { size: 27 })
+    p.pair('الإجمالي مع الضريبة', money(totals.grandTotal), { size: 22, bold: true })
+  }
 
-  p.space(6)
-  p.line(`نسبة ${investorName}`, { size: 25, bold: true, gap: 6 })
-  p.pair(`بالمحل ${investor.internalPercent ?? 20}%`, money(totals.investorInternal), { size: 21 })
-  p.pair(`سفري / توصيل ${investor.deliveryPercent ?? 15}%`, money(totals.investorExternal), { size: 21 })
-  p.banner('إجمالي نسبة الأميركان', money(totals.investorShare), { size: 27 })
+  if (validMode !== 'finance') {
+    p.space(6)
+    p.line(`نسبة ${investorName}`, { size: 25, bold: true, gap: 6 })
+    p.pair(`بالمحل ${internalPercent}%`, money(totals.investorInternal), { size: 21 })
+    p.pair(`سفري / توصيل ${deliveryPercent}%`, money(totals.investorExternal), { size: 21 })
+    p.banner(`إجمالي ${investorName}`, money(totals.investorShare), { size: 27 })
+  }
 
-  p.space(8)
-  p.banner('إجمالي الالتزامات', money(obligationsOf(totals)), { size: 30 })
-  p.pair('الإجمالي مع الضريبة', money(totals.grandTotal), { size: 22, bold: true })
+  if (validMode === 'combined') {
+    p.space(8)
+    p.banner('إجمالي الالتزامات', money(obligationsOf(totals)), { size: 30 })
+  }
+
   p.space(8)
   p.rule(2)
   p.line(`طُبع ${new Date().toLocaleString('ar-EG')}`, { size: 18, gap: 8 })
   return { canvas, height: Math.min(canvas.height, p.y + 24) }
 }
 
-const rasterFinancialReport = (report, settings, logo) => {
-  const { canvas, height } = drawFinancialReport(report, settings, logo)
+const rasterFinancialReport = (report, settings, logo, mode = 'combined') => {
+  const { canvas, height } = drawFinancialReport(report, settings, logo, mode)
   return toEscPos(canvas, height, settings)
 }
 
-export async function getThermalFinancialReportPreview(report) {
+export async function getThermalFinancialReportPreview(report, mode = 'combined') {
   const settings = getPrinterSettings()
   await readyFont()
   const logo = settings.showLogo === false ? null : await loadLogo(settings.logoUrl)
-  const { canvas, height } = drawFinancialReport(report, settings, logo)
+  const { canvas, height } = drawFinancialReport(report, settings, logo, mode)
   const cropped = document.createElement('canvas')
   cropped.width = canvas.width
   cropped.height = height
@@ -766,7 +792,7 @@ export async function getThermalFinancialReportPreview(report) {
   return cropped.toDataURL('image/png')
 }
 
-export async function printThermalFinancialReport(report) {
+export async function printThermalFinancialReport(report, mode = 'combined') {
   const settings = getPrinterSettings()
   if (!settings.enabled) throw new Error('الطابعة الحرارية غير مفعّلة')
   if (settings.connection === 'usb' && !settings.printerName) throw new Error('اختر طابعة USB من الإعدادات')
@@ -778,7 +804,7 @@ export async function printThermalFinancialReport(report) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...printerTarget(settings), copies: 1,
-        dataBase64: rasterFinancialReport(report, settings, logo),
+        dataBase64: rasterFinancialReport(report, settings, logo, mode),
       }),
     })
   } catch {
