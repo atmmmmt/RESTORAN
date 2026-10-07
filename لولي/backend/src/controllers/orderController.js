@@ -7,6 +7,19 @@ const SalesCenter   = require('../models/SalesCenter');
 const cacheService  = require('../services/cacheService');
 const cashService   = require('../services/cashService');
 const financeService = require('../services/financeService');
+const SHOP_OFFSET = '+03:00';
+const DAY_KEY = /^\d{4}-\d{2}-\d{2}$/;
+const startOfShopDate = value => DAY_KEY.test(String(value || ''))
+  ? new Date(`${value}T00:00:00${SHOP_OFFSET}`)
+  : null;
+const dayAfterShopDate = value => {
+  if (!DAY_KEY.test(String(value || ''))) return null;
+  const [y,m,d] = String(value).split('-').map(Number);
+  const next = new Date(Date.UTC(y, m - 1, d + 1));
+  const key = next.toISOString().slice(0,10);
+  return new Date(`${key}T00:00:00${SHOP_OFFSET}`);
+};
+
 
 exports.getAll = async (req, res) => {
   const filter = {};
@@ -16,12 +29,11 @@ exports.getAll = async (req, res) => {
   }
   if (req.query.startDate || req.query.endDate) {
     filter.createdAt = {};
-    if (req.query.startDate) filter.createdAt.$gte = new Date(req.query.startDate);
-    if (req.query.endDate) {
-      const end = new Date(req.query.endDate);
-      end.setHours(23, 59, 59, 999);
-      filter.createdAt.$lte = end;
-    }
+    const start = startOfShopDate(req.query.startDate);
+    const endExclusive = dayAfterShopDate(req.query.endDate);
+    if (start && !Number.isNaN(start.getTime())) filter.createdAt.$gte = start;
+    if (endExclusive && !Number.isNaN(endExclusive.getTime())) filter.createdAt.$lt = endExclusive;
+    if (!Object.keys(filter.createdAt).length) delete filter.createdAt;
   }
 
   const page = Math.max(1, Number(req.query.page) || 1);
