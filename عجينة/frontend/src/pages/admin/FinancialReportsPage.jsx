@@ -444,7 +444,7 @@ export default function FinancialReportsPage(){
               </div>
             ) : previewUrl ? (
               <img src={previewUrl} alt="معاينة التقرير الحراري"
-                className="w-full max-w-[330px] h-auto bg-white shadow-xl"/>
+                className="block w-[310px] max-w-full h-auto object-contain bg-white shadow-xl rounded-sm"/>
             ) : (
               <div className="w-[300px] min-h-[420px] bg-white shadow-xl p-5 text-center flex items-center justify-center text-brand-gray font-bold">
                 اختر الفترة واضغط عرض التقرير
