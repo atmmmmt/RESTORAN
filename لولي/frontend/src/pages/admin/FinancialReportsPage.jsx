@@ -84,7 +84,7 @@ export default function FinancialReportsPage(){
     if(report.source==='legacy_manual'&&invoiceMode==='americans') return toast.error('المبلغ السابق لا يوضح مبيعات بالمحل والسفري، لذلك لا يمكن إصدار فاتورة الأميركان منه')
     setPrinting(true)
     try{
-      const rendered = raster || await renderFinancialReport(report,{mode:invoiceMode})
+      const rendered = await renderFinancialReport(report,{mode:invoiceMode})
       toast.success(await printToStation('cashier', rendered))
     }catch(e){
       toast.error(e.message||'تعذّرت طباعة التقرير')
