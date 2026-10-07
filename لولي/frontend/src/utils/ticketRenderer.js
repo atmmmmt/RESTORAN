@@ -321,6 +321,81 @@ export async function renderFinancialReport(r, { logoUrl = '/brand/luliz-logo-ro
   const rows = r.rows || []
   const t = r.totals || {}
   const period = r.period || {}
+  const investor = r.investor || {}
+  const investorName = investor.name || 'الأميركان'
+  const taxOf = x => Number(x?.taxTotal ?? (Number(x?.consumptionTax || 0) + Number(x?.localAdministration || 0)))
+  const obligationsOf = x => Number(x?.obligationsTotal ?? (taxOf(x) + Number(x?.investorShare || 0)))
+
+  p.image(logo, 150, 150)
+  p.band('تقرير المالية', { size: 30 })
+  p.text('الضريبة ونسبة الأميركان مفصولتان', { size: 20, weight: 800 })
+
+  if (period.start && period.end) {
+    const from = new Date(period.start).toLocaleDateString('ar-EG')
+    const to = new Date(new Date(period.end).getTime() - 1).toLocaleDateString('ar-EG')
+    p.box(() => {
+      p.row('من تاريخ', from, { size: 20, weight: 700 })
+      p.row('إلى تاريخ', to, { size: 20, weight: 700 })
+    })
+  }
+
+  if (!rows.length) p.text('لا توجد مبيعات ضمن الفترة', { size: 24, weight: 800 })
+
+  for (const row of rows) {
+    p.line({ dashed: false, width: 3 })
+    p.text(row.pointOfSale || 'نقطة بيع', { size: 26, weight: 900, align: 'right' })
+    p.row('عدد الفواتير', String(row.ordersCount || 0), { size: 20, weight: 600 })
+    p.row('المبيعات قبل الضريبة', formatCurrency(row.foodAndBeverageValue), { size: 21, weight: 800 })
+
+    p.gap(5)
+    p.text('الضرائب', { size: 23, weight: 900, align: 'right' })
+    p.row('إنفاق استهلاكي (5%)', formatCurrency(row.consumptionTax), { size: 20, weight: 700 })
+    p.row('إدارة محلية (5%)', formatCurrency(row.localAdministration), { size: 20, weight: 700 })
+    p.band(`إجمالي الضريبة  ${formatCurrency(taxOf(row))}`, { size: 24 })
+
+    p.gap(5)
+    p.text(`نسبة ${investorName}`, { size: 23, weight: 900, align: 'right' })
+    if (Number(row.investorInternal || 0) > 0) p.row(`بالمحل ${investor.internalPercent ?? 20}%`, formatCurrency(row.investorInternal), { size: 20, weight: 700 })
+    if (Number(row.investorExternal || 0) > 0) p.row(`سفري / توصيل ${investor.deliveryPercent ?? 15}%`, formatCurrency(row.investorExternal), { size: 20, weight: 700 })
+    p.band(`إجمالي نسبة الأميركان  ${formatCurrency(row.investorShare)}`, { size: 24 })
+
+    p.gap(5)
+    p.band(`الضريبة + الأميركان  ${formatCurrency(obligationsOf(row))}`, { size: 25 })
+    p.row('الإجمالي مع الضريبة', formatCurrency(row.grandTotal), { size: 21, weight: 800 })
+  }
+
+  p.line({ dashed: false, width: 4 })
+  p.text('الإجمالي العام', { size: 28, weight: 900 })
+  p.row('المبيعات قبل الضريبة', formatCurrency(t.foodAndBeverageValue), { size: 22, weight: 800 })
+
+  p.gap(6)
+  p.text('الضرائب', { size: 25, weight: 900, align: 'right' })
+  p.row('إنفاق استهلاكي (5%)', formatCurrency(t.consumptionTax), { size: 21, weight: 700 })
+  p.row('إدارة محلية (5%)', formatCurrency(t.localAdministration), { size: 21, weight: 700 })
+  p.band(`إجمالي الضريبة  ${formatCurrency(taxOf(t))}`, { size: 26 })
+
+  p.gap(6)
+  p.text(`نسبة ${investorName}`, { size: 25, weight: 900, align: 'right' })
+  p.row(`بالمحل ${investor.internalPercent ?? 20}%`, formatCurrency(t.investorInternal), { size: 21, weight: 700 })
+  p.row(`سفري / توصيل ${investor.deliveryPercent ?? 15}%`, formatCurrency(t.investorExternal), { size: 21, weight: 700 })
+  p.band(`إجمالي نسبة الأميركان  ${formatCurrency(t.investorShare)}`, { size: 26 })
+
+  p.gap(8)
+  p.band(`إجمالي الالتزامات  ${formatCurrency(obligationsOf(t))}`, { size: 29 })
+  p.row('الإجمالي مع الضريبة', formatCurrency(t.grandTotal), { size: 22, weight: 800 })
+  p.gap(8)
+  p.text('إجمالي الالتزامات = الضريبة + نسبة الأميركان', { size: 18, weight: 600 })
+  p.text(`طُبع: ${formatShopDateTime(new Date().toISOString())}`, { size: 18, weight: 400 })
+  return toRaster(p)
+}
+
+} = {}) {
+  await ensureFonts()
+  const logo = await loadImage(logoUrl)
+  const p = createPage()
+  const rows = r.rows || []
+  const t = r.totals || {}
+  const period = r.period || {}
 
   p.image(logo, 150, 150)
   p.band('تقرير المالية', { size: 30 })
