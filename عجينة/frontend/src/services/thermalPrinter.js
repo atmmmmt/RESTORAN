@@ -706,7 +706,11 @@ function drawDailyReport(report, settings, logo) {
 
 const rasterDailyReport = (report, settings, logo) => {
   const { canvas, height } = drawDailyReport(report, settings, logo)
-  return toEscPos(canvas, height, settings)
+  // Daily reports can be much taller than a normal receipt. Sending one huge
+  // GS v 0 raster makes some clone ESC/POS boards lose sync and print the
+  // remaining image bytes as random/Chinese-looking characters. Use the same
+  // safe banded raster path as the shift-close report.
+  return toEscPosBanded(canvas, height, settings)
 }
 
 export async function printThermalDailyReport(report) {
