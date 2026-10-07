@@ -17,6 +17,17 @@ const shiftService     = require('../services/shiftService');
 const financeService   = require('../services/financeService');
 
 const STATUSES = InternalOrder.STATUSES;
+const CALENDAR_DAY_KEY = /^\d{4}-\d{2}-\d{2}$/;
+const calendarStart = value => CALENDAR_DAY_KEY.test(String(value || ''))
+  ? new Date(`${value}T00:00:00+03:00`)
+  : null;
+const calendarEndExclusive = value => {
+  if (!CALENDAR_DAY_KEY.test(String(value || ''))) return null;
+  const [y,m,d] = String(value).split('-').map(Number);
+  const next = new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0,10);
+  return new Date(`${next}T00:00:00+03:00`);
+};
+
 
 /* "آجل" means the money hasn't arrived yet, so nothing hits the drawer. */
 const isPaid = method => method === 'cash' || method === 'card';
@@ -63,14 +74,19 @@ router.use(protect);
 
 /* ── GET /api/internal-orders ── */
 router.get('/', requireRole('admin', 'supervisor', 'cashier', 'kitchen', 'viewer'), async (req, res) => {
-  const { status, date, limit = 100 } = req.query;
+  const { status, date, startDate, endDate, limit = 100 } = req.query;
 
   const filter = {};
   applyCenterScope(req, filter);
   if (status && STATUSES.includes(status)) filter.status = status;
-  /* A working day, cut on the shop's opening hours — 'today' is the one
-     running now, which after midnight may still be yesterday's date. */
-  if (date) {
+  if (startDate || endDate) {
+    filter.createdAt = {};
+    const start = calendarStart(startDate);
+    const end = calendarEndExclusive(endDate);
+    if (start && !Number.isNaN(start.getTime())) filter.createdAt.$gte = start;
+    if (end && !Number.isNaN(end.getTime())) filter.createdAt.$lt = end;
+    if (!Object.keys(filter.createdAt).length) delete filter.createdAt;
+  } else if (date) {
     const { start, end } = await businessDay.range(date === 'today' ? undefined : date, businessDayCenter(req));
     filter.createdAt = { $gte: start, $lt: end };
   }
