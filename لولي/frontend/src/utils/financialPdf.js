@@ -9,41 +9,112 @@ const period = report => {
 }
 
 export function exportFinancialReportPdf(report, {
-  brandName='المطعم', logoUrl='', colors={}, includeTaxColumn=false, fileTitle='تقرير المالية', note=''
+  brandName='المطعم', logoUrl='', colors={}, fileTitle='', note='', mode='combined'
 }={}) {
   if(!report?.rows?.length) throw new Error('لا توجد مبيعات ضمن الفترة')
+  const validMode=['finance','americans','combined'].includes(mode)?mode:'combined'
   const w=window.open('','_blank','width=1200,height=850')
   if(!w) throw new Error('اسمح بالنوافذ المنبثقة حتى يتم فتح ملف PDF')
 
   const c={dark:'#352017',accent:'#A96734',soft:'#F6EDDF',paper:'#FBF7F0',line:'#E7D2B7',muted:'#6B5A4A',...colors}
   const currency=report.currency||'SYP', rows=report.rows||[], t=report.totals||{}, p=period(report)
+  const investor=report.investor||{}
+  const investorName=investor.name||'الأميركان'
+  const internalPercent=investor.internalPercent??20
+  const deliveryPercent=investor.deliveryPercent??15
   const logoSrc=logoUrl?(logoUrl.startsWith('/')?`${window.location.origin}${logoUrl}`:logoUrl):''
   const inheritedStyles=[...document.querySelectorAll('link[rel="stylesheet"]')]
     .map(node=>`<link rel="stylesheet" href="${esc(node.href)}">`).join('')
-  const tax=x=>Number(x?.consumptionTax||0)+Number(x?.localAdministration||0)
-  const cols=[
-    ['pointOfSale','اسم نقطة البيع'],
-    ['foodAndBeverageValue','المبيعات قبل الضريبة'],
-    ['taxTotal','إجمالي الضريبة'],
-    ['investorShare','نسبة الأميركان'],
-    ['obligationsTotal','إجمالي الالتزامات'],
-    ['grandTotal','الإجمالي مع الضريبة'],
-  ]
+  const tax=x=>Number(x?.taxTotal??(Number(x?.consumptionTax||0)+Number(x?.localAdministration||0)))
+  const obligations=x=>Number(x?.obligationsTotal??(tax(x)+Number(x?.investorShare||0)))
+
+  const modeTitle=validMode==='finance'
+    ? 'فاتورة المالية والضرائب'
+    : validMode==='americans'
+      ? `فاتورة ${investorName}`
+      : 'فاتورة المالية والأميركان'
+  const resolvedTitle=fileTitle||modeTitle
+
+  const columnsByMode={
+    finance:[
+      ['pointOfSale','اسم نقطة البيع'],
+      ['foodAndBeverageValue','المبيعات قبل الضريبة'],
+      ['consumptionTax','الإنفاق الاستهلاكي 5%'],
+      ['localAdministration','الإدارة المحلية 5%'],
+      ['taxTotal','إجمالي الضريبة'],
+      ['grandTotal','الإجمالي مع الضريبة'],
+    ],
+    americans:[
+      ['pointOfSale','اسم نقطة البيع'],
+      ['foodAndBeverageValue','المبيعات قبل الضريبة'],
+      ['investorInternal',`بالمحل ${internalPercent}%`],
+      ['investorExternal',`سفري / توصيل ${deliveryPercent}%`],
+      ['investorShare',`إجمالي ${investorName}`],
+    ],
+    combined:[
+      ['pointOfSale','اسم نقطة البيع'],
+      ['foodAndBeverageValue','المبيعات قبل الضريبة'],
+      ['taxTotal','إجمالي الضريبة'],
+      ['investorShare',`نسبة ${investorName}`],
+      ['obligationsTotal','إجمالي الالتزامات'],
+      ['grandTotal','الإجمالي مع الضريبة'],
+    ],
+  }
+  const cols=columnsByMode[validMode]
   const valueOf=(r,k)=>{
-    if(k==='taxTotal') return r.taxTotal ?? tax(r)
-    if(k==='obligationsTotal') return r.obligationsTotal ?? (tax(r)+Number(r.investorShare||0))
-    return r[k]
+    if(k==='taxTotal') return tax(r)
+    if(k==='obligationsTotal') return obligations(r)
+    return r?.[k]
   }
   const cell=(r,k)=>k==='pointOfSale'
     ? `<strong>${esc(r.pointOfSale||'نقطة بيع')}</strong><small>${r.manual?'مبلغ إجمالي من البرنامج السابق':`${esc(r.ordersCount||0)} فاتورة`}</small>`
     : `<b>${esc(money(valueOf(r,k),currency))}</b>`
-  const summary=[
-    ['المبيعات قبل الضريبة',money(t.foodAndBeverageValue,currency)],
-    ['إجمالي الضريبة',money(t.taxTotal??tax(t),currency)],
-    [`إجمالي نسبة ${report?.investor?.name||'الأميركان'}`,money(t.investorShare,currency)],
-    ['إجمالي الالتزامات',money(t.obligationsTotal??(tax(t)+Number(t.investorShare||0)),currency)],
-  ]
-  const title=`${fileTitle} - ${brandName} - ${p.from} - ${p.to}`
+
+  const summary=validMode==='finance'
+    ? [
+        ['المبيعات قبل الضريبة',money(t.foodAndBeverageValue,currency)],
+        ['الإنفاق الاستهلاكي',money(t.consumptionTax,currency)],
+        ['الإدارة المحلية',money(t.localAdministration,currency)],
+        ['إجمالي الضريبة',money(tax(t),currency)],
+      ]
+    : validMode==='americans'
+      ? [
+          ['المبيعات قبل الضريبة',money(t.foodAndBeverageValue,currency)],
+          [`بالمحل ${internalPercent}%`,money(t.investorInternal,currency)],
+          [`سفري / توصيل ${deliveryPercent}%`,money(t.investorExternal,currency)],
+          [`إجمالي ${investorName}`,money(t.investorShare,currency)],
+        ]
+      : [
+          ['المبيعات قبل الضريبة',money(t.foodAndBeverageValue,currency)],
+          ['إجمالي الضريبة',money(tax(t),currency)],
+          [`إجمالي نسبة ${investorName}`,money(t.investorShare,currency)],
+          ['إجمالي الالتزامات',money(obligations(t),currency)],
+        ]
+
+  const grand=validMode==='finance'
+    ? {
+        label:'إجمالي الضريبة',
+        amount:tax(t),
+        details:`الإنفاق الاستهلاكي: ${money(t.consumptionTax,currency)}<br>الإدارة المحلية: ${money(t.localAdministration,currency)}<br>المبيعات قبل الضريبة: ${money(t.foodAndBeverageValue,currency)}<br>الإجمالي مع الضريبة: ${money(t.grandTotal,currency)}`,
+      }
+    : validMode==='americans'
+      ? {
+          label:`إجمالي مستحق ${investorName}`,
+          amount:Number(t.investorShare||0),
+          details:`بالمحل ${internalPercent}%: ${money(t.investorInternal,currency)}<br>سفري / توصيل ${deliveryPercent}%: ${money(t.investorExternal,currency)}<br>المبيعات قبل الضريبة: ${money(t.foodAndBeverageValue,currency)}`,
+        }
+      : {
+          label:'إجمالي الالتزامات',
+          amount:obligations(t),
+          details:`الضريبة: ${money(tax(t),currency)}<br>نسبة ${investorName}: ${money(t.investorShare,currency)}<br>المبيعات قبل الضريبة: ${money(t.foodAndBeverageValue,currency)}<br>الإجمالي مع الضريبة: ${money(t.grandTotal,currency)}`,
+        }
+
+  const modeHint=validMode==='finance'
+    ? 'نسخة خاصة بالمالية والضرائب فقط'
+    : validMode==='americans'
+      ? `نسخة خاصة بمستحقات ${investorName} فقط`
+      : 'نسخة مشتركة للمالية والأميركان'
+  const title=`${resolvedTitle} - ${brandName} - ${p.from} - ${p.to}`
   w.document.write(`<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>${esc(title)}</title>${inheritedStyles}
   <style>
     @page{size:A4 landscape;margin:10mm}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:${c.dark}}
@@ -64,12 +135,12 @@ export function exportFinancialReportPdf(report, {
     .note{margin-top:10px;padding:9px 12px;background:${c.paper};border-right:4px solid ${c.accent};border-radius:10px;color:${c.muted};font-size:9.5px;font-weight:700}
     footer{margin-top:12px;border-top:1px solid ${c.line};padding-top:8px;display:flex;justify-content:space-between;color:${c.muted};font-size:8.5px;font-weight:700}
     @media print{.no-print{display:none!important}body{background:#fff}.page{padding:0}}
-  </style></head><body><div class="page"><div class="topline"></div><header><div class="brand">${logoSrc?`<img class="logo" src="${esc(logoSrc)}">`:''}<div><div class="brandname">${esc(brandName)}</div><h1>${esc(fileTitle)}</h1><div class="sub">نسخة A4 مرتبة للحفظ والمشاركة</div></div></div><div class="meta"><div>من تاريخ: ${esc(p.from)}</div><div>إلى تاريخ: ${esc(p.to)}</div><div>تاريخ الإصدار: ${esc(new Date().toLocaleString('ar-SY'))}</div></header>
+  </style></head><body><div class="page"><div class="topline"></div><header><div class="brand">${logoSrc?`<img class="logo" src="${esc(logoSrc)}">`:''}<div><div class="brandname">${esc(brandName)}</div><h1>${esc(resolvedTitle)}</h1><div class="sub">${esc(modeHint)} · PDF A4 مرتب للحفظ والمشاركة</div></div></div><div class="meta"><div>من تاريخ: ${esc(p.from)}</div><div>إلى تاريخ: ${esc(p.to)}</div><div>تاريخ الإصدار: ${esc(new Date().toLocaleString('ar-SY'))}</div></header>
   <section class="summary">${summary.map(([l,v])=>`<div class="card"><span>${esc(l)}</span><b>${esc(v)}</b></div>`).join('')}</section>
   <table><thead><tr>${cols.map(([,l])=>`<th>${esc(l)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${cols.map(([k])=>`<td>${cell(r,k)}</td>`).join('')}</tr>`).join('')}</tbody>
   <tfoot><tr>${cols.map(([k],i)=>`<td>${i===0?'الإجمالي':esc(money(valueOf(t,k),currency))}</td>`).join('')}</tr></tfoot></table>
-  <div class="grand"><div><h2>إجمالي الالتزامات</h2><div class="amount">${esc(money(t.obligationsTotal??(tax(t)+Number(t.investorShare||0)),currency))}</div></div><div class="details">الضريبة: ${esc(money(t.taxTotal??tax(t),currency))}<br>نسبة ${esc(report?.investor?.name||'الأميركان')}: ${esc(money(t.investorShare,currency))}<br>المبيعات قبل الضريبة: ${esc(money(t.foodAndBeverageValue,currency))}<br>الإجمالي مع الضريبة: ${esc(money(t.grandTotal,currency))}</div></div>
-  ${note?`<div class="note">${esc(note)}</div>`:''}<footer><span>${esc(brandName)} - نظام الإدارة المالية</span><span>PDF / A4 / RTL</span></footer></div>
+  <div class="grand"><div><h2>${esc(grand.label)}</h2><div class="amount">${esc(money(grand.amount,currency))}</div></div><div class="details">${grand.details}</div></div>
+  ${note?`<div class="note">${esc(note)}</div>`:''}<footer><span>${esc(brandName)} - ${esc(modeTitle)}</span><span>PDF / A4 / RTL</span></footer></div>
   <script>window.addEventListener('load',()=>setTimeout(()=>window.print(),450));<\/script></body></html>`)
   w.document.close()
   w.focus()
