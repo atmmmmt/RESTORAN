@@ -161,7 +161,7 @@ export function CashierOrders({ isAdmin, canEdit }) {
         summary={<>{live.length} طلب · <span className="text-fuchsia">{formatCurrency(total)}</span></>}
       />
       <DataTable columns={columns} data={orders} loading={loading} searchable searchPlaceholder="ابحث برقم الطلب..."
-        emptyIcon={Receipt} emptyTitle={date ? 'لا توجد طلبات كاشير بهاليوم' : 'لا توجد طلبات كاشير'} />
+        emptyIcon={Receipt} emptyTitle="لا توجد طلبات كاشير ضمن الفترة المحددة" />
 
       <OrderDetailsModal
         open={!!selectedOrder}
