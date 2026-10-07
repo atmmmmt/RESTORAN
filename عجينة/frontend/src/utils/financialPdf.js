@@ -22,18 +22,26 @@ export function exportFinancialReportPdf(report, {
     .map(node=>`<link rel="stylesheet" href="${esc(node.href)}">`).join('')
   const tax=x=>Number(x?.consumptionTax||0)+Number(x?.localAdministration||0)
   const cols=[
-    ['pointOfSale','اسم نقطة البيع'],['foodAndBeverageValue','قيمة المأكولات والمشروبات'],
-    ['consumptionTax','الإنفاق الاستهلاكي 5%'],['localAdministration','الإدارة المحلية 5%'],
-    ['grandTotal','المجموع'], ...(includeTaxColumn?[['tax','الضريبة']]:[])
+    ['pointOfSale','اسم نقطة البيع'],
+    ['foodAndBeverageValue','المبيعات قبل الضريبة'],
+    ['taxTotal','إجمالي الضريبة'],
+    ['investorShare','نسبة الأميركان'],
+    ['obligationsTotal','إجمالي الالتزامات'],
+    ['grandTotal','الإجمالي مع الضريبة'],
   ]
+  const valueOf=(r,k)=>{
+    if(k==='taxTotal') return r.taxTotal ?? tax(r)
+    if(k==='obligationsTotal') return r.obligationsTotal ?? (tax(r)+Number(r.investorShare||0))
+    return r[k]
+  }
   const cell=(r,k)=>k==='pointOfSale'
     ? `<strong>${esc(r.pointOfSale||'نقطة بيع')}</strong><small>${r.manual?'مبلغ إجمالي من البرنامج السابق':`${esc(r.ordersCount||0)} فاتورة`}</small>`
-    : `<b>${esc(money(k==='tax'?tax(r):r[k],currency))}</b>`
+    : `<b>${esc(money(valueOf(r,k),currency))}</b>`
   const summary=[
-    ['إجمالي المبيعات',money(t.grandTotal,currency)],
-    ['قيمة المأكولات والمشروبات',money(t.foodAndBeverageValue,currency)],
-    ['الإنفاق الاستهلاكي 5%',money(t.consumptionTax,currency)],
-    [includeTaxColumn?'إجمالي الضريبة':'الإدارة المحلية 5%',money(includeTaxColumn?tax(t):t.localAdministration,currency)]
+    ['المبيعات قبل الضريبة',money(t.foodAndBeverageValue,currency)],
+    ['إجمالي الضريبة',money(t.taxTotal??tax(t),currency)],
+    [`إجمالي نسبة ${report?.investor?.name||'الأميركان'}`,money(t.investorShare,currency)],
+    ['إجمالي الالتزامات',money(t.obligationsTotal??(tax(t)+Number(t.investorShare||0)),currency)],
   ]
   const title=`${fileTitle} - ${brandName} - ${p.from} - ${p.to}`
   w.document.write(`<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>${esc(title)}</title>${inheritedStyles}
@@ -59,8 +67,8 @@ export function exportFinancialReportPdf(report, {
   </style></head><body><div class="page"><div class="topline"></div><header><div class="brand">${logoSrc?`<img class="logo" src="${esc(logoSrc)}">`:''}<div><div class="brandname">${esc(brandName)}</div><h1>${esc(fileTitle)}</h1><div class="sub">نسخة A4 مرتبة للحفظ والمشاركة</div></div></div><div class="meta"><div>من تاريخ: ${esc(p.from)}</div><div>إلى تاريخ: ${esc(p.to)}</div><div>تاريخ الإصدار: ${esc(new Date().toLocaleString('ar-SY'))}</div></header>
   <section class="summary">${summary.map(([l,v])=>`<div class="card"><span>${esc(l)}</span><b>${esc(v)}</b></div>`).join('')}</section>
   <table><thead><tr>${cols.map(([,l])=>`<th>${esc(l)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${cols.map(([k])=>`<td>${cell(r,k)}</td>`).join('')}</tr>`).join('')}</tbody>
-  <tfoot><tr>${cols.map(([k],i)=>`<td>${i===0?'الإجمالي':esc(money(k==='tax'?tax(t):t[k],currency))}</td>`).join('')}</tr></tfoot></table>
-  <div class="grand"><div><h2>الإجمالي العام</h2><div class="amount">${esc(money(t.grandTotal,currency))}</div></div><div class="details">قيمة المأكولات والمشروبات: ${esc(money(t.foodAndBeverageValue,currency))}<br>الإنفاق الاستهلاكي: ${esc(money(t.consumptionTax,currency))}<br>${includeTaxColumn?`إجمالي الضريبة: ${esc(money(tax(t),currency))}`:`الإدارة المحلية: ${esc(money(t.localAdministration,currency))}`}</div></div>
+  <tfoot><tr>${cols.map(([k],i)=>`<td>${i===0?'الإجمالي':esc(money(valueOf(t,k),currency))}</td>`).join('')}</tr></tfoot></table>
+  <div class="grand"><div><h2>إجمالي الالتزامات</h2><div class="amount">${esc(money(t.obligationsTotal??(tax(t)+Number(t.investorShare||0)),currency))}</div></div><div class="details">الضريبة: ${esc(money(t.taxTotal??tax(t),currency))}<br>نسبة ${esc(report?.investor?.name||'الأميركان')}: ${esc(money(t.investorShare,currency))}<br>المبيعات قبل الضريبة: ${esc(money(t.foodAndBeverageValue,currency))}<br>الإجمالي مع الضريبة: ${esc(money(t.grandTotal,currency))}</div></div>
   ${note?`<div class="note">${esc(note)}</div>`:''}<footer><span>${esc(brandName)} - نظام الإدارة المالية</span><span>PDF / A4 / RTL</span></footer></div>
   <script>window.addEventListener('load',()=>setTimeout(()=>window.print(),450));<\/script></body></html>`)
   w.document.close()
