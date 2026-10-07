@@ -28,6 +28,7 @@ export default function FinancialReportsPage(){
   const [previewUrl,setPreviewUrl]=useState('')
   const [previewing,setPreviewing]=useState(false)
   const [raster,setRaster]=useState(null)
+  const [invoiceMode,setInvoiceMode]=useState('combined')
   const [view,setView]=useState('finance')
   const [shifts,setShifts]=useState([])
   const [shiftLoading,setShiftLoading]=useState(false)
@@ -60,7 +61,7 @@ export default function FinancialReportsPage(){
     setPreviewing(true)
     ;(async()=>{
       try{
-        const rendered = await renderFinancialReport(report)
+        const rendered = await renderFinancialReport(report,{mode:invoiceMode})
         if (!cancelled) {
           setRaster(rendered)
           setPreviewUrl(rendered.previewUrl)
@@ -75,14 +76,15 @@ export default function FinancialReportsPage(){
       }
     })()
     return()=>{cancelled=true}
-  },[report])
+  },[report,invoiceMode])
 
   const printReport=async()=>{
     if(!report) return toast.error('اعرض التقرير أولاً')
     if(!(report.rows||[]).length) return toast.error('لا توجد مبيعات ضمن الفترة')
+    if(report.source==='legacy_manual'&&invoiceMode==='americans') return toast.error('المبلغ السابق لا يوضح مبيعات بالمحل والسفري، لذلك لا يمكن إصدار فاتورة الأميركان منه')
     setPrinting(true)
     try{
-      const rendered = raster || await renderFinancialReport(report)
+      const rendered = raster || await renderFinancialReport(report,{mode:invoiceMode})
       toast.success(await printToStation('cashier', rendered))
     }catch(e){
       toast.error(e.message||'تعذّرت طباعة التقرير')
@@ -93,10 +95,12 @@ export default function FinancialReportsPage(){
 
   const exportPdf=()=>{
     try{
+      if(report?.source==='legacy_manual'&&invoiceMode==='americans') return toast.error('المبلغ السابق لا يوضح مبيعات بالمحل والسفري، لذلك لا يمكن إصدار فاتورة الأميركان منه')
       exportFinancialReportPdf(report,{
         brandName:'لوليز',
         logoUrl:'/brand/luliz-logo-round.png',
-        fileTitle:'تقرير المالية والمبيعات',
+        mode:invoiceMode,
+        fileTitle:invoiceMode==='finance'?'فاتورة المالية والضرائب':invoiceMode==='americans'?'فاتورة الأميركان':'فاتورة المالية والأميركان',
         colors:{
           dark:'#20160F', accent:'#C18A4A', soft:'#F6EFE6',
           paper:'#FBF7F2', line:'#EAD9C2', muted:'#7A6855',
@@ -298,6 +302,25 @@ export default function FinancialReportsPage(){
               <div className="text-[11px] text-brand-gray font-bold">هذا الشكل يخرج من طابعة الفواتير</div>
             </div>
           </div>
+          <div className="p-4 border-b border-brand-border">
+            <div className="text-xs font-black text-brand-gray mb-2">نوع الفاتورة</div>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                ['finance','المالية'],
+                ['americans','الأميركان'],
+                ['combined','مشتركة'],
+              ].map(([value,label])=><button key={value} type="button"
+                onClick={()=>setInvoiceMode(value)}
+                disabled={report?.source==='legacy_manual'&&value==='americans'}
+                className={`px-2 py-2.5 rounded-xl text-xs font-black border-2 transition-all disabled:opacity-35 disabled:cursor-not-allowed ${invoiceMode===value?'bg-brand-dark text-white border-brand-dark':'bg-white text-brand-gray border-brand-border hover:border-fuchsia/50'}`}>
+                {label}
+              </button>)}
+            </div>
+            <p className="text-[11px] text-brand-gray font-bold mt-2 leading-5">
+              {invoiceMode==='finance'?'تطبع الضرائب والتفاصيل المالية فقط.':invoiceMode==='americans'?'تطبع مستحقات الأميركان فقط بدون الضرائب.':'تطبع المالية والأميركان معاً وإجمالي الالتزامات.'}
+            </p>
+            {report?.source==='legacy_manual'&&<p className="text-[10px] text-amber-700 font-black mt-1">فاتورة الأميركان غير متاحة للمبلغ السابق لأنه لا يحدد توزيع بالمحل / سفري.</p>}
+          </div>
 
           <div className="p-4 bg-[#ece9e3] flex justify-center max-h-[650px] overflow-auto">
             {previewing ? (
@@ -319,16 +342,16 @@ export default function FinancialReportsPage(){
               <button onClick={printReport} disabled={printing||loading||!rows.length}
                 className="w-full px-4 py-3 rounded-xl bg-brand-dark text-white font-black flex items-center justify-center gap-2 disabled:opacity-50">
                 <Printer size={17}/>
-                {printing?'جاري الإرسال للطابعة…':'طباعة حرارية'}
+                {printing?'جاري الإرسال للطابعة…':`طباعة حرارية — ${invoiceMode==='finance'?'المالية':invoiceMode==='americans'?'الأميركان':'مشتركة'}`}
               </button>
               <button onClick={exportPdf} disabled={loading||!rows.length}
                 className="w-full px-4 py-3 rounded-xl bg-fuchsia text-white font-black flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm">
                 <FileDown size={17}/>
-                تصدير PDF — A4
+                PDF — {invoiceMode==='finance'?'المالية':invoiceMode==='americans'?'الأميركان':'مشتركة'}
               </button>
             </div>
             <p className="text-[11px] text-brand-gray font-bold leading-5 mt-3">
-              الحراري يطبع على طابعة الكاشير. زر PDF يفتح نسخة A4 وRTL؛ من نافذة الطباعة اختاري «حفظ بصيغة PDF» لإرسالها أو أرشفتها.
+              اختاري أولاً نوع الفاتورة: مالية فقط، أميركان فقط، أو مشتركة. نفس الاختيار يطبق على الحراري والـPDF.
             </p>
           </div>
         </div>
