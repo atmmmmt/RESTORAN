@@ -361,7 +361,16 @@ export async function renderFinancialReport(r, { logoUrl = '/brand/luliz-logo-ro
     if (!row.manual) p.row('عدد الفواتير', String(row.ordersCount || 0), { size: 20, weight: 600 })
     p.row('المبيعات قبل الضريبة', formatCurrency(row.foodAndBeverageValue), { size: 21, weight: 800 })
 
-    if (validMode !== 'americans') {
+    if (validMode === 'combined') {
+      p.gap(4)
+      p.row('إجمالي الضريبة', formatCurrency(taxOf(row)), { size: 20, weight: 800 })
+      p.row(`إجمالي ${investorName}`, formatCurrency(row.investorShare), { size: 20, weight: 800 })
+      p.band(`إجمالي الالتزامات  ${formatCurrency(obligationsOf(row))}`, { size: 25 })
+      p.row('الإجمالي مع الضريبة', formatCurrency(row.grandTotal), { size: 20, weight: 800 })
+      continue
+    }
+
+    if (validMode === 'finance') {
       p.gap(5)
       p.text('المالية والضرائب', { size: 23, weight: 900, align: 'right' })
       p.row('إنفاق استهلاكي (5%)', formatCurrency(row.consumptionTax), { size: 20, weight: 700 })
@@ -370,17 +379,12 @@ export async function renderFinancialReport(r, { logoUrl = '/brand/luliz-logo-ro
       p.row('الإجمالي مع الضريبة', formatCurrency(row.grandTotal), { size: 21, weight: 800 })
     }
 
-    if (validMode !== 'finance') {
+    if (validMode === 'americans') {
       p.gap(5)
       p.text(`نسبة ${investorName}`, { size: 23, weight: 900, align: 'right' })
       p.row(`بالمحل ${internalPercent}%`, formatCurrency(row.investorInternal), { size: 20, weight: 700 })
       p.row(`سفري / توصيل ${deliveryPercent}%`, formatCurrency(row.investorExternal), { size: 20, weight: 700 })
       p.band(`إجمالي ${investorName}  ${formatCurrency(row.investorShare)}`, { size: 24 })
-    }
-
-    if (validMode === 'combined') {
-      p.gap(5)
-      p.band(`الضريبة + الأميركان  ${formatCurrency(obligationsOf(row))}`, { size: 25 })
     }
   }
 
