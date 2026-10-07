@@ -95,6 +95,11 @@ export default function FinancialReportsPage(){
         foodAndBeverageValue:amount,
         consumptionTax,
         localAdministration,
+        taxTotal:consumptionTax+localAdministration,
+        investorInternal:0,
+        investorExternal:0,
+        investorShare:0,
+        obligationsTotal:consumptionTax+localAdministration,
         grandTotal,
       }],
       totals:{
@@ -102,6 +107,11 @@ export default function FinancialReportsPage(){
         foodAndBeverageValue:amount,
         consumptionTax,
         localAdministration,
+        taxTotal:consumptionTax+localAdministration,
+        investorInternal:0,
+        investorExternal:0,
+        investorShare:0,
+        obligationsTotal:consumptionTax+localAdministration,
         grandTotal,
       },
     })
