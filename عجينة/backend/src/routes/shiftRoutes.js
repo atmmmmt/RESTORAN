@@ -45,19 +45,46 @@ router.get('/current', requireRole('admin', 'supervisor', 'cashier', 'viewer'), 
 /* ── GET /api/shifts ── recent shifts, newest first. */
 router.get('/', requireRole('admin', 'supervisor', 'cashier', 'viewer'), async (req, res) => {
   const filter = {};
-  if (req.user?.centerId) filter.centerId = req.user.centerId;
-  else if (req.query.center && req.query.center !== 'all') {
+  if (req.user?.centerId) {
+    filter.centerId = req.user.centerId;
+  } else if (req.query.center && req.query.center !== 'all') {
     filter.centerId = req.query.center === 'hq' ? null : req.query.center;
-  } else filter.centerId = null;
+  }
+
   if (req.query.day && businessDay.DAY_KEY.test(req.query.day)) filter.businessDay = req.query.day;
+  if (['open', 'closed'].includes(req.query.status)) filter.status = req.query.status;
+
+  if (req.query.from || req.query.to) {
+    filter.openedAt = {};
+    if (req.query.from) {
+      const from = new Date(`${req.query.from}T00:00:00`);
+      if (!Number.isNaN(from.getTime())) filter.openedAt.$gte = from;
+    }
+    if (req.query.to) {
+      const to = new Date(`${req.query.to}T00:00:00`);
+      if (!Number.isNaN(to.getTime())) {
+        to.setDate(to.getDate() + 1);
+        filter.openedAt.$lt = to;
+      }
+    }
+    if (!Object.keys(filter.openedAt).length) delete filter.openedAt;
+  }
+
+  const cashier = String(req.query.cashier || '').trim();
+  if (cashier) {
+    const safe = cashier.replace(/[.*+?^$\{\}()|[\]\\]/g, '\\$&');
+    filter.$or = [
+      { openedByName: { $regex: safe, $options: 'i' } },
+      { closedByName: { $regex: safe, $options: 'i' } },
+    ];
+  }
 
   const shifts = await CashierShift.find(filter)
     .sort({ openedAt: -1 })
-    .limit(Math.min(Number(req.query.limit) || 30, 200));
+    .limit(Math.min(Number(req.query.limit) || 100, 500));
   res.json({ success: true, shifts });
 });
 
-/* ── POST /api/shifts/open ── { openingCash } */
 router.post('/open', requirePos, async (req, res) => {
   const shift = await shiftService.open(centerOf(req), req.user, req.body.openingCash);
   res.status(201).json({ success: true, shift: await present(shift), message: `تم فتح الوردية رقم ${shift.number}` });
