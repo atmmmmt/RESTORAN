@@ -238,7 +238,7 @@ export default function FinancialReportsPage(){
           </div>
         </div>
       </div>
-    </section>
+    </section>}
 
     <div className="grid xl:grid-cols-[minmax(0,1fr)_380px] gap-5 items-start">
       <section className="bg-white rounded-2xl shadow-card border border-brand-border overflow-hidden">
