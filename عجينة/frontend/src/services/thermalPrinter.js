@@ -720,7 +720,16 @@ function drawFinancialReport(report, settings, logo, mode = 'combined') {
     if (!row.manual) p.pair('عدد الفواتير', String(row.ordersCount || 0), { size: 20 })
     p.pair('المبيعات قبل الضريبة', money(row.foodAndBeverageValue), { size: 21, bold: true })
 
-    if (validMode !== 'americans') {
+    if (validMode === 'combined') {
+      p.space(4)
+      p.pair('إجمالي الضريبة', money(taxOf(row)), { size: 20, bold: true })
+      p.pair(`إجمالي ${investorName}`, money(row.investorShare), { size: 20, bold: true })
+      p.banner('إجمالي الالتزامات', money(obligationsOf(row)), { size: 26 })
+      p.pair('الإجمالي مع الضريبة', money(row.grandTotal), { size: 20, bold: true })
+      continue
+    }
+
+    if (validMode === 'finance') {
       p.space(5)
       p.line('المالية والضرائب', { size: 23, bold: true, gap: 6 })
       p.pair('إنفاق استهلاكي (5%)', money(row.consumptionTax), { size: 20 })
@@ -729,17 +738,12 @@ function drawFinancialReport(report, settings, logo, mode = 'combined') {
       p.pair('الإجمالي مع الضريبة', money(row.grandTotal), { size: 21, bold: true })
     }
 
-    if (validMode !== 'finance') {
+    if (validMode === 'americans') {
       p.space(5)
       p.line(`نسبة ${investorName}`, { size: 23, bold: true, gap: 6 })
       p.pair(`بالمحل ${internalPercent}%`, money(row.investorInternal), { size: 20 })
       p.pair(`سفري / توصيل ${deliveryPercent}%`, money(row.investorExternal), { size: 20 })
       p.banner(`إجمالي ${investorName}`, money(row.investorShare), { size: 25 })
-    }
-
-    if (validMode === 'combined') {
-      p.space(5)
-      p.banner('الضريبة + الأميركان', money(obligationsOf(row)), { size: 27 })
     }
   }
 
