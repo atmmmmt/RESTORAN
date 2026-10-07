@@ -677,13 +677,17 @@ function drawFinancialReport(report, settings, logo) {
   const rows = report.rows || []
   const totals = report.totals || {}
   const period = report.period || {}
-  const { canvas, ctx } = newCanvas(width, 1000 + rows.length * 260)
+  const investor = report.investor || {}
+  const investorName = investor.name || 'الأميركان'
+  const taxOf = x => Number(x?.taxTotal ?? (Number(x?.consumptionTax || 0) + Number(x?.localAdministration || 0)))
+  const obligationsOf = x => Number(x?.obligationsTotal ?? (taxOf(x) + Number(x?.investorShare || 0)))
+  const { canvas, ctx } = newCanvas(width, 1500 + rows.length * 390)
   const p = painter(ctx, width)
 
   drawHeader(ctx, p, width, settings, logo)
   p.rule(3)
   p.line('تقرير المالية', { size: 30, bold: true, gap: 6 })
-  p.line('إجمالي المبيعات', { size: 26, bold: true, gap: 6 })
+  p.line('الضريبة ونسبة الأميركان مفصولتان', { size: 20, bold: true, gap: 8 })
 
   if (period.start && period.end) {
     const from = new Date(period.start).toLocaleDateString('ar-EG')
@@ -697,33 +701,48 @@ function drawFinancialReport(report, settings, logo) {
   if (!rows.length) p.line('لا توجد مبيعات ضمن الفترة', { size: 24, bold: true })
 
   for (const row of rows) {
-    // Manual legacy invoices should be one clean summary, not a duplicated
-    // "branch + grand total" block. The grand-total section below is enough.
     if (row.manual) continue
-
     p.rule(2)
     p.line(row.pointOfSale || 'نقطة بيع', { size: 25, bold: true, align: 'right', gap: 7 })
     p.pair('عدد الفواتير', String(row.ordersCount || 0), { size: 20 })
-    p.pair('قيمة المأكولات والمشروبات', money(row.foodAndBeverageValue), { size: 21, bold: true })
-    p.pair('إنفاق استهلاكي (5%)', money(row.consumptionTax), { size: 21, bold: true })
-    p.pair('إدارة محلية (5%)', money(row.localAdministration), { size: 21, bold: true })
-    p.banner('المجموع', money(row.grandTotal), { size: 27 })
-    p.space(6)
-    p.line('الضريبة', { size: 24, bold: true, gap: 8 })
-    p.banner('القيمة', money(Number(row.consumptionTax || 0) + Number(row.localAdministration || 0)), { size: 26 })
+    p.pair('المبيعات قبل الضريبة', money(row.foodAndBeverageValue), { size: 21, bold: true })
+
+    p.space(5)
+    p.line('الضرائب', { size: 23, bold: true, gap: 6 })
+    p.pair('إنفاق استهلاكي (5%)', money(row.consumptionTax), { size: 20 })
+    p.pair('إدارة محلية (5%)', money(row.localAdministration), { size: 20 })
+    p.banner('إجمالي الضريبة', money(taxOf(row)), { size: 25 })
+
+    p.space(5)
+    p.line(`نسبة ${investorName}`, { size: 23, bold: true, gap: 6 })
+    if (Number(row.investorInternal || 0) > 0) p.pair(`بالمحل ${investor.internalPercent ?? 20}%`, money(row.investorInternal), { size: 20 })
+    if (Number(row.investorExternal || 0) > 0) p.pair(`سفري / توصيل ${investor.deliveryPercent ?? 15}%`, money(row.investorExternal), { size: 20 })
+    p.banner('إجمالي نسبة الأميركان', money(row.investorShare), { size: 25 })
+
+    p.space(5)
+    p.banner('الضريبة + الأميركان', money(obligationsOf(row)), { size: 27 })
+    p.pair('الإجمالي مع الضريبة', money(row.grandTotal), { size: 21, bold: true })
   }
 
   p.rule(4)
   p.line('الإجمالي العام', { size: 28, bold: true, gap: 10 })
-  p.pair('قيمة المأكولات والمشروبات', money(totals.foodAndBeverageValue), { size: 22, bold: true })
-  p.pair('إنفاق استهلاكي (5%)', money(totals.consumptionTax), { size: 22, bold: true })
-  p.pair('إدارة محلية (5%)', money(totals.localAdministration), { size: 22, bold: true })
-  p.banner('الإجمالي', money(totals.grandTotal), { size: 30 })
+  p.pair('المبيعات قبل الضريبة', money(totals.foodAndBeverageValue), { size: 22, bold: true })
+
+  p.space(6)
+  p.line('الضرائب', { size: 25, bold: true, gap: 6 })
+  p.pair('إنفاق استهلاكي (5%)', money(totals.consumptionTax), { size: 21 })
+  p.pair('إدارة محلية (5%)', money(totals.localAdministration), { size: 21 })
+  p.banner('إجمالي الضريبة', money(taxOf(totals)), { size: 27 })
+
+  p.space(6)
+  p.line(`نسبة ${investorName}`, { size: 25, bold: true, gap: 6 })
+  p.pair(`بالمحل ${investor.internalPercent ?? 20}%`, money(totals.investorInternal), { size: 21 })
+  p.pair(`سفري / توصيل ${investor.deliveryPercent ?? 15}%`, money(totals.investorExternal), { size: 21 })
+  p.banner('إجمالي نسبة الأميركان', money(totals.investorShare), { size: 27 })
 
   p.space(8)
-  p.line('الضريبة', { size: 26, bold: true, gap: 8 })
-  p.line('الضريبة = الإنفاق الاستهلاكي + الإدارة المحلية', { size: 18, bold: true, gap: 8 })
-  p.banner('القيمة', money(Number(totals.consumptionTax || 0) + Number(totals.localAdministration || 0)), { size: 28 })
+  p.banner('إجمالي الالتزامات', money(obligationsOf(totals)), { size: 30 })
+  p.pair('الإجمالي مع الضريبة', money(totals.grandTotal), { size: 22, bold: true })
   p.space(8)
   p.rule(2)
   p.line(`طُبع ${new Date().toLocaleString('ar-EG')}`, { size: 18, gap: 8 })
