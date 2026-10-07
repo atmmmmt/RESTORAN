@@ -62,7 +62,7 @@ const NAV_ITEMS = [
   { path: '/admin/cash',          Icon: Landmark,        label: 'الكاش' },
   { path: '/admin/reports',       Icon: TrendingUp,      label: 'التقارير' },
   { path: '/admin/finance',       Icon: BadgePercent,    label: 'المالية والضرائب' },
-  { path: '/admin/financial-reports', Icon: FileSpreadsheet, label: 'تقارير المالية' },
+  { path: '/admin/financial-reports', Icon: FileSpreadsheet, label: 'المالية والورديات' },
   { path: '/admin/daily-closing', Icon: Lock,            label: 'الجرد اليومي' },
   { path: '/admin/attendance',    Icon: Fingerprint,     label: 'الحضور والبصمة' },
   { path: '/admin/employees',     Icon: Users,           label: 'الموظفين',       adminOnly: true },
