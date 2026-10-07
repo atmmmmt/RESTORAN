@@ -314,8 +314,9 @@ export async function renderDailyReport(r, { logoUrl = '/brand/luliz-logo-round.
   return toRaster(p)
 }
 
-export async function renderFinancialReport(r, { logoUrl = '/brand/luliz-logo-round.png' } = {}) {
+export async function renderFinancialReport(r, { logoUrl = '/brand/luliz-logo-round.png', mode = 'combined' } = {}) {
   await ensureFonts()
+  const validMode = ['finance', 'americans', 'combined'].includes(mode) ? mode : 'combined'
   const logo = await loadImage(logoUrl)
   const p = createPage()
   const rows = r.rows || []
@@ -323,12 +324,24 @@ export async function renderFinancialReport(r, { logoUrl = '/brand/luliz-logo-ro
   const period = r.period || {}
   const investor = r.investor || {}
   const investorName = investor.name || 'الأميركان'
+  const internalPercent = investor.internalPercent ?? 20
+  const deliveryPercent = investor.deliveryPercent ?? 15
   const taxOf = x => Number(x?.taxTotal ?? (Number(x?.consumptionTax || 0) + Number(x?.localAdministration || 0)))
   const obligationsOf = x => Number(x?.obligationsTotal ?? (taxOf(x) + Number(x?.investorShare || 0)))
 
   p.image(logo, 150, 150)
-  p.band('تقرير المالية', { size: 30 })
-  p.text('الضريبة ونسبة الأميركان مفصولتان', { size: 20, weight: 800 })
+  p.band(
+    validMode === 'finance' ? 'فاتورة المالية والضرائب'
+      : validMode === 'americans' ? `فاتورة ${investorName}`
+        : 'فاتورة المالية والأميركان',
+    { size: 30 }
+  )
+  p.text(
+    validMode === 'finance' ? 'الضرائب والتفاصيل المالية فقط'
+      : validMode === 'americans' ? 'مستحقات الأميركان فقط'
+        : 'نسخة مشتركة للمالية والأميركان',
+    { size: 20, weight: 800 }
+  )
 
   if (period.start && period.end) {
     const from = new Date(period.start).toLocaleDateString('ar-EG')
@@ -342,50 +355,68 @@ export async function renderFinancialReport(r, { logoUrl = '/brand/luliz-logo-ro
   if (!rows.length) p.text('لا توجد مبيعات ضمن الفترة', { size: 24, weight: 800 })
 
   for (const row of rows) {
+    if (row.manual && validMode === 'americans') continue
     p.line({ dashed: false, width: 3 })
     p.text(row.pointOfSale || 'نقطة بيع', { size: 26, weight: 900, align: 'right' })
-    p.row('عدد الفواتير', String(row.ordersCount || 0), { size: 20, weight: 600 })
+    if (!row.manual) p.row('عدد الفواتير', String(row.ordersCount || 0), { size: 20, weight: 600 })
     p.row('المبيعات قبل الضريبة', formatCurrency(row.foodAndBeverageValue), { size: 21, weight: 800 })
 
-    p.gap(5)
-    p.text('الضرائب', { size: 23, weight: 900, align: 'right' })
-    p.row('إنفاق استهلاكي (5%)', formatCurrency(row.consumptionTax), { size: 20, weight: 700 })
-    p.row('إدارة محلية (5%)', formatCurrency(row.localAdministration), { size: 20, weight: 700 })
-    p.band(`إجمالي الضريبة  ${formatCurrency(taxOf(row))}`, { size: 24 })
+    if (validMode !== 'americans') {
+      p.gap(5)
+      p.text('المالية والضرائب', { size: 23, weight: 900, align: 'right' })
+      p.row('إنفاق استهلاكي (5%)', formatCurrency(row.consumptionTax), { size: 20, weight: 700 })
+      p.row('إدارة محلية (5%)', formatCurrency(row.localAdministration), { size: 20, weight: 700 })
+      p.band(`إجمالي الضريبة  ${formatCurrency(taxOf(row))}`, { size: 24 })
+      p.row('الإجمالي مع الضريبة', formatCurrency(row.grandTotal), { size: 21, weight: 800 })
+    }
 
-    p.gap(5)
-    p.text(`نسبة ${investorName}`, { size: 23, weight: 900, align: 'right' })
-    if (Number(row.investorInternal || 0) > 0) p.row(`بالمحل ${investor.internalPercent ?? 20}%`, formatCurrency(row.investorInternal), { size: 20, weight: 700 })
-    if (Number(row.investorExternal || 0) > 0) p.row(`سفري / توصيل ${investor.deliveryPercent ?? 15}%`, formatCurrency(row.investorExternal), { size: 20, weight: 700 })
-    p.band(`إجمالي نسبة الأميركان  ${formatCurrency(row.investorShare)}`, { size: 24 })
+    if (validMode !== 'finance') {
+      p.gap(5)
+      p.text(`نسبة ${investorName}`, { size: 23, weight: 900, align: 'right' })
+      p.row(`بالمحل ${internalPercent}%`, formatCurrency(row.investorInternal), { size: 20, weight: 700 })
+      p.row(`سفري / توصيل ${deliveryPercent}%`, formatCurrency(row.investorExternal), { size: 20, weight: 700 })
+      p.band(`إجمالي ${investorName}  ${formatCurrency(row.investorShare)}`, { size: 24 })
+    }
 
-    p.gap(5)
-    p.band(`الضريبة + الأميركان  ${formatCurrency(obligationsOf(row))}`, { size: 25 })
-    p.row('الإجمالي مع الضريبة', formatCurrency(row.grandTotal), { size: 21, weight: 800 })
+    if (validMode === 'combined') {
+      p.gap(5)
+      p.band(`الضريبة + الأميركان  ${formatCurrency(obligationsOf(row))}`, { size: 25 })
+    }
   }
 
   p.line({ dashed: false, width: 4 })
   p.text('الإجمالي العام', { size: 28, weight: 900 })
   p.row('المبيعات قبل الضريبة', formatCurrency(t.foodAndBeverageValue), { size: 22, weight: 800 })
 
-  p.gap(6)
-  p.text('الضرائب', { size: 25, weight: 900, align: 'right' })
-  p.row('إنفاق استهلاكي (5%)', formatCurrency(t.consumptionTax), { size: 21, weight: 700 })
-  p.row('إدارة محلية (5%)', formatCurrency(t.localAdministration), { size: 21, weight: 700 })
-  p.band(`إجمالي الضريبة  ${formatCurrency(taxOf(t))}`, { size: 26 })
+  if (validMode !== 'americans') {
+    p.gap(6)
+    p.text('المالية والضرائب', { size: 25, weight: 900, align: 'right' })
+    p.row('إنفاق استهلاكي (5%)', formatCurrency(t.consumptionTax), { size: 21, weight: 700 })
+    p.row('إدارة محلية (5%)', formatCurrency(t.localAdministration), { size: 21, weight: 700 })
+    p.band(`إجمالي الضريبة  ${formatCurrency(taxOf(t))}`, { size: 26 })
+    p.row('الإجمالي مع الضريبة', formatCurrency(t.grandTotal), { size: 22, weight: 800 })
+  }
 
-  p.gap(6)
-  p.text(`نسبة ${investorName}`, { size: 25, weight: 900, align: 'right' })
-  p.row(`بالمحل ${investor.internalPercent ?? 20}%`, formatCurrency(t.investorInternal), { size: 21, weight: 700 })
-  p.row(`سفري / توصيل ${investor.deliveryPercent ?? 15}%`, formatCurrency(t.investorExternal), { size: 21, weight: 700 })
-  p.band(`إجمالي نسبة الأميركان  ${formatCurrency(t.investorShare)}`, { size: 26 })
+  if (validMode !== 'finance') {
+    p.gap(6)
+    p.text(`نسبة ${investorName}`, { size: 25, weight: 900, align: 'right' })
+    p.row(`بالمحل ${internalPercent}%`, formatCurrency(t.investorInternal), { size: 21, weight: 700 })
+    p.row(`سفري / توصيل ${deliveryPercent}%`, formatCurrency(t.investorExternal), { size: 21, weight: 700 })
+    p.band(`إجمالي ${investorName}  ${formatCurrency(t.investorShare)}`, { size: 26 })
+  }
+
+  if (validMode === 'combined') {
+    p.gap(8)
+    p.band(`إجمالي الالتزامات  ${formatCurrency(obligationsOf(t))}`, { size: 29 })
+  }
 
   p.gap(8)
-  p.band(`إجمالي الالتزامات  ${formatCurrency(obligationsOf(t))}`, { size: 29 })
-  p.row('الإجمالي مع الضريبة', formatCurrency(t.grandTotal), { size: 22, weight: 800 })
-  p.gap(8)
-  p.text('إجمالي الالتزامات = الضريبة + نسبة الأميركان', { size: 18, weight: 600 })
+  p.text(
+    validMode === 'finance' ? 'فاتورة مستقلة للمالية والضرائب'
+      : validMode === 'americans' ? 'فاتورة مستقلة لمستحقات الأميركان'
+        : 'إجمالي الالتزامات = الضريبة + نسبة الأميركان',
+    { size: 18, weight: 600 }
+  )
   p.text(`طُبع: ${formatShopDateTime(new Date().toISOString())}`, { size: 18, weight: 400 })
   return toRaster(p)
 }
-
