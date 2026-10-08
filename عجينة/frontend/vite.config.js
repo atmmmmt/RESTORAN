@@ -8,7 +8,7 @@ export default defineConfig({
   build: {
     chunkSizeWarningLimit: 800,
     minify: 'terser',
-    terserOptions: { compress: { drop_console: true, drop_debugger: true } },
+    terserOptions: { compress: { drop_console: false, drop_debugger: true } },
     rollupOptions: {
       output: {
         /* Granular chunks — browser caches each independently */
