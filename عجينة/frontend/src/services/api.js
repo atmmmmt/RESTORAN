@@ -94,6 +94,13 @@ api.interceptors.response.use(
 
     if (err.response?.status === 401) {
       const url = String(config.url || '')
+      console.error('[AJINA AUTH] 401', {
+        url,
+        method: config.method,
+        message: err.response?.data?.message,
+        hasToken: !!localStorage.getItem('luliz_admin_token'),
+        activeCenter: getActiveCenterId(),
+      })
       const authMessage = String(err.response?.data?.message || '')
       const trulyInvalidSession =
         !url.includes('/auth/me') &&
