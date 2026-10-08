@@ -6,65 +6,43 @@ const BranchInventory = require('../models/BranchInventory');
 
 async function adoptLegacyProductStock(centerId, productId) {
   /* Legacy installs kept product stock only on Product.availableQuantity.
-     After branch scoping was enabled, a branch with no BranchInventory row
-     looked empty even though the old stock still existed. Adopt that legacy
-     stock exactly once and only when this product has NO branch stock records
-     anywhere, so the same quantity can never be duplicated across branches. */
+     Adopt it exactly once, and only when the product has no branch stock row
+     anywhere. No Mongo transaction is required, so this also works on
+     standalone Mongo deployments. */
   const existingBranchRows = await BranchInventory.countDocuments({
     itemType: 'product',
     productId,
   });
   if (existingBranchRows > 0) return null;
 
-  const product = await Product.findById(productId)
-    .select('name availableQuantity calculatedCost');
-  if (!product || Number(product.availableQuantity || 0) <= 0) return null;
+  const legacy = await Product.findOneAndUpdate(
+    { _id: productId, availableQuantity: { $gt: 0 } },
+    { $set: { availableQuantity: 0 } },
+    { new: false }
+  ).select('name availableQuantity calculatedCost');
 
-  const legacyQty = Number(product.availableQuantity || 0);
+  if (!legacy || Number(legacy.availableQuantity || 0) <= 0) return null;
 
-  const session = await BranchInventory.startSession();
-  let adopted = null;
   try {
-    await session.withTransaction(async () => {
-      const already = await BranchInventory.findOne({
-        centerId,
-        itemType: 'product',
-        productId,
-      }).session(session);
-      if (already) {
-        adopted = already;
-        return;
-      }
-
-      const anyBranch = await BranchInventory.findOne({
-        itemType: 'product',
-        productId,
-      }).session(session);
-      if (anyBranch) return;
-
-      const fresh = await Product.findOne({
-        _id: productId,
-        availableQuantity: { $gte: legacyQty },
-      }).session(session);
-      if (!fresh || Number(fresh.availableQuantity || 0) <= 0) return;
-
-      adopted = await BranchInventory.create([{
-        centerId,
-        itemType: 'product',
-        productId,
-        itemNameSnapshot: fresh.name,
-        quantity: Number(fresh.availableQuantity || 0),
-        averageCostPerUnit: Number(fresh.calculatedCost || 0),
-      }], { session }).then(rows => rows[0]);
-
-      fresh.availableQuantity = 0;
-      await fresh.save({ session });
+    return await BranchInventory.create({
+      centerId,
+      itemType: 'product',
+      productId,
+      itemNameSnapshot: legacy.name,
+      quantity: Number(legacy.availableQuantity || 0),
+      averageCostPerUnit: Number(legacy.calculatedCost || 0),
     });
-  } finally {
-    await session.endSession();
+  } catch (err) {
+    // If another request created a branch row first, restore the legacy stock
+    // instead of ever losing it, then use the existing row.
+    await Product.updateOne(
+      { _id: productId },
+      { $inc: { availableQuantity: Number(legacy.availableQuantity || 0) } }
+    );
+    const existing = await BranchInventory.findOne({ centerId, itemType: 'product', productId });
+    if (existing) return existing;
+    throw err;
   }
-
-  return adopted;
 }
 
 async function branchItem(centerId, itemType, itemId, create = false) {
