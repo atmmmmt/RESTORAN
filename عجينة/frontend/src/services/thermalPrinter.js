@@ -59,6 +59,52 @@ export function savePrinterSettings(settings) {
   }))
 }
 
+let resolvedAgentBase = ''
+
+function agentCandidates(settings = getPrinterSettings()) {
+  const preferred = String(settings?.agentUrl || '').trim().replace(/\/$/, '')
+  return [...new Set([
+    resolvedAgentBase,
+    preferred,
+    'http://127.0.0.1:18181',
+    'http://localhost:18181',
+  ].filter(Boolean))]
+}
+
+async function fetchWithTimeout(url, options = {}, timeout = 2500) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeout)
+  try {
+    return await fetch(url, { ...options, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/* The dashboard is HTTPS while the local helper is HTTP on loopback.
+   Browsers may prefer either 127.0.0.1 or localhost depending on local-network
+   policy, proxy/VPN software and browser version. Try both automatically and
+   remember the working one for every subsequent print call. */
+async function agentFetch(path, options = {}, settings = getPrinterSettings()) {
+  const failures = []
+  for (const base of agentCandidates(settings)) {
+    try {
+      const response = await fetchWithTimeout(`${base}${path}`, options)
+      // A real HTTP response proves the helper is reachable even when the
+      // endpoint itself rejected the request.
+      resolvedAgentBase = base
+      return response
+    } catch (err) {
+      failures.push(`${base}: ${err?.name === 'AbortError' ? 'timeout' : (err?.message || 'network error')}`)
+    }
+  }
+  const error = new Error(
+    'لا يمكن الوصول لبرنامج الطباعة. تأكد أن برنامج الطباعة شغال على جهاز الكاشير وأن المتصفح سامح بالوصول للشبكة المحلية.'
+  )
+  error.details = failures
+  throw error
+}
+
 const money = value => `${Number(value || 0).toLocaleString('ar-SY')} ل.س`
 
 /* The canvas has to be painted in a font the browser has actually got. Drawing
@@ -585,14 +631,14 @@ export async function printKitchenTicket(order) {
   const printed = []
   for (const group of groups) {
     const { canvas, height } = drawKitchenTicket({ ...order, items: group.items }, settings, group.label)
-    const response = await fetch(`${settings.agentUrl.replace(/\/$/, '')}/print`, {
+    const response = await agentFetch('/print', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...printerTarget(kitchen),
         copies: Math.max(1, Math.min(5, Number(kitchen.copies) || 1)),
         dataBase64: toEscPosBanded(canvas, height, kitchen),
       }),
-    })
+    }, settings)
     const result = await response.json().catch(() => ({}))
     if (!response.ok) throw new Error(result.message || `تعذّرت طباعة ${group.label}`)
     printed.push(group.label)
@@ -631,7 +677,7 @@ export const sampleOrder = () => ({
 export async function listAgentPrinters(settings = getPrinterSettings()) {
   let response
   try {
-    response = await fetch(`${settings.agentUrl.replace(/\/$/, '')}/printers`)
+    response = await agentFetch('/printers', {}, settings)
   } catch {
     throw new Error('وكيل الطباعة لا يعمل على هذا الجهاز — شغّل start-print-agent.bat')
   }
@@ -652,7 +698,7 @@ export async function printThermalReceipt(order, { duplicate = false } = {}) {
   if (settings.connection === 'usb' && !settings.printerName) throw new Error('اختر طابعة USB من الإعدادات')
   await readyFont()
   const logo = settings.showLogo === false ? null : await loadLogo(settings.logoUrl)
-  const response = await fetch(`${settings.agentUrl.replace(/\/$/, '')}/print`, {
+  const response = await agentFetch('/print', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       ...printerTarget(settings),
@@ -758,7 +804,7 @@ export async function printThermalDailyReport(report) {
   if (settings.connection === 'usb' && !settings.printerName) throw new Error('اختر طابعة USB من الإعدادات')
   await readyFont()
   const logo = settings.showLogo === false ? null : await loadLogo(settings.logoUrl)
-  const response = await fetch(`${settings.agentUrl.replace(/\/$/, '')}/print`, {
+  const response = await agentFetch('/print', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       ...printerTarget(settings), copies: 1,
@@ -904,7 +950,7 @@ export async function printThermalFinancialReport(report, mode = 'combined') {
   const logo = settings.showLogo === false ? null : await loadLogo(settings.logoUrl)
   let response
   try {
-    response = await fetch(`${settings.agentUrl.replace(/\/$/, '')}/print`, {
+    response = await agentFetch('/print', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...printerTarget(settings), copies: 1,
@@ -991,7 +1037,7 @@ export async function printThermalShiftReport(shift) {
   await readyFont()
   const logo = settings.showLogo === false ? null : await loadLogo(settings.logoUrl)
   const { canvas, height } = drawShiftReport(shift, settings, logo)
-  const response = await fetch(`${settings.agentUrl.replace(/\/$/, '')}/print`, {
+  const response = await agentFetch('/print', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...printerTarget(settings), copies: 1, dataBase64: toEscPosBanded(canvas, height, settings) }),
   })
@@ -1003,11 +1049,10 @@ export async function printThermalShiftReport(shift) {
 export async function testPrintAgent(settings = getPrinterSettings()) {
   let response
   try {
-    response = await fetch(`${settings.agentUrl.replace(/\/$/, '')}/health`)
-  } catch {
-    /* A blocked request and a stopped program look identical from here, so
-       the message names the thing the person can actually check. */
-    throw new Error('لا يمكن الوصول لبرنامج الطباعة')
+    response = await agentFetch('/health', {}, settings)
+  } catch (err) {
+    console.error('[PRINT AGENT] unreachable', err?.details || err)
+    throw err
   }
   if (!response.ok) throw new Error('برنامج الطباعة يرد بخطأ')
   return response.json()
