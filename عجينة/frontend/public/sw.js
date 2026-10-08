@@ -12,7 +12,7 @@
 
 /* Bump on any change to SHELL_URLS — activate() drops caches whose name no
    longer matches, which is what evicts the previous shell. */
-const VERSION     = 'v5';
+const VERSION     = 'v6';
 const SHELL_CACHE = `loliz-shell-${VERSION}`;
 const ASSET_CACHE = `loliz-assets-${VERSION}`;
 
