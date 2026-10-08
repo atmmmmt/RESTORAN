@@ -66,7 +66,7 @@ const server = http.createServer((req, res) => {
   if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
 
   if (req.method === 'GET' && req.url === '/health') {
-    return send(res, 200, { success: true, agent: 'luliz-print-agent', version: 1 });
+    return send(res, 200, { success: true, agent: 'luliz-print-agent', version: 2 });
   }
 
   if (req.method === 'POST' && req.url === '/print') {
