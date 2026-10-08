@@ -12,6 +12,13 @@ const orderItemSchema = new mongoose.Schema({
   quantity:    { type: Number, required: true, min: 1 },
   lineTotal:   { type: Number, required: true, min: 0 },
   notes:       { type: String, trim: true, default: '' },
+  categorySnapshot: { type: String, trim: true, default: '' },
+  kitchenSection: {
+    type: String,
+    enum: ['', 'pastries', 'grills', 'appetizers', 'drinks', 'other'],
+    default: '',
+    trim: true,
+  },
 }, { _id: false });
 
 const internalOrderSchema = new mongoose.Schema(
