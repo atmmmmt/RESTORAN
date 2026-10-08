@@ -32,6 +32,18 @@ const calendarEndExclusive = value => {
 /* "آجل" means the money hasn't arrived yet, so nothing hits the drawer. */
 const isPaid = method => method === 'cash' || method === 'card';
 
+const inferKitchenSection = product => {
+  if (['pastries','grills','appetizers','drinks','other'].includes(product?.kitchenSection)) {
+    return product.kitchenSection;
+  }
+  const text = `${product?.category || ''} ${product?.name || ''}`.toLowerCase();
+  if (/(مشروب|مشروبات|كولا|بيبسي|مياه|ماء|لبن|عيران|عصير)/.test(text)) return 'drinks';
+  if (/(مشاوي|مشوي|كباب|شقف|شيش|سودة|جوانح|جناح|لحم مشوي)/.test(text)) return 'grills';
+  if (/(مقبلات|مقبل|مازة|سلطة|فتوش|حمص|متبل|بابا غنوج|بطاطا)/.test(text)) return 'appetizers';
+  if (/(معجنات|معجن|فطاير|فطائر|منقوش|مناقيش|بيتزا|صفيحة|صفيح|سفيحة|عجين)/.test(text)) return 'pastries';
+  return 'other';
+};
+
 const boundCenterId = user => user?.centerId ? String(user.centerId) : null;
 const canAccessOrder = (user, order) => {
   const assigned = boundCenterId(user);
@@ -310,6 +322,8 @@ router.post('/', requirePos, async (req, res) => {
       quantity,
       lineTotal: unitPrice * quantity,
       notes:     item.notes || '',
+      categorySnapshot: product.category || '',
+      kitchenSection: inferKitchenSection(product),
     });
   }
 
@@ -467,6 +481,8 @@ router.put('/:id', requirePos, async (req, res) => {
       quantity,
       lineTotal: unitPrice * quantity,
       notes: String(item.notes ?? oldLine?.notes ?? '').trim(),
+      categorySnapshot: product.category || oldLine?.categorySnapshot || '',
+      kitchenSection: product.kitchenSection || oldLine?.kitchenSection || inferKitchenSection(product),
     });
   }
 
