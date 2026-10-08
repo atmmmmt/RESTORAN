@@ -420,12 +420,9 @@ export default function PosPage() {
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {filtered.map(p => {
-                  const out = p.availableQuantity <= 0
                   return (
-                    <button key={p._id} onClick={() => addToCart(p)} disabled={out}
-                      className={`bg-white rounded-2xl p-4 shadow-card text-right transition-all ${
-                        out ? 'opacity-45 cursor-not-allowed' : 'hover:-translate-y-0.5 hover:shadow-lg'
-                      }`}>
+                    <button key={p._id} onClick={() => addToCart(p)}
+                      className="bg-white rounded-2xl p-4 shadow-card text-right transition-all hover:-translate-y-0.5 hover:shadow-lg">
                       <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-2"
                         style={{ background: 'rgba(169,103,52,0.1)' }}>
                         {isImageUrl(p.image)
@@ -435,7 +432,7 @@ export default function PosPage() {
                       <div className="font-black text-brand-dark text-sm leading-tight line-clamp-2 mb-1">{p.name}</div>
                       <div className="font-black text-fuchsia text-sm">{formatCurrency(p.directPrice)}</div>
                       <div className={`text-xs font-bold mt-0.5 ${out ? 'text-red-500' : 'text-brand-gray-light'}`}>
-                        {out ? 'غير متوفر' : `متاح ${p.availableQuantity}`}
+                        متوفر
                       </div>
                     </button>
                   )
