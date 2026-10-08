@@ -70,6 +70,16 @@ const productSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    /* Physical prep station inside the kitchen. One kitchen printer can emit
+       a separate slip for every station represented in an order. Empty keeps
+       old products working through category/name inference until they are
+       explicitly assigned from the product editor. */
+    kitchenSection: {
+      type: String,
+      enum: ['', 'pastries', 'grills', 'appetizers', 'drinks', 'other'],
+      default: '',
+      trim: true,
+    },
     ingredients: {
       type: [ingredientEntrySchema],
       default: [],
