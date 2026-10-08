@@ -35,6 +35,7 @@ const attendanceAgentRoutes = require('./attendanceAgentRoutes');
 const internalOrderRoutes  = require('./internalOrderRoutes');
 const returnRoutes         = require('./returnRoutes');
 const americansCatalogRoutes = require('./americansCatalogRoutes');
+const printJobRoutes = require('./printJobRoutes');
 
 module.exports = function mountRoutes(app) {
   app.use('/api/auth', authRoutes);
@@ -73,4 +74,5 @@ module.exports = function mountRoutes(app) {
   app.use('/api/returns', returnRoutes);
   app.use('/api/shifts', shiftRoutes);
   app.use('/api/americans-catalog', americansCatalogRoutes);
+  app.use('/api/print-jobs', printJobRoutes);
 };
