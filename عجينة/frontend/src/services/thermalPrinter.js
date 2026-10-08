@@ -1,3 +1,5 @@
+import { api } from './api'
+
 const STORAGE_KEY = 'loliz_thermal_printer_v1'
 
 export const defaultPrinterSettings = {
@@ -57,6 +59,47 @@ export function savePrinterSettings(settings) {
     ...defaultPrinterSettings, ...settings,
     kitchen: { ...defaultPrinterSettings.kitchen, ...(settings.kitchen || {}) },
   }))
+}
+
+const PRINT_DEVICE_KEY = 'ajineh_print_device_id_v1'
+
+export function getPrintDeviceId() {
+  try {
+    return localStorage.getItem(PRINT_DEVICE_KEY) || 'ajineh-main'
+  } catch {
+    return 'ajineh-main'
+  }
+}
+
+export function setPrintDeviceId(value) {
+  try {
+    localStorage.setItem(PRINT_DEVICE_KEY, String(value || 'ajineh-main'))
+  } catch {}
+}
+
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
+
+async function sendPrintJob(payload) {
+  const queued = await api.post('/print-jobs', {
+    deviceId: getPrintDeviceId(),
+    payload,
+  })
+  const jobId = queued?.data?.jobId
+  if (!jobId) throw new Error('تعذّر إنشاء مهمة الطباعة')
+
+  for (let i = 0; i < 30; i++) {
+    await wait(400)
+    const statusRes = await api.get(`/print-jobs/${jobId}`)
+    const job = statusRes?.data?.job
+    if (job?.status === 'done') {
+      return { success: true, jobId, message: job.resultMessage || '' }
+    }
+    if (job?.status === 'failed') {
+      throw new Error(job.resultMessage || 'فشلت الطباعة على جهاز الكاشير')
+    }
+  }
+
+  throw new Error('برنامج الطباعة لم يستلم المهمة خلال 12 ثانية — تأكد أن Print Agent مفتوح على لابتوب الكاشير')
 }
 
 export const PRINT_ACCESS_KEY = 'ajineh_print_loopback_allowed_v1'
@@ -653,19 +696,11 @@ export async function printKitchenTicket(order) {
   const printed = []
   for (const group of groups) {
     const { canvas, height } = drawKitchenTicket({ ...order, items: group.items }, settings, group.label)
-    const response = await fetch(`${settings.agentUrl.replace(/\/$/, '')}/print`, {
-      method: 'POST',
-      mode: 'cors',
-      targetAddressSpace: 'loopback',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...printerTarget(kitchen),
-        copies: Math.max(1, Math.min(5, Number(kitchen.copies) || 1)),
-        dataBase64: toEscPosBanded(canvas, height, kitchen),
-      }),
+    await sendPrintJob({
+      ...printerTarget(kitchen),
+      copies: Math.max(1, Math.min(5, Number(kitchen.copies) || 1)),
+      dataBase64: toEscPosBanded(canvas, height, kitchen),
     })
-    const result = await response.json().catch(() => ({}))
-    if (!response.ok) throw new Error(result.message || `تعذّرت طباعة ${group.label}`)
     printed.push(group.label)
   }
 
@@ -835,19 +870,11 @@ export async function printThermalDailyReport(report) {
   if (settings.connection === 'usb' && !settings.printerName) throw new Error('اختر طابعة USB من الإعدادات')
   await readyFont()
   const logo = settings.showLogo === false ? null : await loadLogo(settings.logoUrl)
-  const response = await fetch(`${settings.agentUrl.replace(/\/$/, '')}/print`, {
-    method: 'POST',
-    mode: 'cors',
-    targetAddressSpace: 'loopback',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      ...printerTarget(settings), copies: 1,
-      dataBase64: rasterDailyReport(report, settings, logo),
-    }),
+  return sendPrintJob({
+    ...printerTarget(settings),
+    copies: 1,
+    dataBase64: rasterDailyReport(report, settings, logo),
   })
-  const result = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(result.message || 'تعذّر الاتصال بالطابعة')
-  return result
 }
 
 
@@ -1074,16 +1101,11 @@ export async function printThermalShiftReport(shift) {
   await readyFont()
   const logo = settings.showLogo === false ? null : await loadLogo(settings.logoUrl)
   const { canvas, height } = drawShiftReport(shift, settings, logo)
-  const response = await fetch(`${settings.agentUrl.replace(/\/$/, '')}/print`, {
-    method: 'POST',
-    mode: 'cors',
-    targetAddressSpace: 'loopback',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...printerTarget(settings), copies: 1, dataBase64: toEscPosBanded(canvas, height, settings) }),
+  return sendPrintJob({
+    ...printerTarget(settings),
+    copies: 1,
+    dataBase64: toEscPosBanded(canvas, height, settings),
   })
-  const result = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(result.message || 'تعذّر الاتصال بالطابعة')
-  return result
 }
 
 export async function testPrintAgent(settings = getPrinterSettings()) {
