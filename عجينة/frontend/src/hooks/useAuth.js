@@ -37,14 +37,28 @@ export function useAuth() {
 
       // Refresh profile quietly. A failed refresh must not destroy a freshly
       // established session; protected feature APIs remain the source of truth.
+      console.log('[AJINA AUTH] cached session boot', {
+        userId: cachedUser?._id || cachedUser?.id,
+        role: cachedUser?.role,
+        activeCenter: localStorage.getItem('ajeena_admin_active_center') || null,
+      })
       authAPI.getMe()
         .then(res => {
+          console.log('[AJINA AUTH] /auth/me success', {
+            userId: res?.data?.user?._id || res?.data?.user?.id,
+            role: res?.data?.user?.role,
+          })
           if (res?.data?.user) {
             setUser(res.data.user)
             localStorage.setItem(USER_KEY, JSON.stringify(res.data.user))
           }
         })
-        .catch(() => {})
+        .catch(err => {
+          console.error('[AJINA AUTH] /auth/me refresh failed', {
+            status: err?.response?.status || err?.status,
+            message: err?.response?.data?.message || err?.message,
+          })
+        })
       return
     }
 
