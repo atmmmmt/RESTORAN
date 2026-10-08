@@ -13,6 +13,8 @@ exports.getAll = async (req, res) => {
   const { startDate, endDate, productId, page = 1, limit = 20 } = req.query;
 
   const filter = {};
+  const centerId = req.query.centerId || (req.query.center && !['all','hq'].includes(req.query.center) ? req.query.center : null);
+  if (centerId && mongoose.isValidObjectId(centerId)) filter.centerId = centerId;
   if (startDate || endDate) {
     filter.productionDate = {};
     if (startDate) filter.productionDate.$gte = new Date(startDate);
