@@ -59,7 +59,7 @@ app.use(
   })
 );
 
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '6mb' }));
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
 if (process.env.NODE_ENV === 'development') {
