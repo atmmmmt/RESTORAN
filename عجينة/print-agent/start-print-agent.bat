@@ -11,17 +11,29 @@ if errorlevel 1 (
 )
 
 echo ==========================================
-echo   Ajineh Print Agent - Chrome auto-fix
+echo   Ajineh Print Agent - Full Chrome Fix
 echo ==========================================
 echo.
 
-echo [1/5] Allowing Ajineh website to access the local print service...
-reg add "HKLM\SOFTWARE\Policies\Google\Chrome\LocalNetworkAccessAllowedForUrls" /v "1" /t REG_SZ /d "https://ajineh-w-tahineh.com" /f >nul
-reg add "HKLM\SOFTWARE\Policies\Google\Chrome\LocalNetworkAccessAllowedForUrls" /v "2" /t REG_SZ /d "https://www.ajineh-w-tahineh.com" /f >nul
-reg add "HKLM\SOFTWARE\Policies\Google\Chrome\LoopbackNetworkAllowedForUrls" /v "1" /t REG_SZ /d "https://ajineh-w-tahineh.com" /f >nul
-reg add "HKLM\SOFTWARE\Policies\Google\Chrome\LoopbackNetworkAllowedForUrls" /v "2" /t REG_SZ /d "https://www.ajineh-w-tahineh.com" /f >nul
+echo [1/6] Installing Chrome loopback permission...
+for %%K in (
+  "HKLM\SOFTWARE\Policies\Google\Chrome"
+  "HKCU\SOFTWARE\Policies\Google\Chrome"
+) do (
+  reg add "%%~K\LoopbackNetworkAllowedForUrls" /v "1" /t REG_SZ /d "https://ajineh-w-tahineh.com" /f >nul
+  reg add "%%~K\LoopbackNetworkAllowedForUrls" /v "2" /t REG_SZ /d "https://www.ajineh-w-tahineh.com" /f >nul
+  reg add "%%~K\LoopbackNetworkAllowedForUrls" /v "3" /t REG_SZ /d "ajineh-w-tahineh.com" /f >nul
+  reg add "%%~K\LocalNetworkAllowedForUrls" /v "1" /t REG_SZ /d "https://ajineh-w-tahineh.com" /f >nul
+  reg add "%%~K\LocalNetworkAllowedForUrls" /v "2" /t REG_SZ /d "https://www.ajineh-w-tahineh.com" /f >nul
+  reg add "%%~K\LocalNetworkAccessAllowedForUrls" /v "1" /t REG_SZ /d "https://ajineh-w-tahineh.com" /f >nul
+  reg add "%%~K\LocalNetworkAccessAllowedForUrls" /v "2" /t REG_SZ /d "https://www.ajineh-w-tahineh.com" /f >nul
+)
 
-echo [2/5] Stopping any old Print Agent on port 18181...
+echo [2/6] Closing ALL Chrome windows so the new policy is loaded...
+taskkill /IM chrome.exe /F >nul 2>&1
+timeout /t 2 /nobreak >nul
+
+echo [3/6] Stopping any old Print Agent on port 18181...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$ids = Get-NetTCPConnection -LocalPort 18181 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique; " ^
   "foreach ($procId in $ids) { try { Stop-Process -Id $procId -Force -ErrorAction Stop } catch {} }; " ^
@@ -35,12 +47,19 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo [3/5] Chrome permission policy installed.
-echo [4/5] IMPORTANT: Close ALL Chrome windows once, then reopen Chrome.
-echo [5/5] Starting Print Agent 1.2.1...
+echo [4/6] Chrome policy installed for Ajineh.
+echo [5/6] Starting Print Agent 1.2.2...
 echo.
-node index.js
+start "" /B node index.js
+timeout /t 2 /nobreak >nul
+
+echo [6/6] Reopening Chrome on Ajineh...
+start "" chrome.exe "https://ajineh-w-tahineh.com/admin/settings"
 
 echo.
-echo Print Agent stopped.
+echo ==========================================
+echo   READY - keep this window open
+echo   Health: http://127.0.0.1:18181/health
+echo ==========================================
+echo.
 pause
