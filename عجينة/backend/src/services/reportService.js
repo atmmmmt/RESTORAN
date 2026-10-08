@@ -1,5 +1,6 @@
 'use strict';
 
+const mongoose = require('mongoose');
 const dayjs = require('dayjs');
 const Sale = require('../models/Sale');
 const Purchase = require('../models/Purchase');
@@ -18,6 +19,17 @@ const CustomerOrder = require('../models/CustomerOrder');
 const cashService = require('./cashService');
 const businessDay = require('./businessDay');
 
+function scopedCenterId(centerId) {
+  return centerId && mongoose.isValidObjectId(centerId)
+    ? new mongoose.Types.ObjectId(String(centerId))
+    : null;
+}
+function addCenter(match, centerId) {
+  const id = scopedCenterId(centerId);
+  if (id) match.centerId = id;
+  return match;
+}
+
 /**
  * Counter-sale totals for a period.
  *
@@ -26,8 +38,8 @@ const businessDay = require('./businessDay');
  * goes missing from its own reports. Cancelled orders are excluded — they
  * never really happened.
  */
-async function internalOrderTotals(start, end) {
-  const match = { status: { $ne: 'cancelled' } };
+async function internalOrderTotals(start, end, centerId) {
+  const match = addCenter({ status: { $ne: 'cancelled' } }, centerId);
   if (start || end) {
     match.createdAt = {};
     if (start) match.createdAt.$gte = start;
@@ -52,8 +64,8 @@ async function internalOrderTotals(start, end) {
   return row || { revenue: 0, cost: 0, profit: 0, discounts: 0, count: 0, unpaid: 0 };
 }
 
-async function internalProductTotals(start, end) {
-  const match = { status: { $ne: 'cancelled' } };
+async function internalProductTotals(start, end, centerId) {
+  const match = addCenter({ status: { $ne: 'cancelled' } }, centerId);
   if (start || end) {
     match.createdAt = {};
     if (start) match.createdAt.$gte = start;
@@ -71,8 +83,8 @@ async function internalProductTotals(start, end) {
   ]);
 }
 
-async function customerOrderTotals(start, end) {
-  const match = { status: 'delivered' };
+async function customerOrderTotals(start, end, centerId) {
+  const match = addCenter({ status: 'delivered' }, centerId);
   if (start || end) {
     match.createdAt = {};
     if (start) match.createdAt.$gte = start;
@@ -88,8 +100,8 @@ async function customerOrderTotals(start, end) {
   return row || { revenue: 0, cost: 0, profit: 0, discounts: 0, count: 0 };
 }
 
-async function customerProductTotals(start, end) {
-  const match = { status: 'delivered' };
+async function customerProductTotals(start, end, centerId) {
+  const match = addCenter({ status: 'delivered' }, centerId);
   if (start || end) {
     match.createdAt = {};
     if (start) match.createdAt.$gte = start;
@@ -108,8 +120,8 @@ async function customerProductTotals(start, end) {
 /* A working day on the shop's opening hours, so a night that runs past
    midnight lands in one day's report. Takes 'YYYY-MM-DD', a Date, or nothing
    for the day running now. Callers use inclusive `$lte`, hence the −1ms. */
-async function getDayRange(date) {
-  const { day, start, end } = await businessDay.range(date);
+async function getDayRange(date, centerId) {
+  const { day, start, end } = await businessDay.range(date, centerId);
   return { day, start, end: new Date(end.getTime() - 1) };
 }
 
@@ -124,8 +136,11 @@ const reportService = {
   /**
    * Per-center breakdown: employees, payroll cost, expenses, sales, net
    */
-  async getCentersBreakdown() {
-    const centers = await SalesCenter.find({ isActive: true }).select('name currentBalance totalSoldValue');
+  async getCentersBreakdown(centerId) {
+    const centerFilter = { isActive: true };
+    const selectedCenter = scopedCenterId(centerId);
+    if (selectedCenter) centerFilter._id = selectedCenter;
+    const centers = await SalesCenter.find(centerFilter).select('name currentBalance totalSoldValue');
 
     const breakdown = await Promise.all(centers.map(async (center) => {
       const [employeesCount, payrollAgg, expensesAgg] = await Promise.all([
@@ -161,14 +176,14 @@ const reportService = {
   /**
    * Dashboard data for today
    */
-  async getDashboardData(date) {
-    const { day, start, end } = await getDayRange(date);
+  async getDashboardData(date, centerId) {
+    const { day, start, end } = await getDayRange(date, centerId);
 
     const [salesData, purchasesTotal, wasteData, cashBalance, activeOffersCount,
       centerBalances, centersBreakdown, pos, online, cashByCenter] =
       await Promise.all([
         Sale.aggregate([
-          { $match: { saleDate: { $gte: start, $lte: end }, status: { $ne: 'reversed' } } },
+          { $match: addCenter({ saleDate: { $gte: start, $lte: end }, status: { $ne: 'reversed' } }, centerId) },
           {
             $group: {
               _id: null,
@@ -181,23 +196,23 @@ const reportService = {
           },
         ]),
         Purchase.aggregate([
-          { $match: { purchaseDate: { $gte: start, $lte: end }, reversedAt: null } },
+          { $match: addCenter({ purchaseDate: { $gte: start, $lte: end }, reversedAt: null }, centerId) },
           { $group: { _id: null, total: { $sum: '$totalPurchaseCost' } } },
         ]),
         WasteRecord.aggregate([
-          { $match: { wasteDate: { $gte: start, $lte: end }, reversedAt: null } },
+          { $match: addCenter({ wasteDate: { $gte: start, $lte: end }, reversedAt: null }, centerId) },
           { $group: { _id: null, total: { $sum: '$totalLossCost' } } },
         ]),
-        cashService.getCurrentBalance(),
+        cashService.getCurrentBalance(centerId || undefined),
         Offer.countDocuments({
           isActive: true,
           startDate: { $lte: new Date() },
           endDate: { $gte: new Date() },
         }),
-        SalesCenter.find({ isActive: true }).select('name currentBalance totalDeliveredValue totalCollected type'),
-        reportService.getCentersBreakdown(),
-        internalOrderTotals(start, end),
-        customerOrderTotals(start, end),
+        SalesCenter.find(scopedCenterId(centerId) ? { isActive: true, _id: scopedCenterId(centerId) } : { isActive: true }).select('name currentBalance totalDeliveredValue totalCollected type'),
+        reportService.getCentersBreakdown(centerId),
+        internalOrderTotals(start, end, centerId),
+        customerOrderTotals(start, end, centerId),
         cashService.getBalancesByCenter(),
       ]);
 
@@ -247,17 +262,17 @@ const reportService = {
   /**
    * Full daily report breakdown
    */
-  async getDailyReport(date) {
-    const { day, start, end } = await getDayRange(date);
+  async getDailyReport(date, centerId) {
+    const { day, start, end } = await getDayRange(date, centerId);
 
     const [sales, purchases, waste, productionBatches, cashTransactions, posOrders, onlineOrders] = await Promise.all([
-      Sale.find({ saleDate: { $gte: start, $lte: end }, status: { $ne: 'reversed' } }).sort({ saleDate: 1 }),
-      Purchase.find({ purchaseDate: { $gte: start, $lte: end }, reversedAt: null }),
-      WasteRecord.find({ wasteDate: { $gte: start, $lte: end }, reversedAt: null }),
-      ProductionBatch.find({ productionDate: { $gte: start, $lte: end }, reversedAt: null }),
-      CashTransaction.find({ transactionDate: { $gte: start, $lte: end } }).sort({ transactionDate: 1 }),
-      InternalOrder.find({ createdAt: { $gte: start, $lte: end }, status: { $ne: 'cancelled' } }).sort({ createdAt: 1 }),
-      CustomerOrder.find({ createdAt: { $gte: start, $lte: end }, status: 'delivered' }).sort({ createdAt: 1 }),
+      Sale.find(addCenter({ saleDate: { $gte: start, $lte: end }, status: { $ne: 'reversed' } }, centerId)).sort({ saleDate: 1 }),
+      Purchase.find(addCenter({ purchaseDate: { $gte: start, $lte: end }, reversedAt: null }, centerId)),
+      WasteRecord.find(addCenter({ wasteDate: { $gte: start, $lte: end }, reversedAt: null }, centerId)),
+      ProductionBatch.find(addCenter({ productionDate: { $gte: start, $lte: end }, reversedAt: null }, centerId)),
+      CashTransaction.find(addCenter({ transactionDate: { $gte: start, $lte: end } }, centerId)).sort({ transactionDate: 1 }),
+      InternalOrder.find(addCenter({ createdAt: { $gte: start, $lte: end }, status: { $ne: 'cancelled' } }, centerId)).sort({ createdAt: 1 }),
+      CustomerOrder.find(addCenter({ createdAt: { $gte: start, $lte: end }, status: 'delivered' }, centerId)).sort({ createdAt: 1 }),
     ]);
 
     // Group sales by product
@@ -331,7 +346,7 @@ const reportService = {
     const totalPurchases = purchases.reduce((s, x) => s + x.totalPurchaseCost, 0);
     const totalWasteCost = waste.reduce((s, x) => s + x.totalLossCost, 0);
     const totalCommissions = sales.reduce((s, x) => s + x.commissionAmount, 0);
-    const cashBalance = await cashService.getCurrentBalance();
+    const cashBalance = await cashService.getCurrentBalance(centerId || undefined);
 
     return {
       date: day,
@@ -359,12 +374,12 @@ const reportService = {
   /**
    * Monthly aggregations
    */
-  async getMonthlyReport(year, month) {
+  async getMonthlyReport(year, month, centerId) {
     const { start, end } = getMonthRange(year, month);
 
     const [salesAgg, purchasesAgg, wasteAgg, dailySalesAgg, posAgg, posDailyAgg, onlineAgg, onlineDailyAgg] = await Promise.all([
       Sale.aggregate([
-        { $match: { saleDate: { $gte: start, $lte: end }, status: { $ne: 'reversed' } } },
+        { $match: addCenter({ saleDate: { $gte: start, $lte: end }, status: { $ne: 'reversed' } }, centerId) },
         {
           $group: {
             _id: null,
@@ -377,15 +392,15 @@ const reportService = {
         },
       ]),
       Purchase.aggregate([
-        { $match: { purchaseDate: { $gte: start, $lte: end }, reversedAt: null } },
+        { $match: addCenter({ purchaseDate: { $gte: start, $lte: end }, reversedAt: null }, centerId) },
         { $group: { _id: null, total: { $sum: '$totalPurchaseCost' } } },
       ]),
       WasteRecord.aggregate([
-        { $match: { wasteDate: { $gte: start, $lte: end }, reversedAt: null } },
+        { $match: addCenter({ wasteDate: { $gte: start, $lte: end }, reversedAt: null }, centerId) },
         { $group: { _id: null, total: { $sum: '$totalLossCost' } } },
       ]),
       Sale.aggregate([
-        { $match: { saleDate: { $gte: start, $lte: end }, status: { $ne: 'reversed' } } },
+        { $match: addCenter({ saleDate: { $gte: start, $lte: end }, status: { $ne: 'reversed' } }, centerId) },
         {
           $group: {
             _id: {
@@ -399,19 +414,19 @@ const reportService = {
         { $sort: { _id: 1 } },
       ]),
       InternalOrder.aggregate([
-        { $match: { createdAt: { $gte: start, $lte: end }, status: { $ne: 'cancelled' } } },
+        { $match: addCenter({ createdAt: { $gte: start, $lte: end }, status: { $ne: 'cancelled' } }, centerId) },
         { $group: { _id: null, totalRevenue: { $sum: '$total' }, totalCost: { $sum: '$totalCost' }, totalProfit: { $sum: '$profit' }, count: { $sum: 1 } } },
       ]),
       InternalOrder.aggregate([
-        { $match: { createdAt: { $gte: start, $lte: end }, status: { $ne: 'cancelled' } } },
+        { $match: addCenter({ createdAt: { $gte: start, $lte: end }, status: { $ne: 'cancelled' } }, centerId) },
         { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, revenue: { $sum: '$total' }, profit: { $sum: '$profit' }, count: { $sum: 1 } } },
       ]),
       CustomerOrder.aggregate([
-        { $match: { createdAt: { $gte: start, $lte: end }, status: 'delivered' } },
+        { $match: addCenter({ createdAt: { $gte: start, $lte: end }, status: 'delivered' }, centerId) },
         { $group: { _id: null, totalRevenue: { $sum: '$totalPrice' }, totalCost: { $sum: '$totalCost' }, totalProfit: { $sum: '$profit' }, count: { $sum: 1 } } },
       ]),
       CustomerOrder.aggregate([
-        { $match: { createdAt: { $gte: start, $lte: end }, status: 'delivered' } },
+        { $match: addCenter({ createdAt: { $gte: start, $lte: end }, status: 'delivered' }, centerId) },
         { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, revenue: { $sum: '$totalPrice' }, profit: { $sum: '$profit' }, count: { $sum: 1 } } },
       ]),
     ]);
@@ -451,8 +466,8 @@ const reportService = {
   /**
    * Per-product sales report for a date range
    */
-  async getProductsReport(startDate, endDate) {
-    const match = { status: { $ne: 'reversed' } };
+  async getProductsReport(startDate, endDate, centerId) {
+    const match = addCenter({ status: { $ne: 'reversed' } }, centerId);
     if (startDate || endDate) {
       match.saleDate = {};
       if (startDate) match.saleDate.$gte = new Date(startDate);
@@ -482,11 +497,13 @@ const reportService = {
 
     const pos = await internalProductTotals(
       startDate ? new Date(startDate) : null,
-      endDate ? new Date(new Date(endDate).setHours(23, 59, 59, 999)) : null
+      endDate ? new Date(new Date(endDate).setHours(23, 59, 59, 999)) : null,
+      centerId
     );
     const online = await customerProductTotals(
       startDate ? new Date(startDate) : null,
-      endDate ? new Date(new Date(endDate).setHours(23, 59, 59, 999)) : null
+      endDate ? new Date(new Date(endDate).setHours(23, 59, 59, 999)) : null,
+      centerId
     );
     const merged = new Map();
     for (const row of [...result, ...pos, ...online]) {
@@ -517,8 +534,8 @@ const reportService = {
   /**
    * Waste report for a date range
    */
-  async getWasteReport(startDate, endDate) {
-    const match = {};
+  async getWasteReport(startDate, endDate, centerId) {
+    const match = addCenter({}, centerId);
     if (startDate || endDate) {
       match.wasteDate = {};
       if (startDate) match.wasteDate.$gte = new Date(startDate);
