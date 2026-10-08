@@ -59,6 +59,61 @@ export function savePrinterSettings(settings) {
   }))
 }
 
+export const PRINT_ACCESS_KEY = 'ajineh_print_loopback_allowed_v1'
+
+export async function getPrintPermissionState() {
+  if (typeof navigator === 'undefined' || !navigator.permissions?.query) return 'unknown'
+  for (const name of ['loopback-network', 'local-network-access']) {
+    try {
+      const result = await navigator.permissions.query({ name })
+      if (result?.state) return result.state
+    } catch {
+      // Browser does not know this permission name yet; try the compatibility alias.
+    }
+  }
+  return 'unknown'
+}
+
+export async function requestPrintAgentAccess(settings = getPrinterSettings()) {
+  const stateBefore = await getPrintPermissionState()
+  if (stateBefore === 'denied') {
+    const error = new Error('تم رفض إذن الوصول المحلي سابقاً')
+    error.code = 'PRINT_PERMISSION_DENIED'
+    throw error
+  }
+
+  const url = `${String(settings.agentUrl || 'http://127.0.0.1:18181').replace(/\/$/, '')}/health`
+  let response
+  try {
+    response = await fetch(url, {
+      method: 'GET',
+      mode: 'cors',
+      cache: 'no-store',
+      targetAddressSpace: 'loopback',
+    })
+  } catch (cause) {
+    const stateAfter = await getPrintPermissionState()
+    const error = new Error(
+      stateAfter === 'denied'
+        ? 'تم رفض إذن الوصول المحلي'
+        : 'لم يتم السماح بالوصول إلى برنامج الطباعة المحلي'
+    )
+    error.code = stateAfter === 'denied' ? 'PRINT_PERMISSION_DENIED' : 'PRINT_ACCESS_FAILED'
+    error.cause = cause
+    throw error
+  }
+
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok || !data?.success) {
+    const error = new Error(data?.message || 'برنامج الطباعة يرد بخطأ')
+    error.code = 'PRINT_AGENT_ERROR'
+    throw error
+  }
+
+  localStorage.setItem(PRINT_ACCESS_KEY, '1')
+  return data
+}
+
 const money = value => `${Number(value || 0).toLocaleString('ar-SY')} ل.س`
 
 /* The canvas has to be painted in a font the browser has actually got. Drawing
