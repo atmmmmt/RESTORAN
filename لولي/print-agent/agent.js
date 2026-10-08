@@ -2,8 +2,9 @@
 
 const http = require('http');
 const net = require('net');
+const os = require('os');
 
-const VERSION = '3.0.0';
+const VERSION = '3.0.1';
 const PORT = 9123;
 const SERVER_BASE = 'https://loliz-taste.com/api/print-jobs';
 const DEVICE_ID = 'luliz-main';
@@ -15,24 +16,102 @@ function send(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
-function probePrinter(ip, port = 9100) {
+function probePort(ip, port = 9100, timeout = 900) {
   return new Promise(resolve => {
     const socket = new net.Socket();
     let settled = false;
-
-    const done = (open, message) => {
+    const done = open => {
       if (settled) return;
       settled = true;
       socket.destroy();
-      resolve({ open, message });
+      resolve(open);
     };
-
-    socket.setTimeout(3000);
-    socket.once('connect', () => done(true, 'الطابعة متصلة وجاهزة ✓'));
-    socket.once('timeout', () => done(false, 'الطابعة لا ترد على الشبكة'));
-    socket.once('error', error => done(false, `تعذّر الوصول إلى الطابعة (${error.code || error.message})`));
+    socket.setTimeout(timeout);
+    socket.once('connect', () => done(true));
+    socket.once('timeout', () => done(false));
+    socket.once('error', () => done(false));
     socket.connect(Number(port) || 9100, String(ip));
   });
+}
+
+function localSubnetPrefixes() {
+  const found = new Set();
+  const interfaces = os.networkInterfaces();
+
+  for (const rows of Object.values(interfaces)) {
+    for (const row of rows || []) {
+      if (!row || row.internal || row.family !== 'IPv4') continue;
+      const parts = String(row.address).split('.');
+      if (parts.length === 4) found.add(parts.slice(0, 3).join('.'));
+    }
+  }
+
+  return [...found];
+}
+
+async function scanForPrinters(port = 9100) {
+  const prefixes = localSubnetPrefixes();
+  const candidates = [];
+
+  for (const prefix of prefixes) {
+    const ips = Array.from({ length: 254 }, (_, i) => `${prefix}.${i + 1}`);
+
+    for (let i = 0; i < ips.length; i += 48) {
+      const batch = ips.slice(i, i + 48);
+      const results = await Promise.all(
+        batch.map(async ip => ({ ip, open: await probePort(ip, port, 350) }))
+      );
+      candidates.push(...results.filter(x => x.open).map(x => x.ip));
+    }
+  }
+
+  return [...new Set(candidates)];
+}
+
+const resolvedTargets = new Map();
+
+async function resolvePrinterTarget(ip, port = 9100) {
+  const key = `${ip}:${port}`;
+  const cached = resolvedTargets.get(key);
+
+  if (cached && await probePort(cached, port, 1000)) {
+    return { ip: cached, port, changed: cached !== ip };
+  }
+
+  if (await probePort(ip, port, 1200)) {
+    return { ip, port, changed: false };
+  }
+
+  console.log(new Date().toLocaleTimeString(), `⚠ ${ip}:${port} لا يرد — جاري البحث عن الطابعة على الشبكة...`);
+  const candidates = await scanForPrinters(port);
+
+  if (candidates.length === 1) {
+    resolvedTargets.set(key, candidates[0]);
+    console.log(new Date().toLocaleTimeString(), `✓ تم العثور على الطابعة تلقائياً: ${candidates[0]}:${port}`);
+    return { ip: candidates[0], port, changed: candidates[0] !== ip };
+  }
+
+  if (candidates.length > 1) {
+    throw new Error(`العنوان ${ip} لا يرد. وُجد أكثر من جهاز على المنفذ ${port}: ${candidates.join(', ')}`);
+  }
+
+  throw new Error(`الطابعة لا ترد على ${ip}:${port} ولم يتم العثور على أي طابعة على نفس شبكة اللابتوب`);
+}
+
+async function probePrinter(ip, port = 9100) {
+  try {
+    const target = await resolvePrinterTarget(ip, port);
+    return {
+      open: true,
+      message: target.changed
+        ? `الطابعة متصلة وجاهزة ✓ — تم تصحيح IP تلقائياً إلى ${target.ip}`
+        : 'الطابعة متصلة وجاهزة ✓',
+      resolvedIp: target.ip,
+      resolvedPort: target.port,
+    };
+  } catch (error) {
+    return { open: false, message: error.message };
+  }
 }
 
 function printRaster(ip, port, width, height, bits) {
@@ -81,7 +160,7 @@ function printRaster(ip, port, width, height, bits) {
   });
 }
 
-async function printWithRetry(ip, port, width, height, bits, attempts = 4) {
+async function printWithRetry(ip, port, width, height, bits, attempts = 2) {
   let lastError;
 
   for (let i = 0; i < attempts; i++) {
@@ -126,8 +205,16 @@ async function executeJob(payload) {
     throw new Error('حجم بيانات الفاتورة غير مطابق');
   }
 
-  await printWithRetry(ip, port, width, height, bits);
-  return { message: `تمت الطباعة على ${ip}:${port} ✓` };
+  console.log(new Date().toLocaleTimeString(), `→ printer target ${ip}:${port}`);
+  const target = await resolvePrinterTarget(ip, port);
+  await printWithRetry(target.ip, target.port, width, height, bits);
+  return {
+    message: target.changed
+      ? `تمت الطباعة ✓ — تم تصحيح IP تلقائياً إلى ${target.ip}:${target.port}`
+      : `تمت الطباعة على ${target.ip}:${target.port} ✓`,
+    resolvedIp: target.ip,
+    resolvedPort: target.port,
+  };
 }
 
 let polling = false;
