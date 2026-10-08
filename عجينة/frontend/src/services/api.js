@@ -11,6 +11,31 @@ const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' :
    speaking for. Baked in at build time — this build is عجينة وطحينة's. */
 const TENANT = import.meta.env.VITE_TENANT || 'ajeena'
 
+export const ACTIVE_CENTER_KEY = 'ajeena_admin_active_center'
+export const getActiveCenterId = () => {
+  if (typeof window === 'undefined') return ''
+  return localStorage.getItem(ACTIVE_CENTER_KEY) || ''
+}
+export const setActiveCenterId = value => {
+  if (typeof window === 'undefined') return
+  if (value) localStorage.setItem(ACTIVE_CENTER_KEY, String(value))
+  else localStorage.removeItem(ACTIVE_CENTER_KEY)
+}
+
+const BRANCH_SCOPED_PREFIXES = [
+  '/internal-orders', '/shifts', '/cash', '/finance', '/attendance',
+  '/employees', '/salary', '/advances', '/purchases', '/waste',
+  '/production', '/sales', '/returns', '/reports', '/daily-closing',
+  '/orders', '/ingredients',
+]
+const BRANCH_WRITE_PREFIXES = [
+  '/internal-orders', '/shifts', '/cash', '/employees', '/salary',
+  '/advances', '/purchases', '/waste', '/production', '/sales',
+  '/returns', '/attendance', '/daily-closing',
+]
+const branchScoped = url => BRANCH_SCOPED_PREFIXES.some(prefix => String(url || '').startsWith(prefix))
+const branchWrite = url => BRANCH_WRITE_PREFIXES.some(prefix => String(url || '').startsWith(prefix))
+
 /* For the few places that reach the API with a bare fetch() instead of axios —
    without this they fall back to the server's default brand. */
 export const tenantHeader = { 'X-Tenant': TENANT }
@@ -24,6 +49,20 @@ api.interceptors.request.use(config => {
   config.__offlineClient = 'admin'
   const token = localStorage.getItem('luliz_admin_token')
   if (token) config.headers.Authorization = `Bearer ${token}`
+
+  const activeCenterId = getActiveCenterId()
+  if (activeCenterId && branchScoped(config.url)) {
+    config.headers['X-Admin-Center'] = activeCenterId
+    config.params = { ...(config.params || {}), center: activeCenterId, centerId: activeCenterId }
+
+    const method = (config.method || 'get').toLowerCase()
+    if (['post', 'put', 'patch'].includes(method) && branchWrite(config.url)) {
+      const data = config.data && typeof config.data === 'object' && !Array.isArray(config.data)
+        ? config.data
+        : {}
+      config.data = { ...data, centerId: activeCenterId }
+    }
+  }
   if (['post', 'put', 'patch', 'delete'].includes((config.method || '').toLowerCase()) && !config.headers[IDEMPOTENCY_HEADER]) {
     config.headers[IDEMPOTENCY_HEADER] = createIdempotencyKey()
   }
