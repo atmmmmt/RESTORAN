@@ -25,10 +25,19 @@ export function useAuth() {
           setUser(res.data.user)
           localStorage.setItem(USER_KEY, JSON.stringify(res.data.user))
         })
-        .catch(() => {
-          localStorage.removeItem(TOKEN_KEY)
-          localStorage.removeItem(USER_KEY)
-          setUser(null)
+        .catch(err => {
+          const status = err?.response?.status || err?.status
+          /* Only an explicit authentication rejection invalidates a session.
+             A transient network error or a 5xx from another deployment step
+             must not throw the manager back to the login screen. Keep the
+             cached user and let the normal API/offline handling recover. */
+          if (status === 401) {
+            localStorage.removeItem(TOKEN_KEY)
+            localStorage.removeItem(USER_KEY)
+            setUser(null)
+          } else {
+            setUser(current => current || readCachedUser())
+          }
         })
         .finally(() => setLoading(false))
     } else {
