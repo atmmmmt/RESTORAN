@@ -19,31 +19,47 @@ export function useAuth() {
 
   useEffect(() => {
     const token = localStorage.getItem(TOKEN_KEY)
-    if (token) {
-      authAPI.getMe()
-        .then(res => {
-          setUser(res.data.user)
-          localStorage.setItem(USER_KEY, JSON.stringify(res.data.user))
-        })
-        .catch(err => {
-          const status = err?.response?.status || err?.status
-          /* Only an explicit authentication rejection invalidates a session.
-             A transient network error or a 5xx from another deployment step
-             must not throw the manager back to the login screen. Keep the
-             cached user and let the normal API/offline handling recover. */
-          if (status === 401) {
-            localStorage.removeItem(TOKEN_KEY)
-            localStorage.removeItem(USER_KEY)
-            setUser(null)
-          } else {
-            setUser(current => current || readCachedUser())
-          }
-        })
-        .finally(() => setLoading(false))
-    } else {
+    const cachedUser = readCachedUser()
+
+    if (!token) {
       setUser(null)
       setLoading(false)
+      return
     }
+
+    /* Login already returned a signed token + user. Do not gate the first
+       admin render on a second /auth/me request: if that refresh endpoint is
+       temporarily unavailable during a deploy, the old flow created an
+       endless login → dashboard → login loop. */
+    if (cachedUser) {
+      setUser(cachedUser)
+      setLoading(false)
+
+      // Refresh profile quietly. A failed refresh must not destroy a freshly
+      // established session; protected feature APIs remain the source of truth.
+      authAPI.getMe()
+        .then(res => {
+          if (res?.data?.user) {
+            setUser(res.data.user)
+            localStorage.setItem(USER_KEY, JSON.stringify(res.data.user))
+          }
+        })
+        .catch(() => {})
+      return
+    }
+
+    // Legacy session with a token but no cached user: recover the profile once.
+    authAPI.getMe()
+      .then(res => {
+        setUser(res.data.user)
+        localStorage.setItem(USER_KEY, JSON.stringify(res.data.user))
+      })
+      .catch(() => {
+        localStorage.removeItem(TOKEN_KEY)
+        localStorage.removeItem(USER_KEY)
+        setUser(null)
+      })
+      .finally(() => setLoading(false))
   }, [])
 
   const login = useCallback(async (email, password) => {
