@@ -11,5 +11,13 @@
     "http://localhost:5173",
     "http://localhost:5174",
     "http://localhost:5175"
-  ]
+  ],
+  "serverQueue": {
+    "enabled": true,
+    "baseUrl": "https://ajineh-w-tahineh.com/api/print-jobs",
+    "deviceId": "ajineh-main",
+    "agentKey": "CeNqASrsZXBfHLK8IIR2hjWST2K7-fgq4GRAKlieFLI",
+    "pollMs": 500,
+    "heartbeatMs": 5000
+  }
 }
