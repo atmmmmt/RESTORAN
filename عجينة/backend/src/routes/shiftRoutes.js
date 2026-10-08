@@ -5,6 +5,8 @@ const mongoose = require('mongoose');
 
 const { protect, requirePos, requireRole } = require('../middleware/auth');
 const CashierShift = require('../models/CashierShift');
+const InternalOrder = require('../models/InternalOrder');
+const ReturnRecord = require('../models/ReturnRecord');
 const shiftService = require('../services/shiftService');
 const businessDay = require('../services/businessDay');
 
@@ -100,11 +102,37 @@ router.post('/close', requirePos, async (req, res) => {
 
 /* ── GET /api/shifts/:id ── */
 router.get('/:id', requireRole('admin', 'supervisor', 'cashier', 'viewer'), async (req, res) => {
-  if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ success: false, message: 'الوردية غير موجودة' });
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    return res.status(404).json({ success: false, message: 'الوردية غير موجودة' });
+  }
+
   const shift = await CashierShift.findById(req.params.id);
   if (!shift) return res.status(404).json({ success: false, message: 'الوردية غير موجودة' });
   if (!canSee(req, shift)) return res.status(403).json({ success: false, message: 'هذه الوردية تابعة لفرع آخر' });
-  res.json({ success: true, shift: await present(shift) });
+
+  const value = await present(shift);
+  const until = shift.closedAt || new Date();
+
+  const [orders, returns] = await Promise.all([
+    InternalOrder.find({ shiftId: shift._id })
+      .sort({ createdAt: 1 })
+      .select('orderNumber createdAt status orderType paymentMethod customerName total subtotal discount items'),
+    ReturnRecord.find({
+      centerId: shift.centerId || null,
+      createdAt: { $gte: shift.openedAt, $lte: until },
+    })
+      .sort({ createdAt: 1 })
+      .select('number orderNumber createdAt refundAmount refundMethod items reason'),
+  ]);
+
+  res.json({
+    success: true,
+    shift: value,
+    details: {
+      orders: orders.map(order => order.toObject()),
+      returns: returns.map(item => item.toObject()),
+    },
+  });
 });
 
 module.exports = router;
