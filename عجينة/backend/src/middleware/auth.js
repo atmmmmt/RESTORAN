@@ -48,7 +48,7 @@ const protect = async (req, res, next) => {
         const selectedCenter = await SalesCenter.findOne({ _id: requestedCenter, isActive: true }).select('_id');
         if (selectedCenter) {
           req.adminCenterId = selectedCenter._id;
-          req.user.centerId = selectedCenter._id;
+          user.centerId = selectedCenter._id;
           if (req.body && typeof req.body === 'object' && !Array.isArray(req.body)) {
             req.body.centerId = String(selectedCenter._id);
           }
