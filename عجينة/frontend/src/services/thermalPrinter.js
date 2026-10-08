@@ -493,12 +493,41 @@ const rasterReceipt = (order, settings, opts) => {
 }
 
 /* ── The kitchen's ticket ──────────────────────────────────────
-   Not a receipt. Nobody in the kitchen needs a price, a total or a payment
-   method; they need to know which order, how many of what, and what was asked
-   for on the side — read at arm's length, over a counter, in a hurry. So the
-   quantity leads each line at twice the size of anything on the customer's
-   copy, and money never appears. */
-function drawKitchenTicket(order, settings) {
+   There is one physical printer in the kitchen. A mixed order is split into
+   independent preparation slips so each station can take only its own paper. */
+const KITCHEN_SECTIONS = {
+  pastries:   'قسم المعجنات',
+  grills:     'قسم المشاوي',
+  appetizers: 'قسم المقبلات / المازة',
+  drinks:     'قسم المشروبات',
+  other:      'قسم أخرى',
+}
+
+function inferKitchenSection(item) {
+  if (KITCHEN_SECTIONS[item?.kitchenSection]) return item.kitchenSection
+  const text = `${item?.categorySnapshot || item?.category || ''} ${item?.name || ''}`.toLowerCase()
+  if (/(مشروب|مشروبات|كولا|بيبسي|مياه|ماء|لبن|عيران|عصير)/.test(text)) return 'drinks'
+  if (/(مشاوي|مشوي|كباب|شقف|شيش|سودة|جوانح|جناح|لحم مشوي)/.test(text)) return 'grills'
+  if (/(مقبلات|مقبل|مازة|سلطة|فتوش|حمص|متبل|بابا غنوج|بطاطا)/.test(text)) return 'appetizers'
+  if (/(معجنات|معجن|فطاير|فطائر|منقوش|مناقيش|بيتزا|صفيحة|صفيح|سفيحة|عجين)/.test(text)) return 'pastries'
+  return 'other'
+}
+
+function splitKitchenItems(items = []) {
+  const groups = new Map()
+  for (const item of items) {
+    const key = inferKitchenSection(item)
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key).push(item)
+  }
+  return [...groups.entries()].map(([key, groupedItems]) => ({
+    key,
+    label: KITCHEN_SECTIONS[key] || KITCHEN_SECTIONS.other,
+    items: groupedItems,
+  }))
+}
+
+function drawKitchenTicket(order, settings, sectionLabel = 'المطبخ') {
   const kitchen = settings.kitchen
   const width = Number(kitchen.paperWidth) === 58 ? 384 : 576
   const items = order.items || []
@@ -506,7 +535,7 @@ function drawKitchenTicket(order, settings) {
   const { canvas, ctx } = newCanvas(width, 900 + items.length * 110 + notes * 46 + (order.notes ? 140 : 0))
   const p = painter(ctx, width)
 
-  p.line('المطبخ', { size: 34, bold: true, gap: 6 })
+  p.line(sectionLabel, { size: 34, bold: true, gap: 6 })
   p.rule(4)
 
   p.line(order.orderNumber || 'طلب', { size: 34, bold: true, gap: 6 })
@@ -521,7 +550,6 @@ function drawKitchenTicket(order, settings) {
   p.rule(4)
 
   for (const item of items) {
-    /* Quantity first and large — the one number that decides what gets made. */
     p.pair(item.name, `× ${item.quantity}`, { size: 30, bold: true })
     if (item.notes) p.line(`← ${item.notes}`, { size: 24, bold: true, align: 'right', gap: 10 })
     p.dashes()
@@ -530,20 +558,19 @@ function drawKitchenTicket(order, settings) {
   if (order.notes) {
     p.space(4)
     p.box(() => {
-      p.line(`ملاحظات: ${order.notes}`, { size: 24, bold: true, align: 'right', gap: 4 })
+      p.line(`ملاحظات الطلب: ${order.notes}`, { size: 24, bold: true, align: 'right', gap: 4 })
     })
   }
 
   p.space(8)
-  p.line(`${items.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0)} قطعة`, { size: 26, bold: true, gap: 10 })
+  p.line(`${items.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0)} قطعة لهذا القسم`, { size: 24, bold: true, gap: 10 })
 
   return { canvas, height: Math.min(canvas.height, p.y + 24) }
 }
 
 /**
- * Send one order to the kitchen printer. Separate from the receipt on purpose:
- * a kitchen printer that is out of paper must never cost the shop the sale,
- * so the caller is expected to let this fail on its own.
+ * One physical printer, many independent slips. The requests are deliberately
+ * awaited in sequence so cheap USB/LAN print buffers are not flooded.
  */
 export async function printKitchenTicket(order) {
   const settings = getPrinterSettings()
@@ -552,18 +579,30 @@ export async function printKitchenTicket(order) {
   if (kitchen.connection === 'usb' && !kitchen.printerName) throw new Error('اختر طابعة المطبخ من الإعدادات')
   await readyFont()
 
-  const { canvas, height } = drawKitchenTicket(order, settings)
-  const response = await fetch(`${settings.agentUrl.replace(/\/$/, '')}/print`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      ...printerTarget(kitchen),
-      copies: Math.max(1, Math.min(5, Number(kitchen.copies) || 1)),
-      dataBase64: toEscPos(canvas, height, kitchen),
-    }),
-  })
-  const result = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(result.message || 'تعذّر الاتصال بطابعة المطبخ')
-  return { ...result, printerId: printerLabel(kitchen) }
+  const groups = splitKitchenItems(order.items || [])
+  if (!groups.length) throw new Error('الطلب لا يحتوي أصنافاً للطباعة')
+
+  const printed = []
+  for (const group of groups) {
+    const { canvas, height } = drawKitchenTicket({ ...order, items: group.items }, settings, group.label)
+    const response = await fetch(`${settings.agentUrl.replace(/\/$/, '')}/print`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...printerTarget(kitchen),
+        copies: Math.max(1, Math.min(5, Number(kitchen.copies) || 1)),
+        dataBase64: toEscPosBanded(canvas, height, kitchen),
+      }),
+    })
+    const result = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(result.message || `تعذّرت طباعة ${group.label}`)
+    printed.push(group.label)
+  }
+
+  return {
+    success: true,
+    printedSections: printed,
+    printerId: printerLabel(kitchen),
+  }
 }
 
 /* Where the ticket is going, in the shape the agent expects. */
