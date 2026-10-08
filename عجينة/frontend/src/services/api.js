@@ -14,7 +14,13 @@ const TENANT = import.meta.env.VITE_TENANT || 'ajeena'
 export const ACTIVE_CENTER_KEY = 'ajeena_admin_active_center'
 export const getActiveCenterId = () => {
   if (typeof window === 'undefined') return ''
-  return localStorage.getItem(ACTIVE_CENTER_KEY) || ''
+  const value = localStorage.getItem(ACTIVE_CENTER_KEY) || ''
+  if (!value) return ''
+  if (!/^[a-f\d]{24}$/i.test(value)) {
+    localStorage.removeItem(ACTIVE_CENTER_KEY)
+    return ''
+  }
+  return value
 }
 export const setActiveCenterId = value => {
   if (typeof window === 'undefined') return
