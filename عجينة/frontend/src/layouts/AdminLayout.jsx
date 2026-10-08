@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { onQueueChange, queueSize } from '../services/offline'
+import { centersAPI, getActiveCenterId, setActiveCenterId } from '../services/api'
 import { useAuth, ROLE_LABELS } from '../hooks/useAuth'
 import {
   Menu, LayoutDashboard, Croissant, LayoutGrid, Wheat, ShoppingCart, CookingPot,
@@ -135,8 +136,54 @@ function SidebarContent({ user, onLogout, onLinkClick }) {
 
 export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [centers, setCenters] = useState([])
+  const [activeCenterId, setActiveCenterState] = useState(getActiveCenterId())
+  const [branchReady, setBranchReady] = useState(false)
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const canSwitchBranch = ['admin', 'supervisor', 'viewer'].includes(user?.role)
+
+  useEffect(() => {
+    if (!canSwitchBranch) {
+      setBranchReady(true)
+      return
+    }
+
+    let alive = true
+    centersAPI.getAll()
+      .then(res => {
+        if (!alive) return
+        const list = (res.data.centers || []).filter(center => center.isActive !== false)
+        setCenters(list)
+
+        const saved = getActiveCenterId()
+        const valid = list.find(center => String(center._id) === String(saved))
+        const fallback = list.find(center => /الأميركان|اميركان/.test(center.name || ''))
+          || list.find(center => /القلعة/.test(center.name || ''))
+          || list[0]
+
+        const next = valid?._id || fallback?._id || ''
+        if (next && String(next) !== String(saved)) setActiveCenterId(next)
+        setActiveCenterState(next ? String(next) : '')
+      })
+      .catch(() => {
+        if (alive) setActiveCenterState(getActiveCenterId())
+      })
+      .finally(() => {
+        if (alive) setBranchReady(true)
+      })
+
+    return () => { alive = false }
+  }, [canSwitchBranch])
+
+  const changeBranch = value => {
+    if (!value || String(value) === String(activeCenterId)) return
+    setActiveCenterId(value)
+    setActiveCenterState(value)
+    window.location.reload()
+  }
+
+  const activeCenter = centers.find(center => String(center._id) === String(activeCenterId))
 
   const handleLogout = () => {
     logout()
@@ -172,6 +219,22 @@ export default function AdminLayout() {
           </div>
 
           <div className="flex items-center gap-2">
+            {canSwitchBranch && branchReady && centers.length > 0 && (
+              <label className="flex items-center gap-2 px-3 py-1.5 rounded-xl border-2 bg-white"
+                style={{ borderColor: '#E8D5C0', minWidth: 190 }}>
+                <Building2 size={16} style={{ color: '#8B4513' }} className="shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-[10px] font-black leading-none mb-1" style={{ color: '#9B836F' }}>الفرع النشط</div>
+                  <select value={activeCenterId} onChange={e => changeBranch(e.target.value)}
+                    className="w-full bg-transparent outline-none border-0 p-0 text-sm font-black cursor-pointer"
+                    style={{ color: '#2C1206' }}>
+                    {centers.map(center => (
+                      <option key={center._id} value={center._id}>{center.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </label>
+            )}
             <ConnectionStatus />
             <motion.div whileHover={{ scale: 1.08 }} className="w-9 h-9 rounded-full flex items-center justify-center cursor-pointer transition-colors"
               style={{ background: '#FDF4EA', border: '1.5px solid #E8D5C0' }}>
@@ -180,7 +243,26 @@ export default function AdminLayout() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-6"><Outlet /></main>
+        <main className="flex-1 overflow-y-auto p-6">
+          {!branchReady && canSwitchBranch
+            ? <div className="h-full flex items-center justify-center">
+                <div className="text-center">
+                  <Building2 size={34} className="mx-auto mb-3" style={{ color: '#8B4513' }} />
+                  <div className="font-black" style={{ color: '#2C1206' }}>جاري تجهيز بيانات الفرع…</div>
+                </div>
+              </div>
+            : <div key={activeCenterId || 'default'}>
+                {canSwitchBranch && activeCenter && (
+                  <div className="mb-4 px-4 py-2.5 rounded-xl flex items-center gap-2 text-sm font-black"
+                    style={{ background: '#FFF8EF', border: '1px solid #E8D5C0', color: '#5C321E' }}>
+                    <Building2 size={15} />
+                    أنت تعمل الآن على فرع: <span style={{ color: '#A96734' }}>{activeCenter.name}</span>
+                  </div>
+                )}
+                <Outlet />
+              </div>
+          }
+        </main>
       </div>
     </div>
   )
