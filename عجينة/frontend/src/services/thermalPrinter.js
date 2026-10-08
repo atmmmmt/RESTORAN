@@ -102,74 +102,6 @@ async function sendPrintJob(payload) {
   throw new Error('برنامج الطباعة لم يستلم المهمة خلال 12 ثانية — تأكد أن Print Agent مفتوح على لابتوب الكاشير')
 }
 
-export const PRINT_ACCESS_KEY = 'ajineh_print_loopback_allowed_v1'
-
-export async function getPrintPermissionState() {
-  if (typeof navigator === 'undefined' || !navigator.permissions?.query) return 'unknown'
-  for (const name of ['loopback-network', 'local-network-access']) {
-    try {
-      const result = await navigator.permissions.query({ name })
-      if (result?.state) return result.state
-    } catch {
-      // Browser does not know this permission name yet; try the compatibility alias.
-    }
-  }
-  return 'unknown'
-}
-
-export async function requestPrintAgentAccess(settings = getPrinterSettings()) {
-  const stateBefore = await getPrintPermissionState()
-  if (stateBefore === 'denied') {
-    const error = new Error('تم رفض إذن الوصول المحلي سابقاً')
-    error.code = 'PRINT_PERMISSION_DENIED'
-    throw error
-  }
-
-  const url = `${String(settings.agentUrl || 'http://127.0.0.1:18181').replace(/\/$/, '')}/health`
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 7000)
-
-  let response
-  try {
-    response = await fetch(url, {
-      method: 'GET',
-      mode: 'cors',
-      cache: 'no-store',
-      targetAddressSpace: 'loopback',
-      signal: controller.signal,
-    })
-  } catch (cause) {
-    const stateAfter = await getPrintPermissionState()
-    const timedOut = cause?.name === 'AbortError'
-    const error = new Error(
-      stateAfter === 'denied'
-        ? 'تم رفض إذن الوصول المحلي'
-        : timedOut
-          ? 'Chrome لم يعطِ جواباً لطلب السماح'
-          : 'لم يتم السماح بالوصول إلى برنامج الطباعة المحلي'
-    )
-    error.code = stateAfter === 'denied'
-      ? 'PRINT_PERMISSION_DENIED'
-      : timedOut
-        ? 'PRINT_PERMISSION_TIMEOUT'
-        : 'PRINT_ACCESS_FAILED'
-    error.cause = cause
-    throw error
-  } finally {
-    clearTimeout(timer)
-  }
-
-  const data = await response.json().catch(() => ({}))
-  if (!response.ok || !data?.success) {
-    const error = new Error(data?.message || 'برنامج الطباعة يرد بخطأ')
-    error.code = 'PRINT_AGENT_ERROR'
-    throw error
-  }
-
-  localStorage.setItem(PRINT_ACCESS_KEY, '1')
-  return data
-}
-
 const money = value => `${Number(value || 0).toLocaleString('ar-SY')} ل.س`
 
 /* The canvas has to be painted in a font the browser has actually got. Drawing
@@ -734,25 +666,14 @@ export const sampleOrder = () => ({
 })
 
 /** Printer names the agent's machine knows about — for the settings page. */
-export async function listAgentPrinters(settings = getPrinterSettings()) {
-  let response
-  try {
-    response = await fetch(`${settings.agentUrl.replace(/\/$/, '')}/printers`, {
-      mode: 'cors',
-      targetAddressSpace: 'loopback',
-    })
-  } catch {
-    throw new Error('Chrome يمنع الوصول لبرنامج الطباعة المحلي. فعّل «الوصول إلى الشبكة المحلية / Loopback network» لهذا الموقع ثم أعد المحاولة.')
+export async function listAgentPrinters() {
+  const res = await api.get('/print-jobs/status', {
+    params: { deviceId: getPrintDeviceId() },
+  })
+  if (!res?.data?.online) {
+    throw new Error('برنامج الطباعة غير متصل بالسيرفر — شغّل Print Agent على لابتوب الكاشير')
   }
-  /* An agent from before USB support has no /printers at all, and its bare
-     "Not found" sends people looking at the printer instead of at the agent
-     they never replaced. Name the actual problem. */
-  if (response.status === 404) {
-    throw new Error('نسخة وكيل الطباعة قديمة ولا تدعم USB — انسخ مجلد print-agent الجديد وأعد تشغيله')
-  }
-  const result = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(result.message || 'تعذّر قراءة قائمة الطابعات')
-  return result.printers || []
+  return res.data.printers || []
 }
 
 export async function printThermalReceipt(order, { duplicate = false } = {}) {
@@ -1108,20 +1029,20 @@ export async function printThermalShiftReport(shift) {
   })
 }
 
-export async function testPrintAgent(settings = getPrinterSettings()) {
-  let response
-  try {
-    response = await fetch(`${settings.agentUrl.replace(/\/$/, '')}/health`, {
-      mode: 'cors',
-      targetAddressSpace: 'loopback',
-    })
-  } catch {
-    /* A blocked request and a stopped program look identical from here, so
-       the message names the thing the person can actually check. */
-    throw new Error('برنامج الطباعة شغّال لكن Chrome يمنع الوصول المحلي. من إعدادات الموقع فعّل «الوصول إلى الشبكة المحلية / Loopback network» ثم حدّث الصفحة.')
+export async function testPrintAgent() {
+  const res = await api.get('/print-jobs/status', {
+    params: { deviceId: getPrintDeviceId() },
+  })
+  if (!res?.data?.online) {
+    throw new Error('برنامج الطباعة غير متصل بالسيرفر — شغّل Print Agent على لابتوب الكاشير')
   }
-  if (!response.ok) throw new Error('برنامج الطباعة يرد بخطأ')
-  return response.json()
+  return {
+    success: true,
+    service: 'ajineh-cloud-print-agent',
+    version: res.data.version,
+    printers: res.data.printers || [],
+    deviceId: res.data.deviceId,
+  }
 }
 
 
