@@ -27,6 +27,50 @@ export function setPrinterSettingsCache(settings) {
   settingsCache = settings
 }
 
+async function callAgent(path, options = {}) {
+  for (const base of AGENT_URLS) {
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), 3500)
+    try {
+      const res = await fetch(`${base}${path}`, {
+        mode: 'cors',
+        targetAddressSpace: 'loopback',
+        cache: 'no-store',
+        ...options,
+        signal: ctrl.signal,
+      })
+      const data = await res.json().catch(() => ({}))
+      return { reached: true, ok: res.ok, data }
+    } catch {
+      // Try the second loopback spelling.
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+  return { reached: false, ok: false, data: {} }
+}
+
+export async function testLocalPrinter(station = 'cashier') {
+  const s = await getPrinterSettings({ refresh: true })
+  if (!s[`${station}Enabled`]) throw new Error(`طابعة ${STATION_LABEL[station]} غير مفعّلة`)
+  const ip = s[`${station}Ip`]
+  const port = s[`${station}Port`] || 9100
+  if (!ip) throw new Error(`لم يُضبط عنوان طابعة ${STATION_LABEL[station]}`)
+
+  const health = await callAgent('/health')
+  if (!health.reached || !health.ok || !health.data?.success) {
+    throw new Error('برنامج طباعة لوليز شغّال على الجهاز لكن الصفحة لا تستطيع الوصول له — أغلق Chrome وافتحه بعد تشغيل start-print-agent.bat')
+  }
+
+  const probe = await callAgent('/probe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ip, port }),
+  })
+  if (!probe.reached || !probe.ok) throw new Error('تعذّر فحص الطابعة من برنامج الطباعة')
+  return probe.data
+}
+
 async function viaAgent(body) {
   for (const base of AGENT_URLS) {
     const ctrl = new AbortController()
@@ -75,10 +119,5 @@ export async function printToStation(station, raster, target) {
     return `أُرسلت فاتورة ${STATION_LABEL[station]} ✓`
   }
 
-  try {
-    const r = await printerAPI.print(station, { width, height, data, ...(target ? { ip, port } : {}) })
-    return r.data.message
-  } catch (e) {
-    throw new Error(`${e.message || 'تعذّرت الطباعة'} — تأكد إن «برنامج الطباعة» شغّال على هاد الجهاز`)
-  }
+  throw new Error('برنامج طباعة لوليز غير متصل بالصفحة — شغّل start-print-agent.bat ثم أغلق Chrome وافتحه من جديد')
 }
