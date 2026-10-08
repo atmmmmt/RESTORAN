@@ -682,19 +682,13 @@ export async function printThermalReceipt(order, { duplicate = false } = {}) {
   if (settings.connection === 'usb' && !settings.printerName) throw new Error('اختر طابعة USB من الإعدادات')
   await readyFont()
   const logo = settings.showLogo === false ? null : await loadLogo(settings.logoUrl)
-  const response = await fetch(`${settings.agentUrl.replace(/\/$/, '')}/print`, {
-    method: 'POST',
-    mode: 'cors',
-    targetAddressSpace: 'loopback',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      ...printerTarget(settings),
-      copies: Math.max(1, Math.min(5, Number(settings.copies) || 1)),
-      dataBase64: rasterReceipt(order, settings, { duplicate, logo }),
-    }),
+
+  const result = await sendPrintJob({
+    ...printerTarget(settings),
+    copies: Math.max(1, Math.min(5, Number(settings.copies) || 1)),
+    dataBase64: rasterReceipt(order, settings, { duplicate, logo }),
   })
-  const result = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(result.message || 'تعذّر الاتصال بالطابعة')
+
   return { ...result, printerId: printerLabel(settings) }
 }
 
