@@ -3,8 +3,9 @@
 const http = require('http');
 const net = require('net');
 const os = require('os');
+const { execFile } = require('child_process');
 
-const VERSION = '3.0.1';
+const VERSION = '3.0.2';
 const PORT = 9123;
 const SERVER_BASE = 'https://loliz-taste.com/api/print-jobs';
 const DEVICE_ID = 'luliz-main';
@@ -49,6 +50,72 @@ function localSubnetPrefixes() {
   return [...found];
 }
 
+function runPowerShell(command, timeout = 8000) {
+  return new Promise((resolve) => {
+    const exe = process.env.SystemRoot
+      ? process.env.SystemRoot + '\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+      : 'powershell.exe';
+
+    execFile(
+      exe,
+      ['-NoProfile', '-NonInteractive', '-Command', command],
+      { timeout, windowsHide: true },
+      (error, stdout) => resolve(error ? '' : String(stdout || ''))
+    );
+  });
+}
+
+async function windowsPrinterCandidates(port = 9100) {
+  if (process.platform !== 'win32') return [];
+
+  const script = [
+    "$ErrorActionPreference='SilentlyContinue';",
+    "$ports = Get-PrinterPort | Where-Object { $_.PrinterHostAddress };",
+    "$ports | ForEach-Object {",
+    "  $addr = [string]$_.PrinterHostAddress;",
+    "  $p = if ($_.PortNumber) { [int]$_.PortNumber } else { 9100 };",
+    "  Write-Output ($addr + '|' + $p)",
+    "}"
+  ].join(' ');
+
+  const out = await runPowerShell(script, 10000);
+  const rows = out.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+
+  const candidates = [];
+  for (const row of rows) {
+    const [ip, p] = row.split('|');
+    if (!ip || !/^\d+\.\d+\.\d+\.\d+$/.test(ip)) continue;
+    const candidatePort = Number(p) || 9100;
+    if (candidatePort !== Number(port)) continue;
+    candidates.push(ip);
+  }
+
+  return [...new Set(candidates)];
+}
+
+async function arpCandidates() {
+  if (process.platform !== 'win32') return [];
+
+  const out = await runPowerShell(
+    "arp -a | Select-String -Pattern '\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b' | ForEach-Object { " +
+    "if ($_.Line -match '((?:\\d{1,3}\\.){3}\\d{1,3})') { $matches[1] } }",
+    6000
+  );
+
+  return [...new Set(
+    out.split(/\r?\n/)
+      .map(x => x.trim())
+      .filter(ip => /^\d+\.\d+\.\d+\.\d+$/.test(ip))
+  )];
+}
+
+async function firstReachable(candidates, port) {
+  for (const ip of [...new Set(candidates)]) {
+    if (await probePort(ip, port, 1200)) return ip;
+  }
+  return null;
+}
+
 async function scanForPrinters(port = 9100) {
   const prefixes = localSubnetPrefixes();
   const candidates = [];
@@ -82,7 +149,30 @@ async function resolvePrinterTarget(ip, port = 9100) {
     return { ip, port, changed: false };
   }
 
-  console.log(new Date().toLocaleTimeString(), `⚠ ${ip}:${port} لا يرد — جاري البحث عن الطابعة على الشبكة...`);
+  console.log(new Date().toLocaleTimeString(), `⚠ ${ip}:${port} لا يرد — جاري البحث عن عنوان الطابعة الحقيقي...`);
+
+  const windowsCandidates = await windowsPrinterCandidates(port);
+  if (windowsCandidates.length) {
+    console.log(new Date().toLocaleTimeString(), 'Windows printer ports:', windowsCandidates.join(', '));
+    const found = await firstReachable(windowsCandidates, port);
+    if (found) {
+      resolvedTargets.set(key, found);
+      console.log(new Date().toLocaleTimeString(), `✓ تم العثور على الطابعة من Windows: ${found}:${port}`);
+      return { ip: found, port, changed: found !== ip };
+    }
+  }
+
+  const arp = await arpCandidates();
+  if (arp.length) {
+    const found = await firstReachable(arp, port);
+    if (found) {
+      resolvedTargets.set(key, found);
+      console.log(new Date().toLocaleTimeString(), `✓ تم العثور على الطابعة من شبكة Windows: ${found}:${port}`);
+      return { ip: found, port, changed: found !== ip };
+    }
+  }
+
+  console.log(new Date().toLocaleTimeString(), 'لم نجدها ضمن منافذ Windows — جاري فحص الشبكة المحلية...');
   const candidates = await scanForPrinters(port);
 
   if (candidates.length === 1) {
@@ -95,7 +185,7 @@ async function resolvePrinterTarget(ip, port = 9100) {
     throw new Error(`العنوان ${ip} لا يرد. وُجد أكثر من جهاز على المنفذ ${port}: ${candidates.join(', ')}`);
   }
 
-  throw new Error(`الطابعة لا ترد على ${ip}:${port} ولم يتم العثور على أي طابعة على نفس شبكة اللابتوب`);
+  throw new Error(`الطابعة لا ترد على ${ip}:${port}. لم نجد أي طابعة عبر Windows أو ARP أو فحص الشبكة. تأكد أن الطابعة واللابتوب على نفس الراوتر وأن IP الطابعة ثابت.`);
 }
 
 async function probePrinter(ip, port = 9100) {
