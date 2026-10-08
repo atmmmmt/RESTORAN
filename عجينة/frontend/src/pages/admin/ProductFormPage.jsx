@@ -21,7 +21,7 @@ export default function ProductFormPage() {
 
   const [ingredients, setIngredients] = useState([])
   const [form, setForm] = useState({
-    name: '', description: '', category: 'باستا', image: '🍽️', imagePublicId: null,
+    name: '', description: '', category: 'باستا', kitchenSection: '', image: '🍽️', imagePublicId: null,
     directPrice: '', regularCenterPrice: '', specializedCenterDefaultCommissionPercent: 20,
     packagingCost: 150, extraCost: 0, availableQuantity: 0,
     status: 'available', showInTodayMenu: true, allergyNotes: '', notes: '',
@@ -47,6 +47,7 @@ export default function ProductFormPage() {
         const p = r.data.product
         setForm({
           name: p.name, description: p.description || '', category: p.category || 'باستا',
+          kitchenSection: p.kitchenSection || '',
           image: p.image || '🍽️', imagePublicId: p.imagePublicId || null,
           directPrice: p.directPrice, regularCenterPrice: p.regularCenterPrice,
           specializedCenterDefaultCommissionPercent: p.specializedCenterDefaultCommissionPercent || 20,
@@ -220,6 +221,21 @@ export default function ProductFormPage() {
                     <option value="hidden">مخفي</option>
                     <option value="sold_out">نفدت</option>
                   </select>
+                </div>
+                <div className="col-span-2">
+                  <label className="text-sm font-bold text-brand-dark mb-1.5 block">قسم المطبخ</label>
+                  <select value={form.kitchenSection} onChange={e => set('kitchenSection', e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-brand-border rounded-xl focus:border-fuchsia focus:outline-none font-bold bg-white">
+                    <option value="">تلقائي حسب التصنيف</option>
+                    <option value="pastries">المعجنات / الفطاير</option>
+                    <option value="grills">المشاوي</option>
+                    <option value="appetizers">المقبلات / المازة</option>
+                    <option value="drinks">المشروبات</option>
+                    <option value="other">أخرى</option>
+                  </select>
+                  <p className="text-[11px] text-brand-gray-light mt-1 font-medium">
+                    عند طباعة طلب المطبخ، كل قسم يخرج بوصلة مستقلة من نفس طابعة المطبخ.
+                  </p>
                 </div>
               </div>
             </div>
