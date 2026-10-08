@@ -361,19 +361,9 @@ router.post('/', requirePos, async (req, res) => {
   const totalCost = lines.reduce((s, l) => s + l.unitCost * l.quantity, 0);
   const profit    = total - totalCost;
 
-  /* 2 — stock is advisory for POS sales, never a blocker.
-     Deduct when stock exists; if it is zero/missing, the sale still proceeds.
-     Only successfully deducted lines are stored as movements so cancellation
-     never invents stock that was not actually removed. */
-  const applied = [];
-  for (const line of lines) {
-    try {
-      await inventoryService.decreaseProductStock(line.productId, line.quantity, centerId);
-      applied.push(line);
-    } catch (err) {
-      console.warn(`⚠️  تم بيع "${line.name}" بدون خصم مخزون: ${err.message}`);
-    }
-  }
+  /* 2 — never make the cashier wait for advisory stock bookkeeping.
+     The sale is saved first; stock is reconciled immediately after the HTTP
+     response in a best-effort post-processing task. */
 
   /* 3 — create the order, inside the shift that is running (opening one if
          the cashier hasn't), at the partner's rate for this kind of order. */
@@ -409,29 +399,84 @@ router.post('/', requirePos, async (req, res) => {
     timeline: [{ status: 'new', at: new Date(), by: req.user.name }],
     createdBy: req.user._id,
     createdByName: req.user.name,
-    stockApplied: applied.length > 0,
-    stockMovements: applied.map(line => ({
-      itemType: 'product', itemId: line.productId, quantity: line.quantity, nameSnapshot: line.name,
-    })),
+    stockApplied: false,
+    stockMovements: [],
   });
 
-  /* 4 — money in the drawer. Failing to log cash must not void a sale that
-         already happened physically, so this is best-effort and flagged. */
-  if (isPaid(paymentMethod) && total > 0) {
-    try {
-      await cashService.createTransaction(
-        'sale_income', total, 'in',
-        `طلب داخلي ${orderNumber} — ${lines.length} صنف`,
-        'InternalOrder', order._id, order.centerId
-      );
-      order.cashPosted = true;
-      await order.save();
-    } catch (err) {
-      console.error(`⚠️  تعذّر تسجيل نقدية الطلب ${orderNumber}:`, err.message);
-    }
-  }
+  /* 4 — answer the cashier immediately. Stock + drawer bookkeeping are
+         intentionally outside the response path so a slow database operation
+         can never freeze the "تأكيد الطلب" button. */
+  res.status(201).json({
+    success: true,
+    order: presentOrder(order, req.user.role),
+    message: `تم إنشاء الطلب ${orderNumber}`,
+  });
 
-  res.status(201).json({ success: true, order: presentOrder(order, req.user.role), message: `تم إنشاء الطلب ${orderNumber}` });
+  setImmediate(async () => {
+    try {
+      const current = await InternalOrder.findById(order._id).select('status centerId');
+      if (!current || current.status === 'cancelled') return;
+
+      const stockTask = (async () => {
+        const results = await Promise.allSettled(
+          lines.map(line =>
+            inventoryService.decreaseProductStock(line.productId, line.quantity, centerId)
+          )
+        );
+
+        const applied = lines.filter((line, index) => results[index]?.status === 'fulfilled');
+        results.forEach((result, index) => {
+          if (result.status === 'rejected') {
+            console.warn(
+              `⚠️  تم بيع "${lines[index].name}" بدون خصم مخزون: ${result.reason?.message || result.reason}`
+            );
+          }
+        });
+
+        if (applied.length) {
+          await InternalOrder.updateOne(
+            { _id: order._id, status: { $ne: 'cancelled' } },
+            {
+              $set: {
+                stockApplied: true,
+                stockMovements: applied.map(line => ({
+                  itemType: 'product',
+                  itemId: line.productId,
+                  quantity: line.quantity,
+                  nameSnapshot: line.name,
+                })),
+              },
+            }
+          );
+        }
+      })();
+
+      const cashTask = (async () => {
+        if (!isPaid(paymentMethod) || total <= 0) return;
+        try {
+          await cashService.createTransaction(
+            'sale_income',
+            total,
+            'in',
+            `طلب داخلي ${orderNumber} — ${lines.length} صنف`,
+            'InternalOrder',
+            order._id,
+            order.centerId
+          );
+          await InternalOrder.updateOne(
+            { _id: order._id, status: { $ne: 'cancelled' } },
+            { $set: { cashPosted: true } }
+          );
+        } catch (err) {
+          console.error(`⚠️  تعذّر تسجيل نقدية الطلب ${orderNumber}:`, err.message);
+        }
+      })();
+
+      await Promise.allSettled([stockTask, cashTask]);
+    } catch (err) {
+      console.error(`⚠️  تعذّرت المعالجة اللاحقة للطلب ${orderNumber}:`, err.message);
+    }
+  });
 });
 
 /* ── PUT /api/internal-orders/:id — edit an existing POS order ── */
