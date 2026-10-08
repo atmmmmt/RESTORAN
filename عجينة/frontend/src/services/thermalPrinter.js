@@ -59,6 +59,553 @@ export function savePrinterSettings(settings) {
   }))
 }
 
+const money = value => `${Number(value || 0).toLocaleString('ar-SY')} ل.س`
+
+/* The canvas has to be painted in a font the browser has actually got. Drawing
+   before the webfont resolves silently falls back to Arial, whose Arabic is
+   thinner still — so the ticket that prints worst is the first one after a
+   reload. Never let a slow font hold up a sale for more than a moment. */
+function readyFont() {
+  if (!document.fonts) return Promise.resolve()
+  return Promise.race([
+    Promise.all([
+      document.fonts.load('700 36px Tajawal', 'عجينة'),
+      document.fonts.load('400 24px Tajawal', 'عجينة'),
+    ]),
+    new Promise(resolve => setTimeout(resolve, 1500)),
+  ]).catch(() => {})
+}
+
+/* ── Logo ──────────────────────────────────────────────────────
+   Loaded once and kept, so a busy counter isn't re-fetching the same
+   picture on every ticket. A logo that won't load must never stop a
+   sale from printing: the receipt simply starts at the shop name. */
+const logoCache = new Map()
+function loadLogo(url) {
+  if (!url) return Promise.resolve(null)
+  if (logoCache.has(url)) return logoCache.get(url)
+  const pending = new Promise(resolve => {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload  = () => resolve(img)
+    img.onerror = () => resolve(null)
+    img.src = url
+  })
+  logoCache.set(url, pending)
+  return pending
+}
+
+/* ── Canvas → ESC/POS raster ───────────────────────────────── */
+
+/* A grey pixel is a pixel the head will not fire. Canvas anti-aliases every
+   glyph edge, so a thin Arabic stem can be almost entirely edge — at the old
+   cut-off of 170 those strokes fell through the sieve and the line came out
+   as a row of dots. Keeping everything below near-white means a stroke the
+   eye can see is a stroke the head prints. */
+const INK_CUTOFF = 205
+
+/* No heating command is sent, and none should be.
+ *
+ * ESC 7 sets the head's heating time on the boards that implement it, and it
+ * looked like the cure for a pale ticket. These printers do not implement it:
+ * they printed the '7' and took its three parameter bytes as text, and from
+ * that point the stream was one byte out — the raster that followed came out
+ * as pages of random glyphs on both machines at once.
+ *
+ * An unrecognised command does not fail quietly here; it destroys everything
+ * after it. So the bytes below stay to the commands these printers are known
+ * to answer, and darkness is handled where it cannot corrupt anything: fatter
+ * strokes on the canvas, a cut-off that keeps them (INK_CUTOFF), and the
+ * printer's own density setting in its configuration page.
+ */
+
+function toEscPos(canvas, height, settings) {
+  const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, height).data
+  const bytesPerRow = Math.ceil(canvas.width / 8)
+  const raster = new Uint8Array(bytesPerRow * height)
+  for (let py = 0; py < height; py++) {
+    for (let px = 0; px < canvas.width; px++) {
+      const i = (py * canvas.width + px) * 4
+      const luminance = pixels[i] * 0.299 + pixels[i + 1] * 0.587 + pixels[i + 2] * 0.114
+      if (luminance < INK_CUTOFF && pixels[i + 3] > 32) raster[py * bytesPerRow + (px >> 3)] |= 0x80 >> (px & 7)
+    }
+  }
+
+  /* Initialise, one raster, feed, cut — and nothing else. Built into a typed
+     array rather than a spread of a plain array: a tall day-report is several
+     hundred thousand bytes, and spreading that many arguments overflows the
+     call stack. */
+  const header = [0x1b, 0x40, 0x1d, 0x76, 0x30, 0,
+    bytesPerRow & 255, bytesPerRow >> 8, height & 255, height >> 8]
+  const tail = settings.autoCut ? [0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x41, 3] : [0x0a, 0x0a, 0x0a]
+
+  const bytes = new Uint8Array(header.length + raster.length + tail.length)
+  bytes.set(header, 0)
+  bytes.set(raster, header.length)
+  bytes.set(tail, header.length + raster.length)
+  let binary = ''
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+  return btoa(binary)
+}
+
+/* Some low-cost ESC/POS boards lose sync when one very tall GS v 0 image is
+   sent in a single command. Once that happens the remaining raster bytes are
+   interpreted as text and come out as Chinese/random glyphs. Shift reports
+   are taller than normal receipts, so send them as a sequence of small raster
+   bands while keeping the exact same Arabic canvas rendering. */
+function toEscPosBanded(canvas, height, settings, bandHeight = 192) {
+  const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, height).data
+  const bytesPerRow = Math.ceil(canvas.width / 8)
+  const chunks = [new Uint8Array([0x1b, 0x40])] // ESC @ once
+
+  for (let y0 = 0; y0 < height; y0 += bandHeight) {
+    const h = Math.min(bandHeight, height - y0)
+    const raster = new Uint8Array(bytesPerRow * h)
+
+    for (let row = 0; row < h; row++) {
+      const py = y0 + row
+      for (let px = 0; px < canvas.width; px++) {
+        const i = (py * canvas.width + px) * 4
+        const luminance = pixels[i] * 0.299 + pixels[i + 1] * 0.587 + pixels[i + 2] * 0.114
+        if (luminance < INK_CUTOFF && pixels[i + 3] > 32) {
+          raster[row * bytesPerRow + (px >> 3)] |= 0x80 >> (px & 7)
+        }
+      }
+    }
+
+    chunks.push(new Uint8Array([
+      0x1d, 0x76, 0x30, 0,
+      bytesPerRow & 255, bytesPerRow >> 8,
+      h & 255, h >> 8,
+    ]))
+    chunks.push(raster)
+    // A single LF between bands keeps clone printers synchronized without
+    // adding a visible blank section.
+    chunks.push(new Uint8Array([0x0a]))
+  }
+
+  chunks.push(new Uint8Array(
+    settings.autoCut
+      ? [0x0a, 0x0a, 0x1d, 0x56, 0x41, 3]
+      : [0x0a, 0x0a, 0x0a]
+  ))
+
+  const total = chunks.reduce((sum, part) => sum + part.length, 0)
+  const bytes = new Uint8Array(total)
+  let offset = 0
+  for (const part of chunks) {
+    bytes.set(part, offset)
+    offset += part.length
+  }
+
+  let binary = ''
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+  }
+  return btoa(binary)
+}
+
+/**
+ * A small drawing kit over the receipt canvas. Everything below is written
+ * in terms of these, which is what keeps the two printouts looking like they
+ * came from the same shop.
+ */
+function painter(ctx, width) {
+  const PAD = 22
+
+  /* A thermal head reproduces a fat stroke and drops a hairline one, and
+     Arabic at receipt sizes is mostly hairline. Every glyph is therefore
+     painted twice — filled, then outlined — which widens each stroke by
+     about half a dot on each side and is the difference between a line you
+     can read across the counter and a line of grey speckle. */
+  const MIN_SIZE = 21
+  function ink(text, x, y, maxWidth, size) {
+    ctx.fillText(text, x, y, maxWidth)
+    /* Only the small sizes are helped. A heading is already several dots
+       wide at every stroke, and outlining it too was what closed up the
+       counters inside the Arabic letters and made the whole ticket read as
+       one heavy block. */
+    if (size >= 30) return
+    ctx.lineWidth = 0.5
+    ctx.lineJoin = 'round'
+    ctx.strokeStyle = ctx.fillStyle
+    ctx.strokeText(text, x, y, maxWidth)
+  }
+
+  const api = {
+    y: 16,
+    font(size, bold) { ctx.font = `${bold ? '700' : '400'} ${size}px Tajawal, Cairo, Arial, Tahoma, sans-serif` },
+
+    /** One line of text. */
+    line(text, { size = 24, bold = false, align = 'center', gap = 12, color = '#000' } = {}) {
+      size = Math.max(size, MIN_SIZE)
+      api.font(size, bold)
+      ctx.fillStyle = color
+      ctx.textAlign = align
+      const x = align === 'right' ? width - PAD : align === 'left' ? PAD : width / 2
+      ink(String(text), x, api.y, width - PAD * 2, size)
+      api.y += size + gap
+      return api
+    },
+
+    /** Label on the right, value on the left — the shape of every total. */
+    pair(label, value, { size = 23, bold = false, color = '#000' } = {}) {
+      size = Math.max(size, MIN_SIZE)
+      api.font(size, bold)
+      ctx.fillStyle = color
+      ctx.textAlign = 'right'
+      ink(String(label), width - PAD, api.y, width * 0.58, size)
+      ctx.textAlign = 'left'
+      ink(String(value), PAD, api.y, width * 0.36, size)
+      api.y += size + 12
+      return api
+    },
+
+    /** The headline figure. Drawn as a framed line rather than white-on-black:
+        a full-black bar is the heaviest row a receipt can ask for, and an
+        under-powered head answers it by printing nothing at all. */
+    banner(label, value, { size = 30 } = {}) {
+      const top = api.y - 8
+      const height = size + 26
+      api.font(size, true)
+      ctx.fillStyle = '#000'
+      ctx.textAlign = 'right'
+      ink(String(label), width - PAD - 10, api.y + 5, width * 0.5, size)
+      ctx.textAlign = 'left'
+      ink(String(value), PAD + 10, api.y + 5, width * 0.45, size)
+      ctx.strokeStyle = '#000'
+      ctx.lineWidth = 4
+      ctx.strokeRect(PAD - 6, top, width - (PAD - 6) * 2, height)
+      api.y += height + 10
+      return api
+    },
+
+    rule(weight = 2) {
+      ctx.fillStyle = '#000'
+      api.y += 6
+      ctx.fillRect(PAD, api.y, width - PAD * 2, weight)
+      api.y += weight + 12
+      return api
+    },
+
+    /** Dashed separator — lighter than a rule, for inside a section. */
+    dashes() {
+      ctx.fillStyle = '#000'
+      api.y += 6
+      /* Three dots tall, not two: a two-dot dash is the first thing a tired
+         head drops, and a separator that vanishes takes the receipt's
+         structure with it. */
+      for (let x = PAD; x < width - PAD; x += 16) ctx.fillRect(x, api.y, 10, 3)
+      api.y += 15
+      return api
+    },
+
+    /** A hairline frame around whatever the callback draws. */
+    box(draw, { padding = 12 } = {}) {
+      const top = api.y
+      api.y += padding
+      draw()
+      api.y += padding - 12
+      ctx.strokeStyle = '#000'
+      ctx.lineWidth = 3
+      ctx.strokeRect(PAD - 4, top, width - (PAD - 4) * 2, api.y - top)
+      api.y += 12
+      return api
+    },
+
+    space(px = 8) { api.y += px; return api },
+  }
+  return api
+}
+
+function newCanvas(width, height) {
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, width, height)
+  ctx.fillStyle = '#000'; ctx.textBaseline = 'top'; ctx.direction = 'rtl'
+  return { canvas, ctx }
+}
+
+/* The logo is a colour drawing — brick fill, brown outline, cream highlights —
+   and a head that only knows "dot" or "no dot" turns mid-tones into speckle.
+   It is reduced to clean line art on its own, at its own cut-off, so the page
+   threshold never has to make that judgement on a photograph. Cached per size,
+   since the same mark heads every ticket of the day. */
+const lineArtCache = new Map()
+function toLineArt(image, w, h) {
+  const key = `${image.src}|${w}x${h}`
+  const hit = lineArtCache.get(key)
+  if (hit) return hit
+
+  const flat = document.createElement('canvas')
+  flat.width = w; flat.height = h
+  const fctx = flat.getContext('2d', { willReadFrequently: true })
+  fctx.fillStyle = '#fff'; fctx.fillRect(0, 0, w, h)
+  fctx.drawImage(image, 0, 0, w, h)
+  const data = fctx.getImageData(0, 0, w, h)
+  const d = data.data
+  for (let i = 0; i < d.length; i += 4) {
+    const lum = d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114
+    const on = d[i + 3] > 32 && lum < 150
+    d[i] = d[i + 1] = d[i + 2] = on ? 0 : 255
+    d[i + 3] = 255
+  }
+  fctx.putImageData(data, 0, 0)
+  lineArtCache.set(key, flat)
+  return flat
+}
+
+/** The shop's masthead — logo and name — shared by both printouts. */
+function drawHeader(ctx, p, width, settings, logo) {
+  if (logo && settings.showLogo !== false) {
+    const maxHeight = 240
+    const scale = Math.min((width - 40) / logo.width, maxHeight / logo.height)
+    const w = Math.round(logo.width * scale)
+    const h = Math.round(logo.height * scale)
+    ctx.drawImage(toLineArt(logo, w, h), Math.round((width - w) / 2), p.y, w, h)
+    p.y += h + 14
+  }
+  p.line(settings.header, { size: 36, bold: true, gap: 10 })
+}
+
+const ORDER_TYPE_LABEL = { takeaway: 'سفري', dine_in: 'بالمحل', delivery: 'توصيل', site: 'موقع' }
+const PAYMENT_LABEL    = { cash: 'نقداً', card: 'بطاقة', unpaid: 'آجل' }
+
+/* "الخصم (10%) — شركة التوصيل": the rate and the reason when there is one. */
+export const discountLabel = order => {
+  let label = 'الخصم'
+  if (order.discountType === 'percent' && order.discountPercent > 0) label += ` (${order.discountPercent}%)`
+  if (order.discountReason) label += ` — ${order.discountReason}`
+  return label
+}
+
+const DAMASCUS_OFFSET_MS = 3 * 60 * 60 * 1000
+const shopTime = iso => {
+  const d = new Date(new Date(iso).getTime() + DAMASCUS_OFFSET_MS)
+  let h = d.getUTCHours()
+  const m = String(d.getUTCMinutes()).padStart(2, '0')
+  const suffix = h < 12 ? 'ص' : 'م'
+  h = h % 12 || 12
+  return `${h}:${m} ${suffix}`
+}
+
+/* ── The customer's receipt ────────────────────────────────── */
+function drawReceipt(order, settings, { duplicate = false, logo = null } = {}) {
+  const width = Number(settings.paperWidth) === 58 ? 384 : 576
+  const items = order.items || []
+  /* Generous on purpose. This is the canvas the ticket is drawn on, not the
+     paper: whatever is left over is trimmed at the end, but anything that
+     runs past it is simply lost — which is how the closing line came to be
+     cut off the moment the logo grew. */
+  const height = 1750 + items.length * 110 + (order.notes ? 160 : 0)
+  const { canvas, ctx } = newCanvas(width, height)
+  const p = painter(ctx, width)
+
+  drawHeader(ctx, p, width, settings, logo)
+  p.rule(3)
+
+  if (duplicate) p.line('— نسخة مكررة —', { size: 22, bold: true })
+
+  /* Who, when, and which ticket — framed so the eye finds it first. */
+  p.box(() => {
+    p.line(order.orderNumber || 'فاتورة', { size: 30, bold: true, gap: 8 })
+    p.line(new Date(order.createdAt || Date.now()).toLocaleDateString('ar-EG', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+    }) + ' — ' + shopTime(order.createdAt || Date.now()), { size: 19, gap: 8 })
+    const tags = [ORDER_TYPE_LABEL[order.orderType], PAYMENT_LABEL[order.paymentMethod]].filter(Boolean)
+    if (tags.length) p.line(tags.join(' · '), { size: 20, bold: true, gap: 4 })
+  })
+
+  if (order.customerName) p.line(`الزبون: ${order.customerName}`, { size: 21, bold: true, align: 'right' })
+  if (order.fulfillmentType === 'scheduled' && order.scheduledFor) {
+    p.line(`موعد التسليم: ${new Date(order.scheduledFor).toLocaleString('ar-EG', {
+      day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
+    })}`, { size: 21, bold: true, align: 'right' })
+  }
+
+  p.dashes()
+  p.pair('الصنف', 'المبلغ', { size: 20, bold: true })
+  p.dashes()
+
+  for (const item of items) {
+    p.pair(
+      `${item.name} × ${item.quantity}`,
+      money(item.lineTotal ?? item.unitPrice * item.quantity),
+      { size: 23, bold: true }
+    )
+    if (item.quantity > 1) {
+      p.line(`${money(item.unitPrice)} للقطعة`, { size: 17, align: 'right', gap: 8 })
+    }
+    if (item.notes) p.line(`— ${item.notes}`, { size: 17, align: 'right', gap: 8 })
+  }
+
+  /* No separator before the total. The framed box is its own boundary, and a
+     dashed rule directly above it only drew a second line beside the first. */
+  if (order.subtotal !== undefined && order.discount > 0) {
+    p.space(6)
+    p.pair('المجموع', money(order.subtotal))
+    p.pair(discountLabel(order), `− ${money(order.discount)}`)
+  }
+  const invoiceBase = Number(order.netAmount ?? Math.max((Number(order.subtotal || 0) - Number(order.discount || 0)), 0))
+  p.space(4)
+  p.pair('قيمة المأكولات والمشروبات', money(invoiceBase), { size: 21, bold: true })
+  p.pair('إنفاق استهلاكي (5%)', money(order.consumptionTaxAmount || 0), { size: 21, bold: true })
+  p.pair('إدارة محلية (5%)', money(order.localAdminAmount || 0), { size: 21, bold: true })
+  p.banner('الإجمالي', money(order.total))
+
+  /* The partner's cut belongs on the end-of-day report, not on the
+     customer's ticket — it is the shop's arrangement, not their business. */
+
+  if (order.createdByName) p.line(`الكاشير: ${order.createdByName}`, { size: 19, align: 'right', gap: 8 })
+
+  if (order.notes) {
+    p.space(6)
+    /* Label and note on one line. A short note under a heading of its own
+       spent two lines of paper saying what fits in one. */
+    p.box(() => {
+      p.line(`ملاحظات: ${order.notes}`, { size: 21, bold: true, align: 'right', gap: 4 })
+    })
+  }
+
+  p.space(10)
+  p.rule(3)
+  p.line(settings.footer, { size: 26, bold: true, gap: 8 })
+  p.line('منكبر بمحبتكم', { size: 20, gap: 10 })
+  if (settings.instagram) {
+    p.line('زوروا الانستغرام تبعنا', { size: 20, gap: 4 })
+    /* The handle carries the @ and stays unbolded: it is the one line on the
+       ticket someone will copy character by character, and a heavy stroke at
+       this size closes the gaps in a latin string. */
+    /* Isolated left-to-right. The canvas draws this ticket right-to-left, so
+       a bare handle has its "@" carried to the far end of the line — the one
+       character that has to lead. */
+    p.line(`⁦@${String(settings.instagram).replace(/^@/, '')}⁩`, { size: 22, gap: 10 })
+  }
+
+  return { canvas, height: Math.min(canvas.height, p.y + 24) }
+}
+
+const rasterReceipt = (order, settings, opts) => {
+  const { canvas, height } = drawReceipt(order, settings, opts)
+  return toEscPos(canvas, height, settings)
+}
+
+/* ── The kitchen's ticket ──────────────────────────────────────
+   There is one physical printer in the kitchen. A mixed order is split into
+   independent preparation slips so each station can take only its own paper. */
+const KITCHEN_SECTIONS = {
+  pastries:   'قسم المعجنات',
+  grills:     'قسم المشاوي',
+  appetizers: 'قسم المقبلات / المازة',
+  drinks:     'قسم المشروبات',
+  other:      'قسم أخرى',
+}
+
+function inferKitchenSection(item) {
+  if (KITCHEN_SECTIONS[item?.kitchenSection]) return item.kitchenSection
+  const text = `${item?.categorySnapshot || item?.category || ''} ${item?.name || ''}`.toLowerCase()
+  if (/(مشروب|مشروبات|كولا|بيبسي|مياه|ماء|لبن|عيران|عصير)/.test(text)) return 'drinks'
+  if (/(مشاوي|مشوي|كباب|شقف|شيش|سودة|جوانح|جناح|لحم مشوي)/.test(text)) return 'grills'
+  if (/(مقبلات|مقبل|مازة|سلطة|فتوش|حمص|متبل|بابا غنوج|بطاطا)/.test(text)) return 'appetizers'
+  if (/(معجنات|معجن|فطاير|فطائر|منقوش|مناقيش|بيتزا|صفيحة|صفيح|سفيحة|عجين)/.test(text)) return 'pastries'
+  return 'other'
+}
+
+function splitKitchenItems(items = []) {
+  const groups = new Map()
+  for (const item of items) {
+    const key = inferKitchenSection(item)
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key).push(item)
+  }
+  return [...groups.entries()].map(([key, groupedItems]) => ({
+    key,
+    label: KITCHEN_SECTIONS[key] || KITCHEN_SECTIONS.other,
+    items: groupedItems,
+  }))
+}
+
+function drawKitchenTicket(order, settings, sectionLabel = 'المطبخ') {
+  const kitchen = settings.kitchen
+  const width = Number(kitchen.paperWidth) === 58 ? 384 : 576
+  const items = order.items || []
+  const notes = items.filter(i => i.notes).length
+  const { canvas, ctx } = newCanvas(width, 900 + items.length * 110 + notes * 46 + (order.notes ? 140 : 0))
+  const p = painter(ctx, width)
+
+  p.line(sectionLabel, { size: 34, bold: true, gap: 6 })
+  p.rule(4)
+
+  p.line(order.orderNumber || 'طلب', { size: 34, bold: true, gap: 6 })
+  const tags = [ORDER_TYPE_LABEL[order.orderType], shopTime(order.createdAt || Date.now())].filter(Boolean)
+  p.line(tags.join('  ·  '), { size: 24, bold: true, gap: 6 })
+  if (order.customerName) p.line(order.customerName, { size: 24, bold: true, gap: 6 })
+  if (order.fulfillmentType === 'scheduled' && order.scheduledFor) {
+    p.line(`موعد: ${new Date(order.scheduledFor).toLocaleString('ar-EG', {
+      day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
+    })}`, { size: 24, bold: true, gap: 6 })
+  }
+  p.rule(4)
+
+  for (const item of items) {
+    p.pair(item.name, `× ${item.quantity}`, { size: 30, bold: true })
+    if (item.notes) p.line(`← ${item.notes}`, { size: 24, bold: true, align: 'right', gap: 10 })
+    p.dashes()
+  }
+
+  if (order.notes) {
+    p.space(4)
+    p.box(() => {
+      p.line(`ملاحظات الطلب: ${order.notes}`, { size: 24, bold: true, align: 'right', gap: 4 })
+    })
+  }
+
+  p.space(8)
+  p.line(`${items.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0)} قطعة لهذا القسم`, { size: 24, bold: true, gap: 10 })
+
+  return { canvas, height: Math.min(canvas.height, p.y + 24) }
+}
+
+/**
+ * One physical printer, many independent slips. The requests are deliberately
+ * awaited in sequence so cheap USB/LAN print buffers are not flooded.
+ */
+export async function printKitchenTicket(order) {
+  const settings = getPrinterSettings()
+  const kitchen = settings.kitchen
+  if (!kitchen.enabled) throw new Error('طابعة المطبخ غير مفعّلة')
+  if (kitchen.connection === 'usb' && !kitchen.printerName) throw new Error('اختر طابعة المطبخ من الإعدادات')
+  await readyFont()
+
+  const groups = splitKitchenItems(order.items || [])
+  if (!groups.length) throw new Error('الطلب لا يحتوي أصنافاً للطباعة')
+
+  const printed = []
+  for (const group of groups) {
+    const { canvas, height } = drawKitchenTicket({ ...order, items: group.items }, settings, group.label)
+    const response = await fetch(`${settings.agentUrl.replace(/\/$/, '')}/print`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...printerTarget(kitchen),
+        copies: Math.max(1, Math.min(5, Number(kitchen.copies) || 1)),
+        dataBase64: toEscPosBanded(canvas, height, kitchen),
+      }),
+    })
+    const result = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(result.message || `تعذّرت طباعة ${group.label}`)
+    printed.push(group.label)
+  }
+
+  return {
+    success: true,
+    printedSections: printed,
+    printerId: printerLabel(kitchen),
+  }
+}
+
+/* Where the ticket is going, in the shape the agent expects. */
 function printerTarget(settings) {
   return settings.connection === 'usb'
     ? { connection: 'usb', printerName: settings.printerName }
@@ -458,7 +1005,9 @@ export async function testPrintAgent(settings = getPrinterSettings()) {
   try {
     response = await fetch(`${settings.agentUrl.replace(/\/$/, '')}/health`)
   } catch {
-    throw new Error('لا يمكن الوصول لبرنامج الطباعة — تأكد أن start-print-agent.bat شغال على نفس جهاز الكاشير')
+    /* A blocked request and a stopped program look identical from here, so
+       the message names the thing the person can actually check. */
+    throw new Error('لا يمكن الوصول لبرنامج الطباعة')
   }
   if (!response.ok) throw new Error('برنامج الطباعة يرد بخطأ')
   return response.json()
