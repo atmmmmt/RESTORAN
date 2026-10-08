@@ -185,7 +185,7 @@ export default function PosPage() {
       }
       setTicket(res.data.order)
       const printer = getPrinterSettings()
-      if (printer.enabled && printer.autoPrint) {
+      if (printer.enabled) {
         printThermalReceipt(res.data.order)
           .then(result => internalOrdersAPI.printResult(res.data.order._id, { success: true, printerId: result.printerId }))
           .then(() => toast.success('تم إرسال الفاتورة للطابعة'))
