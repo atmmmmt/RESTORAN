@@ -48,13 +48,13 @@ if errorlevel 1 (
 )
 
 echo [4/6] Chrome policy installed for Ajineh.
-echo [5/6] Starting Print Agent 1.2.2...
+echo [5/6] Starting Print Agent 1.2.3...
 echo.
 start "" /B node index.js
 timeout /t 2 /nobreak >nul
 
-echo [6/6] Reopening Chrome on Ajineh...
-start "" chrome.exe "https://ajineh-w-tahineh.com/admin/settings"
+echo [6/6] Opening Ajineh in the default browser...
+start "" "https://ajineh-w-tahineh.com/admin/settings"
 
 echo.
 echo ==========================================
