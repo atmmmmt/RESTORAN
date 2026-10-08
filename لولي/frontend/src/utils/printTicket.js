@@ -10,7 +10,7 @@
  */
 import { printerAPI } from '../services/api'
 
-const AGENT_URL = 'http://localhost:9123'
+const AGENT_URLS = ['http://localhost:9123', 'http://127.0.0.1:9123']
 const STATION_LABEL = { cashier: 'الكاشير', kitchen: 'المطبخ' }
 
 let settingsCache = null
@@ -28,22 +28,28 @@ export function setPrinterSettingsCache(settings) {
 }
 
 async function viaAgent(body) {
-  const ctrl = new AbortController()
-  const timer = setTimeout(() => ctrl.abort(), 12000)
-  try {
-    const res = await fetch(`${AGENT_URL}/print`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: ctrl.signal,
-    })
-    const data = await res.json().catch(() => ({}))
-    return { reached: true, ok: res.ok && data.success, message: data.message }
-  } catch {
-    return { reached: false } // program not running on this device
-  } finally {
-    clearTimeout(timer)
+  for (const base of AGENT_URLS) {
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), 4500)
+    try {
+      const res = await fetch(`${base}/print`, {
+        method: 'POST',
+        mode: 'cors',
+        targetAddressSpace: 'loopback',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: ctrl.signal,
+      })
+      const data = await res.json().catch(() => ({}))
+      return { reached: true, ok: res.ok && data.success, message: data.message }
+    } catch {
+      // Try the other loopback spelling. Some Windows/Chrome setups treat
+      // localhost and 127.0.0.1 differently.
+    } finally {
+      clearTimeout(timer)
+    }
   }
+  return { reached: false }
 }
 
 /**
