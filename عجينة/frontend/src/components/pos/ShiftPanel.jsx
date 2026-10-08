@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Lock, Unlock, History, Printer, Wallet, Receipt, CalendarDays } from 'lucide-react'
+import { Lock, Unlock, History, Printer, Wallet, Receipt, CalendarDays, Eye, RotateCcw } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { shiftsAPI } from '../../services/api'
 import { formatCurrency } from '../../utils/formatters'
@@ -88,6 +88,8 @@ export default function ShiftPanel({ tick = 0, onChanged }) {
   const [closeForm, setCloseForm] = useState(null)     // { countedCash, notes } while the close dialog is up
   const [busy, setBusy] = useState(false)
   const [history, setHistory] = useState(null)         // list while the history dialog is up
+  const [historyDetail, setHistoryDetail] = useState(null)
+  const [historyDetailLoading, setHistoryDetailLoading] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -140,6 +142,22 @@ export default function ShiftPanel({ tick = 0, onChanged }) {
       const r = await shiftsAPI.list({ limit: 30 })
       setHistory(r.data.shifts || [])
     } catch (e) { toast.error(e.message) }
+  }
+
+  const showShiftDetails = async (shiftId) => {
+    setHistoryDetailLoading(true)
+    try {
+      const r = await shiftsAPI.getOne(shiftId)
+      setHistoryDetail({
+        shift: r.data.shift,
+        orders: r.data.details?.orders || [],
+        returns: r.data.details?.returns || [],
+      })
+    } catch (e) {
+      toast.error(e.message)
+    } finally {
+      setHistoryDetailLoading(false)
+    }
   }
 
   if (!loaded) return null
@@ -297,6 +315,10 @@ export default function ShiftPanel({ tick = 0, onChanged }) {
                       </div>
                     </div>
                   )}
+                  <button onClick={() => showShiftDetails(h._id)} disabled={historyDetailLoading}
+                    className="text-xs bg-white text-brand-dark px-3 py-1.5 rounded-lg font-black hover:bg-brand-border flex items-center gap-1 disabled:opacity-50">
+                    <Eye size={12} /> تفاصيل
+                  </button>
                   {h.status === 'closed' && (
                     <button onClick={() => printShift(h)}
                       className="text-xs bg-white text-brand-gray px-3 py-1.5 rounded-lg font-bold hover:text-brand-dark flex items-center gap-1">
@@ -308,6 +330,159 @@ export default function ShiftPanel({ tick = 0, onChanged }) {
             })}
           </div>
         )}
+      </Modal>
+
+      {/* ── Shift details ── */}
+      <Modal
+        open={!!historyDetail}
+        onClose={() => setHistoryDetail(null)}
+        title={historyDetail ? `تفاصيل الوردية رقم ${historyDetail.shift?.number || ''}` : 'تفاصيل الوردية'}
+        size="lg"
+      >
+        {historyDetail && (() => {
+          const h = historyDetail.shift || {}
+          const summary = h.summary || {}
+          const orders = historyDetail.orders || []
+          const returns = historyDetail.returns || []
+          const diff = Number(h.difference) || 0
+          const paymentLabel = { cash: 'نقداً', card: 'بطاقة', unpaid: 'آجل' }
+          return (
+            <div className="space-y-4">
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {[
+                  ['فتح الوردية', stamp(h.openedAt)],
+                  ['إغلاق الوردية', h.closedAt ? stamp(h.closedAt) : 'مفتوحة الآن'],
+                  ['فتح بواسطة', h.openedByName || '—'],
+                  ['إغلاق بواسطة', h.closedByName || '—'],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-2xl bg-brand-bg p-3">
+                    <div className="text-[11px] font-bold text-brand-gray">{label}</div>
+                    <div className="text-sm font-black text-brand-dark mt-1">{value}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {[
+                  ['رصيد البداية', formatCurrency(h.openingCash || 0)],
+                  ['المبيعات', formatCurrency(summary.sales || 0)],
+                  ['المفروض بالدرج', formatCurrency(h.expectedCash || 0)],
+                  ['المعدود فعلياً', h.countedCash == null ? '—' : formatCurrency(h.countedCash)],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-2xl border-2 border-brand-border p-3">
+                    <div className="text-[11px] font-bold text-brand-gray">{label}</div>
+                    <div className="text-base font-black text-brand-dark mt-1">{value}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className={`rounded-2xl p-4 border-2 ${
+                diff === 0 ? 'bg-green-50 border-green-200 text-green-700'
+                  : diff > 0 ? 'bg-blue-50 border-blue-200 text-blue-700'
+                  : 'bg-red-50 border-red-200 text-red-700'
+              }`}>
+                <div className="font-black">
+                  {diff === 0 ? 'الدرج مطابق تماماً'
+                    : diff > 0 ? `زيادة بالصندوق: ${formatCurrency(diff)}`
+                    : `نقص بالصندوق: ${formatCurrency(Math.abs(diff))}`}
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-white border border-brand-border p-4">
+                <div className="font-black text-brand-dark mb-3">ملخص الوردية</div>
+                <div className="grid sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                  {[
+                    ['عدد الطلبات', summary.ordersCount || 0],
+                    ['الطلبات الملغاة', summary.cancelledCount || 0],
+                    ['نقداً', formatCurrency(summary.cashSales || 0)],
+                    ['بطاقة', formatCurrency(summary.cardSales || 0)],
+                    ['آجل', formatCurrency(summary.unpaidSales || 0)],
+                    ['الخصومات', formatCurrency(summary.discounts || 0)],
+                    ['المرتجعات النقدية', formatCurrency(summary.cashRefunds || 0)],
+                    ['صافي المبيعات', formatCurrency(summary.netSales ?? summary.sales ?? 0)],
+                    ['نسبة الأميركان', formatCurrency(summary.investorShare || 0)],
+                  ].map(([label, value]) => (
+                    <div key={label} className="flex justify-between border-b border-brand-border/60 py-1.5">
+                      <span className="font-bold text-brand-gray">{label}</span>
+                      <span className="font-black text-brand-dark">{value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="font-black text-brand-dark mb-2">طلبات الوردية ({orders.length})</div>
+                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                  {!orders.length && (
+                    <div className="text-center py-6 text-sm font-bold text-brand-gray bg-brand-bg rounded-2xl">
+                      لا توجد طلبات مرتبطة بهذه الوردية
+                    </div>
+                  )}
+                  {orders.map(order => (
+                    <div key={order._id} className="rounded-2xl border border-brand-border bg-white p-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="font-black text-brand-dark">{order.orderNumber || 'طلب'}</div>
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-lg bg-brand-bg text-brand-gray">
+                          {TYPE_LABEL[order.orderType] || order.orderType}
+                        </span>
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-lg bg-brand-bg text-brand-gray">
+                          {paymentLabel[order.paymentMethod] || order.paymentMethod}
+                        </span>
+                        {order.status === 'cancelled' && (
+                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-lg bg-red-50 text-red-600">ملغى</span>
+                        )}
+                        <div className="mr-auto font-black text-fuchsia">{formatCurrency(order.total || 0)}</div>
+                      </div>
+                      <div className="text-[11px] font-bold text-brand-gray mt-1">{stamp(order.createdAt)}</div>
+                      <div className="mt-2 text-xs font-bold text-brand-dark">
+                        {(order.items || []).map(item => `${item.name} × ${item.quantity}`).join(' · ') || '—'}
+                      </div>
+                      {Number(order.discount || 0) > 0 && (
+                        <div className="text-[11px] font-bold text-amber-700 mt-1">
+                          خصم {formatCurrency(order.discount)}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {returns.length > 0 && (
+                <div>
+                  <div className="font-black text-brand-dark mb-2 flex items-center gap-2">
+                    <RotateCcw size={15} /> المرتجعات ({returns.length})
+                  </div>
+                  <div className="space-y-2">
+                    {returns.map(ret => (
+                      <div key={ret._id} className="rounded-2xl bg-red-50 border border-red-200 p-3">
+                        <div className="flex justify-between gap-3">
+                          <div className="font-black text-red-700">{ret.number || 'مرتجع'} · طلب {ret.orderNumber || '—'}</div>
+                          <div className="font-black text-red-700">− {formatCurrency(ret.refundAmount || 0)}</div>
+                        </div>
+                        <div className="text-[11px] font-bold text-red-500 mt-1">
+                          {stamp(ret.createdAt)} · {ret.refundMethod === 'cash' ? 'نقداً' : ret.refundMethod === 'card' ? 'بطاقة' : ret.refundMethod || '—'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {h.notes && (
+                <div className="rounded-2xl bg-amber-50 border border-amber-200 p-3 text-sm">
+                  <span className="font-black text-amber-800">ملاحظات الوردية: </span>
+                  <span className="font-bold text-amber-700">{h.notes}</span>
+                </div>
+              )}
+
+              <div className="flex justify-end">
+                <Button variant="outline" onClick={() => printShift(h)} icon={<Printer size={14} />}>
+                  طباعة تقرير الوردية
+                </Button>
+              </div>
+            </div>
+          )
+        })()}
       </Modal>
     </>
   )
