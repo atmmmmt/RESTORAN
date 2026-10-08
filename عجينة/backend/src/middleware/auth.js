@@ -1,6 +1,7 @@
 'use strict';
 
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const SalesCenter = require('../models/SalesCenter');
 
@@ -40,12 +41,17 @@ const protect = async (req, res, next) => {
       !user.centerId &&
       ['admin', 'supervisor', 'viewer'].includes(user.role)
     ) {
-      const selectedCenter = await SalesCenter.findOne({ _id: requestedCenter, isActive: true }).select('_id');
-      if (selectedCenter) {
-        req.adminCenterId = selectedCenter._id;
-        req.user.centerId = selectedCenter._id;
-        if (req.body && typeof req.body === 'object' && !Array.isArray(req.body)) {
-          req.body.centerId = String(selectedCenter._id);
+      /* A stale/legacy browser value must never invalidate a perfectly valid
+         login session. Only query Mongo when the branch id is a real ObjectId;
+         otherwise ignore the branch hint and let the admin shell refresh it. */
+      if (mongoose.isValidObjectId(requestedCenter)) {
+        const selectedCenter = await SalesCenter.findOne({ _id: requestedCenter, isActive: true }).select('_id');
+        if (selectedCenter) {
+          req.adminCenterId = selectedCenter._id;
+          req.user.centerId = selectedCenter._id;
+          if (req.body && typeof req.body === 'object' && !Array.isArray(req.body)) {
+            req.body.centerId = String(selectedCenter._id);
+          }
         }
       }
     }
