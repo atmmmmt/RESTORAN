@@ -10,7 +10,7 @@ import {
 import { internalOrdersAPI, productsAPI, printerAPI } from '../../services/api'
 import { formatCurrency, isImageUrl, formatShopDateTime, formatShopTime } from '../../utils/formatters'
 import { renderCashierTicket, renderKitchenTicket, renderDailyReport } from '../../utils/ticketRenderer'
-import { printToStation, getPrinterSettings } from '../../utils/printTicket'
+import { printToStation, getPrinterSettings, testLocalPrinter } from '../../utils/printTicket'
 import PageHeader   from '../../components/common/PageHeader'
 import Button       from '../../components/common/Button'
 import Modal        from '../../components/common/Modal'
@@ -75,8 +75,8 @@ export default function PosPage() {
   const testPrinter = async () => {
     setTestingPrinter(true)
     try {
-      const r = await printerAPI.test('cashier')
-      r.data.open ? toast.success(r.data.message) : toast.error(r.data.message)
+      const r = await testLocalPrinter('cashier')
+      r.open ? toast.success(r.message || 'الطابعة متصلة وجاهزة ✓') : toast.error(r.message || 'الطابعة غير متصلة')
     } catch (e) { toast.error(e.message || 'تعذّر اختبار الطابعة') }
     finally { setTestingPrinter(false) }
   }
