@@ -26,6 +26,26 @@ export function setPrinterSettingsCache(settings) {
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 
+async function persistResolvedPrinter(station, result) {
+  const resolvedIp = result?.resolvedIp
+  if (!resolvedIp) return
+
+  const current = await getPrinterSettings({ refresh: true })
+  const key = `${station}Ip`
+  const portKey = `${station}Port`
+  if (current[key] === resolvedIp && (!result?.resolvedPort || Number(current[portKey] || 9100) === Number(result.resolvedPort))) {
+    return
+  }
+
+  const next = {
+    ...current,
+    [key]: resolvedIp,
+    [portKey]: Number(result.resolvedPort || current[portKey] || 9100),
+  }
+  const saved = await printerAPI.saveSettings(next)
+  setPrinterSettingsCache(saved.data.settings || next)
+}
+
 async function submitPrintJob(payload) {
   const queued = await printerAPI.queuePrintJob({
     deviceId: PRINT_DEVICE_ID,
@@ -69,6 +89,8 @@ export async function testLocalPrinter(station = 'cashier') {
     port,
   })
 
+  await persistResolvedPrinter(station, result)
+
   return {
     success: true,
     open: result.open === true,
@@ -108,6 +130,8 @@ export async function printToStation(station, raster, target) {
     height,
     data,
   })
+
+  await persistResolvedPrinter(station, result)
 
   return result.message || `أُرسلت فاتورة ${STATION_LABEL[station]} ✓`
 }
