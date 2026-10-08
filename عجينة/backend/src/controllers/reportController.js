@@ -5,25 +5,29 @@ const dayjs = require('dayjs');
 
 exports.getDashboard = async (req, res) => {
   const date = req.query.date || undefined;   // a working day, 'YYYY-MM-DD'
-  const data = await reportService.getDashboardData(date);
+  const centerId = req.query.centerId || (req.query.center && !['all','hq'].includes(req.query.center) ? req.query.center : null);
+  const data = await reportService.getDashboardData(date, centerId);
   res.json({ success: true, ...data });
 };
 
 exports.getDaily = async (req, res) => {
   const date = req.query.date || undefined;   // a working day, 'YYYY-MM-DD'
-  const data = await reportService.getDailyReport(date);
+  const centerId = req.query.centerId || (req.query.center && !['all','hq'].includes(req.query.center) ? req.query.center : null);
+  const data = await reportService.getDailyReport(date, centerId);
   res.json({ success: true, ...data });
 };
 
 exports.getMonthly = async (req, res) => {
   const year = Number(req.query.year) || dayjs().year();
   const month = Number(req.query.month) || dayjs().month() + 1;
-  const data = await reportService.getMonthlyReport(year, month);
+  const centerId = req.query.centerId || (req.query.center && !['all','hq'].includes(req.query.center) ? req.query.center : null);
+  const data = await reportService.getMonthlyReport(year, month, centerId);
   res.json({ success: true, ...data });
 };
 
 exports.getProducts = async (req, res) => {
-  const data = await reportService.getProductsReport(req.query.startDate, req.query.endDate);
+  const centerId = req.query.centerId || (req.query.center && !['all','hq'].includes(req.query.center) ? req.query.center : null);
+  const data = await reportService.getProductsReport(req.query.startDate, req.query.endDate, centerId);
   res.json({ success: true, products: data });
 };
 
@@ -72,7 +76,8 @@ exports.getCenters = async (req, res) => {
 };
 
 exports.getWaste = async (req, res) => {
-  const data = await reportService.getWasteReport(req.query.startDate, req.query.endDate);
+  const centerId = req.query.centerId || (req.query.center && !['all','hq'].includes(req.query.center) ? req.query.center : null);
+  const data = await reportService.getWasteReport(req.query.startDate, req.query.endDate, centerId);
   res.json({ success: true, ...data });
 };
 
@@ -85,6 +90,8 @@ exports.getProfitLoss = async (req, res) => {
   const CustomerOrder = require('../models/CustomerOrder');
 
   const match = { status: { $ne: 'reversed' } };
+  const centerId = req.query.centerId || (req.query.center && !['all','hq'].includes(req.query.center) ? req.query.center : null);
+  if (centerId) match.centerId = centerId;
   if (req.query.startDate || req.query.endDate) {
     const range = {};
     if (req.query.startDate) range.$gte = new Date(req.query.startDate);
@@ -102,17 +109,18 @@ exports.getProfitLoss = async (req, res) => {
       { $group: { _id: null, revenue: { $sum: '$netAmount' }, cost: { $sum: '$totalCost' }, profit: { $sum: '$profit' }, commissions: { $sum: '$commissionAmount' }, discounts: { $sum: '$discountAmount' } } },
     ]),
     Purchase.aggregate([
-      { $match: { ...(match.saleDate ? { purchaseDate: match.saleDate } : {}), reversedAt: null } },
+      { $match: { ...(match.saleDate ? { purchaseDate: match.saleDate } : {}), ...(centerId ? { centerId } : {}), reversedAt: null } },
       { $group: { _id: null, total: { $sum: '$totalPurchaseCost' } } },
     ]),
     WasteRecord.aggregate([
-      { $match: { ...(match.saleDate ? { wasteDate: match.saleDate } : {}), reversedAt: null } },
+      { $match: { ...(match.saleDate ? { wasteDate: match.saleDate } : {}), ...(centerId ? { centerId } : {}), reversedAt: null } },
       { $group: { _id: null, total: { $sum: '$totalLossCost' } } },
     ]),
     CashTransaction.aggregate([
       {
         $match: {
           ...(match.saleDate ? { transactionDate: match.saleDate } : {}),
+          ...(centerId ? { centerId } : {}),
           direction: 'out',
           type: { $in: ['manual_expense', 'adjustment'] },
           // A cancelled POS order writes an `adjustment/out` reversal. Its
@@ -128,13 +136,14 @@ exports.getProfitLoss = async (req, res) => {
       {
         $match: {
           status: { $ne: 'cancelled' },
+          ...(centerId ? { centerId } : {}),
           ...(match.saleDate ? { createdAt: match.saleDate } : {}),
         },
       },
       { $group: { _id: null, revenue: { $sum: '$total' }, cost: { $sum: '$totalCost' }, profit: { $sum: '$profit' }, discounts: { $sum: '$discount' } } },
     ]),
     CustomerOrder.aggregate([
-      { $match: { status: 'delivered', ...(match.saleDate ? { createdAt: match.saleDate } : {}) } },
+      { $match: { status: 'delivered', ...(centerId ? { centerId } : {}), ...(match.saleDate ? { createdAt: match.saleDate } : {}) } },
       { $group: { _id: null, revenue: { $sum: '$totalPrice' }, cost: { $sum: '$totalCost' }, profit: { $sum: '$profit' }, discounts: { $sum: '$discountAmount' } } },
     ]),
   ]);
