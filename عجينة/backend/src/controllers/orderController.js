@@ -21,8 +21,35 @@ const dayAfterShopDate = value => {
   return new Date(`${key}T00:00:00${SHOP_OFFSET}`);
 };
 
+let americansCenterCache = null;
+async function americansCenter() {
+  if (americansCenterCache) return americansCenterCache;
+  americansCenterCache = await SalesCenter.findOne({
+    name: { $regex: /(الأميركان|اميركان|american)/i },
+  }).select('_id name');
+  return americansCenterCache;
+}
+
+async function adoptLegacyCustomerOrdersToAmericans() {
+  const americans = await americansCenter();
+  if (!americans) return 0;
+
+  const result = await CustomerOrder.updateMany(
+    { centerId: null },
+    {
+      $set: {
+        centerId: americans._id,
+        centerNameSnapshot: americans.name,
+      },
+    }
+  );
+  return Number(result.modifiedCount || 0);
+}
+
 
 exports.getAll = async (req, res) => {
+  await adoptLegacyCustomerOrdersToAmericans();
+
   const filter = {};
   if (req.query.status) filter.status = req.query.status;
   if (req.query.center && req.query.center !== 'all') {
@@ -67,6 +94,7 @@ exports.create = async (req, res) => {
 
   let center = null;
   if (centerId) center = await SalesCenter.findById(centerId);
+  if (!center) center = await americansCenter();
 
   const now = new Date();
   const activeOffer = await Offer.findOne({
