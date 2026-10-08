@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { Printer, Radar, Receipt, ChefHat, Save, Wifi, WifiOff, Check, Search } from 'lucide-react'
 import { printerAPI } from '../../services/api'
 import { renderCashierTicket } from '../../utils/ticketRenderer'
-import { printToStation, setPrinterSettingsCache } from '../../utils/printTicket'
+import { printToStation, setPrinterSettingsCache, testLocalPrinter } from '../../utils/printTicket'
 import Button from '../common/Button'
 import toast from 'react-hot-toast'
 
@@ -61,12 +61,18 @@ export default function PrinterSetupCard() {
   const testConnection = async station => {
     const ip = printer[`${station}Ip`]
     if (!ip) return toast.error('اختر أو اكتب عنوان الطابعة أولاً')
+
+    // Test the exact same local-agent path real printing uses.
     setBusy(`${station}:test`)
     try {
-      const r = await printerAPI.probe(ip, printer[`${station}Port`])
-      setStatus(s => ({ ...s, [station]: r.data }))
-      r.data.open ? toast.success(r.data.message) : toast.error(r.data.message)
-    } catch (e) { toast.error(e.message) }
+      // Persist the current typed values first so the shared helper probes
+      // exactly what the admin sees in this form.
+      const r = await printerAPI.saveSettings(printer)
+      setPrinterSettingsCache(r.data.settings)
+      const result = await testLocalPrinter(station)
+      setStatus(s => ({ ...s, [station]: result }))
+      result.open ? toast.success(result.message) : toast.error(result.message)
+    } catch (e) { toast.error(e.message || 'تعذّر اختبار الطابعة') }
     finally { setBusy(null) }
   }
 
