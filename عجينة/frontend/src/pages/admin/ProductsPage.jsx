@@ -11,6 +11,9 @@ import { formatCurrency, isImageUrl } from '../../utils/formatters'
 import toast from 'react-hot-toast'
 
 const STATUS_MAP = { available: { label: 'متاح', cls: 'bg-green-50 text-green-600' }, hidden: { label: 'مخفي', cls: 'bg-gray-100 text-gray-500' }, sold_out: { label: 'نفدت', cls: 'bg-red-50 text-red-600' } }
+const KITCHEN_SECTION_LABEL = {
+  pastries: 'المعجنات', grills: 'المشاوي', appetizers: 'المقبلات', drinks: 'المشروبات', other: 'أخرى',
+}
 const PAGE_SIZE = 12
 const selectCls = 'px-3 py-2.5 border-2 border-brand-border rounded-xl focus:border-fuchsia focus:outline-none font-bold bg-white text-sm'
 
@@ -150,6 +153,9 @@ export default function ProductsPage() {
                   <div className="flex-1 min-w-0">
                     <h3 className="font-black text-brand-dark truncate">{p.name}</h3>
                     <div className="text-xs text-brand-gray font-bold">{p.category}</div>
+                    <div className="text-[11px] text-brand-gray-light font-bold mt-0.5">
+                      قسم المطبخ: {KITCHEN_SECTION_LABEL[p.kitchenSection] || 'تلقائي من التصنيف'}
+                    </div>
                     <div className={`text-xs px-2 py-0.5 rounded-lg font-bold inline-block mt-1 ${st.cls}`}>{st.label}</div>
                   </div>
                 </div>
