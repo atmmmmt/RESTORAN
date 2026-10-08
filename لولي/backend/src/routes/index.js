@@ -35,6 +35,7 @@ const americansPortalRoutes = require('./americansPortalRoutes');
 const shiftRoutes = require('./shiftRoutes');
 const americansCatalogRoutes = require('./americansCatalogRoutes');
 const dailyWageRoutes = require('./dailyWageRoutes');
+const printJobRoutes = require('./printJobRoutes');
 
 module.exports = function mountRoutes(app) {
   app.use('/api/auth', authRoutes);
@@ -72,4 +73,5 @@ module.exports = function mountRoutes(app) {
   app.use('/api/shifts', shiftRoutes);
   app.use('/api/americans-catalog', americansCatalogRoutes);
   app.use('/api/daily-wages', dailyWageRoutes);
+  app.use('/api/print-jobs', printJobRoutes);
 };
