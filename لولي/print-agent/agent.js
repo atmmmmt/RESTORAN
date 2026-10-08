@@ -69,6 +69,36 @@ const server = http.createServer((req, res) => {
     return send(res, 200, { success: true, agent: 'luliz-print-agent', version: 2 });
   }
 
+  if (req.method === 'POST' && req.url === '/probe') {
+    let raw = '';
+    req.on('data', chunk => { raw += chunk; if (raw.length > 10000) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const { ip, port = 9100 } = JSON.parse(raw || '{}');
+        if (!ip || !/^[\d.]+$/.test(String(ip))) {
+          return send(res, 400, { success: false, open: false, message: 'عنوان الطابعة غير صالح' });
+        }
+
+        const socket = new net.Socket();
+        let settled = false;
+        const done = (open, message) => {
+          if (settled) return;
+          settled = true;
+          socket.destroy();
+          send(res, 200, { success: true, open, message });
+        };
+        socket.setTimeout(3000);
+        socket.once('connect', () => done(true, 'الطابعة متصلة وجاهزة ✓'));
+        socket.once('timeout', () => done(false, 'الطابعة لا ترد على الشبكة'));
+        socket.once('error', () => done(false, 'تعذّر الوصول إلى الطابعة'));
+        socket.connect(Number(port) || 9100, String(ip));
+      } catch {
+        send(res, 400, { success: false, open: false, message: 'طلب الفحص غير صالح' });
+      }
+    });
+    return;
+  }
+
   if (req.method === 'POST' && req.url === '/print') {
     let size = 0;
     const parts = [];
