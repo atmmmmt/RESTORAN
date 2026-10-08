@@ -77,7 +77,7 @@ api.interceptors.request.use(config => {
 
 /* Requests that must never be cached or replayed — auth and live device
    commands are meaningless once the moment has passed. */
-const NO_OFFLINE = [/\/auth\//, /\/attendance\/devices/, /\/attendance\/commands/, /\/attendance\/stream/, /\/upload(?:\/|$)/]
+const NO_OFFLINE = [/\/auth\//, /\/attendance\/devices/, /\/attendance\/commands/, /\/attendance\/stream/, /\/upload(?:\/|$)/, /\/print-jobs(?:\/|$)/]
 const skipOffline = url => NO_OFFLINE.some(re => re.test(url || ''))
 
 api.interceptors.response.use(
