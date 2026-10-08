@@ -4,6 +4,69 @@ const Ingredient = require('../models/Ingredient');
 const Product = require('../models/Product');
 const BranchInventory = require('../models/BranchInventory');
 
+async function adoptLegacyProductStock(centerId, productId) {
+  /* Legacy installs kept product stock only on Product.availableQuantity.
+     After branch scoping was enabled, a branch with no BranchInventory row
+     looked empty even though the old stock still existed. Adopt that legacy
+     stock exactly once and only when this product has NO branch stock records
+     anywhere, so the same quantity can never be duplicated across branches. */
+  const existingBranchRows = await BranchInventory.countDocuments({
+    itemType: 'product',
+    productId,
+  });
+  if (existingBranchRows > 0) return null;
+
+  const product = await Product.findById(productId)
+    .select('name availableQuantity calculatedCost');
+  if (!product || Number(product.availableQuantity || 0) <= 0) return null;
+
+  const legacyQty = Number(product.availableQuantity || 0);
+
+  const session = await BranchInventory.startSession();
+  let adopted = null;
+  try {
+    await session.withTransaction(async () => {
+      const already = await BranchInventory.findOne({
+        centerId,
+        itemType: 'product',
+        productId,
+      }).session(session);
+      if (already) {
+        adopted = already;
+        return;
+      }
+
+      const anyBranch = await BranchInventory.findOne({
+        itemType: 'product',
+        productId,
+      }).session(session);
+      if (anyBranch) return;
+
+      const fresh = await Product.findOne({
+        _id: productId,
+        availableQuantity: { $gte: legacyQty },
+      }).session(session);
+      if (!fresh || Number(fresh.availableQuantity || 0) <= 0) return;
+
+      adopted = await BranchInventory.create([{
+        centerId,
+        itemType: 'product',
+        productId,
+        itemNameSnapshot: fresh.name,
+        quantity: Number(fresh.availableQuantity || 0),
+        averageCostPerUnit: Number(fresh.calculatedCost || 0),
+      }], { session }).then(rows => rows[0]);
+
+      fresh.availableQuantity = 0;
+      await fresh.save({ session });
+    });
+  } finally {
+    await session.endSession();
+  }
+
+  return adopted;
+}
+
 async function branchItem(centerId, itemType, itemId, create = false) {
   const idField = itemType === 'ingredient' ? 'ingredientId' : 'productId';
   const Model = itemType === 'ingredient' ? Ingredient : Product;
@@ -99,11 +162,25 @@ const inventoryService = {
    */
   async decreaseProductStock(productId, quantity, centerId = null) {
     if (centerId) {
-      const row = await branchItem(centerId, 'product', productId, false);
-      if (!row || row.quantity < quantity) throw new Error(`مخزون الفرع غير كافٍ للمنتج "${row?.itemNameSnapshot || productId}".`);
-      return BranchInventory.findOneAndUpdate(
-        { _id: row._id, quantity: { $gte: quantity } }, { $inc: { quantity: -quantity } }, { new: true }
+      let row = await branchItem(centerId, 'product', productId, false);
+
+      // Backward-compatible migration for stock that existed before branches.
+      if (!row) row = await adoptLegacyProductStock(centerId, productId);
+
+      if (!row || Number(row.quantity || 0) < quantity) {
+        const product = await Product.findById(productId).select('name');
+        throw new Error(
+          `مخزون الفرع غير كافٍ للمنتج "${row?.itemNameSnapshot || product?.name || productId}". المتاح: ${Number(row?.quantity || 0)}, المطلوب: ${quantity}`
+        );
+      }
+
+      const updated = await BranchInventory.findOneAndUpdate(
+        { _id: row._id, quantity: { $gte: quantity } },
+        { $inc: { quantity: -quantity } },
+        { new: true }
       );
+      if (!updated) throw new Error('تغيّر مخزون الفرع أثناء العملية، حاول مجدداً.');
+      return updated;
     }
     const product = await Product.findById(productId);
     if (!product) {
