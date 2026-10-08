@@ -335,13 +335,6 @@ router.post('/', requirePos, async (req, res) => {
     if (quantity < 1) {
       return res.status(400).json({ success: false, message: `الكمية غير صحيحة لـ ${product.name}` });
     }
-    if (!centerId && product.availableQuantity < quantity) {
-      return res.status(409).json({
-        success: false,
-        message: `الكمية المتاحة من "${product.name}" هي ${product.availableQuantity} فقط`,
-      });
-    }
-
     const unitPrice = Number(item.unitPrice ?? product.directPrice) || 0;
     const unitCost  = Number(product.calculatedCost) || 0;
     lines.push({
@@ -368,23 +361,18 @@ router.post('/', requirePos, async (req, res) => {
   const totalCost = lines.reduce((s, l) => s + l.unitCost * l.quantity, 0);
   const profit    = total - totalCost;
 
-  /* 2 — take the stock. Conditional update so two tills can't oversell
-         the same last piece: the write only lands if stock is still there. */
+  /* 2 — stock is advisory for POS sales, never a blocker.
+     Deduct when stock exists; if it is zero/missing, the sale still proceeds.
+     Only successfully deducted lines are stored as movements so cancellation
+     never invents stock that was not actually removed. */
   const applied = [];
   for (const line of lines) {
     try {
       await inventoryService.decreaseProductStock(line.productId, line.quantity, centerId);
+      applied.push(line);
     } catch (err) {
-      // Roll back whatever we already deducted, then report the clash.
-      for (const done of applied) {
-        await inventoryService.increaseProductStock(done.productId, done.quantity, centerId);
-      }
-      return res.status(409).json({
-        success: false,
-        message: err.message || `نفدت الكمية من "${line.name}" أثناء إتمام الطلب`,
-      });
+      console.warn(`⚠️  تم بيع "${line.name}" بدون خصم مخزون: ${err.message}`);
     }
-    applied.push(line);
   }
 
   /* 3 — create the order, inside the shift that is running (opening one if
@@ -421,8 +409,8 @@ router.post('/', requirePos, async (req, res) => {
     timeline: [{ status: 'new', at: new Date(), by: req.user.name }],
     createdBy: req.user._id,
     createdByName: req.user.name,
-    stockApplied: true,
-    stockMovements: lines.map(line => ({
+    stockApplied: applied.length > 0,
+    stockMovements: applied.map(line => ({
       itemType: 'product', itemId: line.productId, quantity: line.quantity, nameSnapshot: line.name,
     })),
   });
@@ -541,35 +529,32 @@ router.put('/:id', requirePos, async (req, res) => {
 
   if (order.stockApplied) {
     for (const movement of oldMovements) {
-      if (movement.itemType === 'ingredient') {
-        await inventoryService.increaseIngredientStock(movement.itemId, movement.quantity, 0, order.centerId);
-      } else {
-        await inventoryService.increaseProductStock(movement.itemId, movement.quantity, order.centerId);
-      }
-    }
-
-    const applied = [];
-    try {
-      for (const line of lines) {
-        await inventoryService.decreaseProductStock(line.productId, line.quantity, order.centerId);
-        applied.push(line);
-      }
-    } catch (err) {
-      for (const line of applied) {
-        try { await inventoryService.increaseProductStock(line.productId, line.quantity, order.centerId); } catch {}
-      }
-      for (const movement of oldMovements) {
-        try {
-          if (movement.itemType === 'ingredient') {
-            await inventoryService.decreaseIngredientStock(movement.itemId, movement.quantity, order.centerId);
-          } else {
-            await inventoryService.decreaseProductStock(movement.itemId, movement.quantity, order.centerId);
-          }
-        } catch {}
-      }
-      return res.status(409).json({ success: false, message: err.message || 'المخزون لا يكفي لتنفيذ التعديل' });
+      try {
+        if (movement.itemType === 'ingredient') {
+          await inventoryService.increaseIngredientStock(movement.itemId, movement.quantity, 0, order.centerId);
+        } else {
+          await inventoryService.increaseProductStock(movement.itemId, movement.quantity, order.centerId);
+        }
+      } catch {}
     }
   }
+
+  const newlyApplied = [];
+  for (const line of lines) {
+    try {
+      await inventoryService.decreaseProductStock(line.productId, line.quantity, order.centerId);
+      newlyApplied.push(line);
+    } catch (err) {
+      console.warn(`⚠️  تم تعديل الطلب وبيع "${line.name}" بدون خصم مخزون: ${err.message}`);
+    }
+  }
+  order.stockApplied = newlyApplied.length > 0;
+  order.stockMovements = newlyApplied.map(line => ({
+    itemType: 'product',
+    itemId: line.productId,
+    quantity: line.quantity,
+    nameSnapshot: line.name,
+  }));
 
   order.items = lines;
   order.subtotal = subtotal;
@@ -683,13 +668,16 @@ router.put('/:id/status', requireKitchen, async (req, res) => {
     }
   }
 
-  // Un-cancelling takes it out again.
+  // Un-cancelling is also allowed regardless of current stock.
   if (order.status === 'cancelled' && status !== 'cancelled' && !order.stockApplied) {
-    const movements = order.stockMovements?.length
-      ? order.stockMovements
-      : order.items.map(line => ({ itemType: 'product', itemId: line.productId, quantity: line.quantity, nameSnapshot: line.name }));
+    const requestedMovements = order.items.map(line => ({
+      itemType: 'product',
+      itemId: line.productId,
+      quantity: line.quantity,
+      nameSnapshot: line.name,
+    }));
     const reapplied = [];
-    for (const movement of movements) {
+    for (const movement of requestedMovements) {
       try {
         if (movement.itemType === 'ingredient') {
           await inventoryService.decreaseIngredientStock(movement.itemId, movement.quantity, order.centerId);
@@ -698,17 +686,11 @@ router.put('/:id/status', requireKitchen, async (req, res) => {
         }
         reapplied.push(movement);
       } catch (err) {
-        for (const done of reapplied) {
-          if (done.itemType === 'ingredient') await inventoryService.increaseIngredientStock(done.itemId, done.quantity, 0, order.centerId);
-          else await inventoryService.increaseProductStock(done.itemId, done.quantity, order.centerId);
-        }
-        return res.status(409).json({
-          success: false,
-          message: err.message || `لا توجد كمية كافية من "${movement.nameSnapshot}" لإعادة تفعيل الطلب`,
-        });
+        console.warn(`⚠️  أعيد تفعيل الطلب بدون خصم مخزون "${movement.nameSnapshot || ''}": ${err.message}`);
       }
     }
-    order.stockApplied = true;
+    order.stockApplied = reapplied.length > 0;
+    order.stockMovements = reapplied;
 
     // Re-post the revenue that the cancellation reversed.
     if (isPaid(order.paymentMethod) && order.total > 0 && !order.cashPosted) {
