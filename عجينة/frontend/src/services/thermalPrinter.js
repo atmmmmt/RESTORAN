@@ -586,7 +586,10 @@ export async function printKitchenTicket(order) {
   for (const group of groups) {
     const { canvas, height } = drawKitchenTicket({ ...order, items: group.items }, settings, group.label)
     const response = await fetch(`${settings.agentUrl.replace(/\/$/, '')}/print`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      mode: 'cors',
+      targetAddressSpace: 'loopback',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...printerTarget(kitchen),
         copies: Math.max(1, Math.min(5, Number(kitchen.copies) || 1)),
@@ -631,7 +634,10 @@ export const sampleOrder = () => ({
 export async function listAgentPrinters(settings = getPrinterSettings()) {
   let response
   try {
-    response = await fetch(`${settings.agentUrl.replace(/\/$/, '')}/printers`)
+    response = await fetch(`${settings.agentUrl.replace(/\/$/, '')}/printers`, {
+      mode: 'cors',
+      targetAddressSpace: 'loopback',
+    })
   } catch {
     throw new Error('وكيل الطباعة لا يعمل على هذا الجهاز — شغّل start-print-agent.bat')
   }
@@ -905,7 +911,10 @@ export async function printThermalFinancialReport(report, mode = 'combined') {
   let response
   try {
     response = await fetch(`${settings.agentUrl.replace(/\/$/, '')}/print`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      mode: 'cors',
+      targetAddressSpace: 'loopback',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...printerTarget(settings), copies: 1,
         dataBase64: rasterFinancialReport(report, settings, logo, mode),
@@ -1003,11 +1012,14 @@ export async function printThermalShiftReport(shift) {
 export async function testPrintAgent(settings = getPrinterSettings()) {
   let response
   try {
-    response = await fetch(`${settings.agentUrl.replace(/\/$/, '')}/health`)
+    response = await fetch(`${settings.agentUrl.replace(/\/$/, '')}/health`, {
+      mode: 'cors',
+      targetAddressSpace: 'loopback',
+    })
   } catch {
     /* A blocked request and a stopped program look identical from here, so
        the message names the thing the person can actually check. */
-    throw new Error('لا يمكن الوصول لبرنامج الطباعة')
+    throw new Error('برنامج الطباعة شغّال لكن Chrome يمنع الوصول المحلي. من إعدادات الموقع فعّل «الوصول إلى الشبكة المحلية / Loopback network» ثم حدّث الصفحة.')
   }
   if (!response.ok) throw new Error('برنامج الطباعة يرد بخطأ')
   return response.json()
