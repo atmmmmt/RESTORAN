@@ -8,6 +8,7 @@ const { protect, requireRole } = require('../middleware/auth');
 const router = express.Router();
 
 const AGENT_KEY = process.env.PRINT_AGENT_KEY || 'CeNqASrsZXBfHLK8IIR2hjWST2K7-fgq4GRAKlieFLI';
+const agentStates = new Map();
 
 function validAgent(req, res, next) {
   const key = String(req.headers['x-print-agent-key'] || '');
@@ -39,6 +40,30 @@ router.post('/', protect, requireRole('admin', 'supervisor', 'cashier'), async (
   });
 
   res.status(201).json({ success: true, jobId: job._id, status: job.status });
+});
+
+router.get('/status', protect, requireRole('admin', 'supervisor', 'cashier'), async (req, res) => {
+  const deviceId = String(req.query.deviceId || 'ajineh-main').trim();
+  const state = agentStates.get(deviceId);
+  const online = !!state && (Date.now() - state.lastSeen < 20000);
+  res.json({
+    success: true,
+    online,
+    deviceId,
+    version: state?.version || null,
+    printers: state?.printers || [],
+    lastSeen: state?.lastSeen ? new Date(state.lastSeen).toISOString() : null,
+  });
+});
+
+router.post('/agent/heartbeat', validAgent, async (req, res) => {
+  const deviceId = String(req.body.deviceId || 'ajineh-main').trim();
+  agentStates.set(deviceId, {
+    lastSeen: Date.now(),
+    version: String(req.body.version || ''),
+    printers: Array.isArray(req.body.printers) ? req.body.printers.slice(0, 100) : [],
+  });
+  res.json({ success: true });
 });
 
 router.get('/:id', protect, requireRole('admin', 'supervisor', 'cashier'), async (req, res) => {
