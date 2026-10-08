@@ -639,7 +639,7 @@ export async function listAgentPrinters(settings = getPrinterSettings()) {
       targetAddressSpace: 'loopback',
     })
   } catch {
-    throw new Error('وكيل الطباعة لا يعمل على هذا الجهاز — شغّل start-print-agent.bat')
+    throw new Error('Chrome يمنع الوصول لبرنامج الطباعة المحلي. فعّل «الوصول إلى الشبكة المحلية / Loopback network» لهذا الموقع ثم أعد المحاولة.')
   }
   /* An agent from before USB support has no /printers at all, and its bare
      "Not found" sends people looking at the printer instead of at the agent
@@ -659,7 +659,10 @@ export async function printThermalReceipt(order, { duplicate = false } = {}) {
   await readyFont()
   const logo = settings.showLogo === false ? null : await loadLogo(settings.logoUrl)
   const response = await fetch(`${settings.agentUrl.replace(/\/$/, '')}/print`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    method: 'POST',
+    mode: 'cors',
+    targetAddressSpace: 'loopback',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       ...printerTarget(settings),
       copies: Math.max(1, Math.min(5, Number(settings.copies) || 1)),
@@ -765,7 +768,10 @@ export async function printThermalDailyReport(report) {
   await readyFont()
   const logo = settings.showLogo === false ? null : await loadLogo(settings.logoUrl)
   const response = await fetch(`${settings.agentUrl.replace(/\/$/, '')}/print`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    method: 'POST',
+    mode: 'cors',
+    targetAddressSpace: 'loopback',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       ...printerTarget(settings), copies: 1,
       dataBase64: rasterDailyReport(report, settings, logo),
@@ -1001,7 +1007,10 @@ export async function printThermalShiftReport(shift) {
   const logo = settings.showLogo === false ? null : await loadLogo(settings.logoUrl)
   const { canvas, height } = drawShiftReport(shift, settings, logo)
   const response = await fetch(`${settings.agentUrl.replace(/\/$/, '')}/print`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    method: 'POST',
+    mode: 'cors',
+    targetAddressSpace: 'loopback',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...printerTarget(settings), copies: 1, dataBase64: toEscPosBanded(canvas, height, settings) }),
   })
   const result = await response.json().catch(() => ({}))
