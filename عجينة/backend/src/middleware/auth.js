@@ -30,6 +30,26 @@ const protect = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'تم تعطيل هذا الحساب. راجع المدير.' });
     }
 
+    /* Admin-wide branch switcher. Accounts that are permanently assigned to
+       a branch keep their own centerId. Unbound management accounts may pick
+       an active branch from the admin header; downstream routes can then use
+       the same req.user.centerId logic they already use for branch staff. */
+    const requestedCenter = String(req.headers['x-admin-center'] || '').trim();
+    if (
+      requestedCenter &&
+      !user.centerId &&
+      ['admin', 'supervisor', 'viewer'].includes(user.role)
+    ) {
+      const selectedCenter = await SalesCenter.findOne({ _id: requestedCenter, isActive: true }).select('_id');
+      if (selectedCenter) {
+        req.adminCenterId = selectedCenter._id;
+        req.user.centerId = selectedCenter._id;
+        if (req.body && typeof req.body === 'object' && !Array.isArray(req.body)) {
+          req.body.centerId = String(selectedCenter._id);
+        }
+      }
+    }
+
     req.user = user;
     next();
   } catch (err) {
