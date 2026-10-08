@@ -316,7 +316,7 @@ export default function PosPage() {
     <div>
       <PageHeader
         title="طلب داخلي"
-        subtitle="سجّل طلبات الكاشير — تُخصم من المخزون وتتولّد بأرقام وباركود"
+        subtitle="سجّل طلبات الكاشير بسرعة — كل المنتجات متاحة دائماً ويتولّد لكل طلب رقم وباركود"
         actions={
           <div className="flex gap-2">
             <Link to="/admin/kitchen">
@@ -426,8 +426,8 @@ export default function PosPage() {
                       </div>
                       <div className="font-black text-brand-dark text-sm leading-tight line-clamp-2 mb-1">{p.name}</div>
                       <div className="font-black text-fuchsia text-sm">{formatCurrency(p.directPrice)}</div>
-                      <div className={`text-xs font-bold mt-0.5 ${out ? 'text-red-500' : 'text-brand-gray-light'}`}>
-                        متوفر
+                      <div className="text-xs font-bold mt-0.5 text-green-600">
+                        متوفر دائماً
                       </div>
                     </button>
                   )
