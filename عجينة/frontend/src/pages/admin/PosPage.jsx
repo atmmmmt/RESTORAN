@@ -108,20 +108,16 @@ export default function PosPage() {
 
   /* ── cart ── */
   const addToCart = product => {
-    if (product.availableQuantity <= 0) return toast.error(`"${product.name}" غير متوفر حالياً`)
     setCart(c => {
       const found = c.find(i => i.productId === product._id)
       if (found) {
-        if (found.quantity >= product.availableQuantity) {
-          toast.error(`المتاح ${product.availableQuantity} فقط`)
-          return c
-        }
         return c.map(i => i.productId === product._id ? { ...i, quantity: i.quantity + 1 } : i)
       }
       return [...c, {
-        productId: product._id, name: product.name,
-        unitPrice: product.directPrice || 0, quantity: 1,
-        max: product.availableQuantity,
+        productId: product._id,
+        name: product.name,
+        unitPrice: Number(product.directPrice) || 0,
+        quantity: 1,
       }]
     })
   }
@@ -130,7 +126,6 @@ export default function PosPage() {
     if (i.productId !== productId) return [i]
     const next = i.quantity + delta
     if (next < 1) return []
-    if (next > i.max) { toast.error(`المتاح ${i.max} فقط`); return [i] }
     return [{ ...i, quantity: next }]
   }))
 
