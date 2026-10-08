@@ -189,7 +189,7 @@ export default function ThermalPrinterSettings() {
           </div>
           <div>
             <h2 className="font-black text-brand-dark">طابعة المطبخ</h2>
-            <p className="text-xs text-brand-gray">تذكرة التحضير — أصناف وكميات بدون أسعار</p>
+            <p className="text-xs text-brand-gray">طابعة واحدة بالمطبخ — تفصل الطلب تلقائياً إلى وصولات المعجنات والمشاوي والمقبلات والمشروبات</p>
           </div>
         </div>
         <Toggle checked={!!kitchen.enabled} onChange={v => kField('enabled', v)} label={kitchen.enabled ? 'مفعّلة' : 'متوقفة'} />
