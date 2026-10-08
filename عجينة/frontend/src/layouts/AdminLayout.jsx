@@ -138,7 +138,6 @@ function SidebarContent({ user, onLogout, onLinkClick }) {
         </motion.button>
       </div>
     </div>
-    </>
   )
 }
 
@@ -384,5 +383,6 @@ export default function AdminLayout() {
         </main>
       </div>
     </div>
+    </>
   )
 }
