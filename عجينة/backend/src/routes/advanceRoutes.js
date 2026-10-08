@@ -10,6 +10,8 @@ router.use(protect, requireAdmin);   // employee advances are admin-only
 /* ── GET all advances (optional filter by employee or pending) ── */
 router.get('/', async (req, res) => {
   const filter = {};
+  const centerId = req.query.centerId || (req.query.center && !['all','hq'].includes(req.query.center) ? req.query.center : null);
+  if (centerId) filter.centerId = centerId;
   if (req.query.employeeId)  filter.employeeId = req.query.employeeId;
   if (req.query.isDeducted !== undefined) filter.isDeducted = req.query.isDeducted === 'true';
   const advances = await EmployeeAdvance.find(filter).sort({ date: -1 });
@@ -23,8 +25,13 @@ router.post('/', async (req, res) => {
 
   const emp = await Employee.findById(employeeId);
   if (!emp) return res.status(404).json({ success: false, message: 'الموظف غير موجود' });
+  const requestedCenterId = req.body.centerId;
+  if (requestedCenterId && String(emp.centerId || '') !== String(requestedCenterId)) {
+    return res.status(400).json({ success: false, message: 'الموظف تابع لفرع آخر' });
+  }
 
   const advance = await EmployeeAdvance.create({
+    centerId: emp.centerId || null,
     employeeId, employeeName: emp.name,
     amount: Number(amount),
     date: date ? new Date(date) : new Date(),
@@ -38,7 +45,8 @@ router.post('/', async (req, res) => {
     'out',
     `سلفة — ${emp.name}${reason ? ': ' + reason : ''}`,
     'EmployeeAdvance',
-    advance._id
+    advance._id,
+    emp.centerId || null
   );
 
   res.status(201).json({ success: true, advance, message: `تم تسجيل سلفة ${emp.name} وخصمها من الكاش` });
