@@ -7,7 +7,7 @@ const os = require('os');
 const path = require('path');
 const { execFile } = require('child_process');
 
-const AGENT_VERSION = '1.2.0';
+const AGENT_VERSION = '1.2.1';
 
 const configPath = path.join(__dirname, 'config.json');
 const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
