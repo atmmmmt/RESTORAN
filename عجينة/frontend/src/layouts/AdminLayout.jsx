@@ -3,12 +3,19 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { onQueueChange, queueSize } from '../services/offline'
 import { centersAPI, getActiveCenterId, setActiveCenterId } from '../services/api'
+import {
+  getPrinterSettings,
+  getPrintPermissionState,
+  requestPrintAgentAccess,
+  PRINT_ACCESS_KEY,
+} from '../services/thermalPrinter'
 import { useAuth, ROLE_LABELS } from '../hooks/useAuth'
 import {
   Menu, LayoutDashboard, Croissant, LayoutGrid, Wheat, ShoppingCart, CookingPot,
   Banknote, Trash2, Store, ClipboardList, Tag, Landmark, TrendingUp,
   Lock, Users, Wallet, Star, Settings, LogOut, Bell, ChefHat,
   Fingerprint, UserCog, Receipt, WifiOff, UploadCloud, Undo2, BadgePercent, Building2, FileSpreadsheet,
+  Printer, ShieldCheck, AlertTriangle, X,
 } from 'lucide-react'
 
 function ConnectionStatus() {
@@ -131,6 +138,116 @@ function SidebarContent({ user, onLogout, onLinkClick }) {
         </motion.button>
       </div>
     </div>
+    </>
+  )
+}
+
+function PrintAccessGate({ user }) {
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [state, setState] = useState('unknown')
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!['admin', 'supervisor', 'cashier'].includes(user?.role)) return
+
+    const settings = getPrinterSettings()
+    const printingUsed = settings.enabled || settings.kitchen?.enabled
+    if (!printingUsed) return
+
+    let alive = true
+    ;(async () => {
+      const permission = await getPrintPermissionState()
+      if (!alive) return
+      setState(permission)
+
+      if (permission === 'granted' && localStorage.getItem(PRINT_ACCESS_KEY) === '1') {
+        return
+      }
+
+      setOpen(true)
+    })()
+
+    return () => { alive = false }
+  }, [user?.role])
+
+  const allow = async () => {
+    setBusy(true)
+    setError('')
+    try {
+      await requestPrintAgentAccess()
+      setState('granted')
+      setOpen(false)
+    } catch (err) {
+      const permission = await getPrintPermissionState()
+      setState(permission)
+      if (err?.code === 'PRINT_PERMISSION_DENIED' || permission === 'denied') {
+        setError('Chrome عنده الإذن مرفوض من قبل. ما في موقع بيقدر يقلب الرفض إلى سماح لحاله. اعمل Reset لإذن الموقع مرة واحدة، وبعدها اضغط «السماح بالطباعة» وChrome رح يطلع نافذة السماح.')
+      } else {
+        setError('ما قدرنا نوصل لبرنامج الطباعة. تأكد أن نافذة Ajineh Print Agent 1.2.0 مفتوحة، وبعدها اضغط الزر مرة ثانية.')
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!open) return null
+
+  return (
+    <div className="fixed inset-0 z-[200] bg-black/65 backdrop-blur-sm flex items-center justify-center p-4" dir="rtl">
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-[#E8D5C0] overflow-hidden">
+        <div className="p-5 border-b border-[#E8D5C0] flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl flex items-center justify-center bg-[#FFF3E8]">
+              <Printer size={22} className="text-[#8B4513]" />
+            </div>
+            <div>
+              <div className="font-black text-[#2C1206] text-lg">تفعيل الطباعة</div>
+              <div className="text-xs font-bold text-[#8C7765] mt-0.5">خطوة واحدة فقط على جهاز الكاشير</div>
+            </div>
+          </div>
+          <button onClick={() => setOpen(false)} className="p-2 rounded-xl hover:bg-black/5 text-[#8C7765]">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="p-5">
+          <div className="rounded-2xl bg-[#FAF5ED] border border-[#E8D5C0] p-4 mb-4">
+            <div className="flex items-start gap-3">
+              <ShieldCheck size={22} className="text-green-600 shrink-0 mt-0.5" />
+              <div className="text-sm font-bold leading-7 text-[#4B3528]">
+                اضغط الزر تحت. الموقع رح يطلب من Chrome السماح بالوصول إلى برنامج الطباعة الموجود على نفس الجهاز.
+                لما تظهر نافذة Chrome اختار <span className="font-black text-green-700">سماح / Allow</span>.
+              </div>
+            </div>
+          </div>
+
+          {state === 'denied' && (
+            <div className="mb-4 rounded-2xl bg-red-50 border border-red-200 p-4 text-sm font-bold text-red-700 flex gap-2">
+              <AlertTriangle size={18} className="shrink-0 mt-0.5" />
+              الإذن مرفوض حالياً من Chrome، لذلك ما رح تظهر نافذة السماح قبل Reset للإذن.
+            </div>
+          )}
+
+          {error && (
+            <div className="mb-4 rounded-2xl bg-amber-50 border border-amber-200 p-4 text-sm font-bold text-amber-800 leading-6">
+              {error}
+            </div>
+          )}
+
+          <button type="button" onClick={allow} disabled={busy}
+            className="w-full py-3.5 rounded-2xl text-white font-black text-base disabled:opacity-60"
+            style={{ background: '#8B4513' }}>
+            {busy ? 'جاري طلب السماح…' : 'السماح بالطباعة'}
+          </button>
+
+          <button type="button" onClick={() => setOpen(false)}
+            className="w-full mt-2 py-2.5 rounded-xl text-sm font-black text-[#8C7765] hover:bg-[#FAF5ED]">
+            لاحقاً
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -191,7 +308,9 @@ export default function AdminLayout() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: '#FAF5ED' }} dir="rtl">
+    <>
+      <PrintAccessGate user={user} />
+      <div className="flex h-screen overflow-hidden" style={{ background: '#FAF5ED' }} dir="rtl">
       <div className="hidden lg:flex flex-shrink-0 shadow-2xl">
         <SidebarContent user={user} onLogout={handleLogout} onLinkClick={() => {}} />
       </div>
