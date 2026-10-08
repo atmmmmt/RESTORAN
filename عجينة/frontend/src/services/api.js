@@ -96,7 +96,7 @@ api.interceptors.response.use(
       const url = String(config.url || '')
       const authMessage = String(err.response?.data?.message || '')
       const trulyInvalidSession =
-        url.includes('/auth/me') ||
+        !url.includes('/auth/me') &&
         /انتهت صلاحية الجلسة|رمز المصادقة غير صالح|المستخدم غير موجود/.test(authMessage)
 
       /* Do not destroy the whole admin session because one feature endpoint
