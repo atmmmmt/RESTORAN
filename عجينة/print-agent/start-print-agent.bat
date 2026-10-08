@@ -23,8 +23,15 @@ if errorlevel 1 (
 )
 
 echo [1/4] Installing automatic startup with Windows...
-schtasks /Create /TN "AjinehCloudPrintAgent" /SC ONLOGON /RL HIGHEST /F ^
-  /TR "cmd.exe /c ""%~dp0run-print-agent.bat""" >nul 2>&1
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$startup=[Environment]::GetFolderPath('Startup');" ^
+  "$lnk=Join-Path $startup 'Ajineh Cloud Print Agent.lnk';" ^
+  "$ws=New-Object -ComObject WScript.Shell;" ^
+  "$s=$ws.CreateShortcut($lnk);" ^
+  "$s.TargetPath='%~dp0run-print-agent.bat';" ^
+  "$s.WorkingDirectory='%~dp0';" ^
+  "$s.WindowStyle=1;" ^
+  "$s.Save();"
 
 echo [2/4] Stopping any old agent on port 18181...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
@@ -33,11 +40,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "Start-Sleep -Milliseconds 700"
 
 echo [3/4] Starting Print Agent now...
-start "Ajineh Cloud Print Agent" cmd.exe /k ""%~dp0run-print-agent.bat""
+start "Ajineh Cloud Print Agent" "%~dp0run-print-agent.bat"
 
 echo [4/4] Done.
 echo.
-echo The printer agent will start automatically whenever Windows signs in.
-echo You can close this installer window.
+echo Print Agent is installed and will start automatically with Windows.
+echo Keep the new Ajineh Cloud Print Agent window open.
 echo.
 pause
