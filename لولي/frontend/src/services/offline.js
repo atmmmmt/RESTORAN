@@ -115,6 +115,20 @@ export async function queueSize() {
   return (await queuedItems()).length
 }
 
+export async function removeQueuedWhere(predicate) {
+  const items = await queuedItems()
+  let removed = 0
+  for (const item of items) {
+    let match = false
+    try { match = !!predicate(item) } catch {}
+    if (!match) continue
+    await removeItem(item.id)
+    removed++
+  }
+  if (removed) notify()
+  return removed
+}
+
 async function removeItem(id) {
   await tx(STORE_QUEUE, 'readwrite', s => s.delete(id))
 }
