@@ -173,7 +173,9 @@ export default function ThermalPrinterSettings() {
           port={form.printerPort} onPort={v => field('printerPort', v)}
         />
         <div className="flex flex-wrap items-center gap-3 mt-4">
-          <Toggle checked={!!form.autoPrint} onChange={v => field('autoPrint', v)} label="طباعة تلقائية مع كل طلب" />
+          <div className="text-xs font-bold text-brand-mint-dark bg-brand-mint-bg px-3 py-2 rounded-xl">
+            طالما طابعة الفواتير مفعّلة، تُطبع فاتورة الكاشير تلقائياً مع كل طلب
+          </div>
           <Button variant="outline" size="sm" loading={busy === 'receipt'}
             onClick={() => runTest('receipt')} icon={<Printer size={15} />}>طباعة تجربة</Button>
         </div>
