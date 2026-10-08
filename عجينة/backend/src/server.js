@@ -71,6 +71,7 @@ app.set('trust proxy', 1);
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 1000,
+  skip: (req) => req.path.startsWith('/print-jobs/agent/'),
   standardHeaders: true,
   legacyHeaders: false,
   message: {
