@@ -44,7 +44,7 @@ exports.getAll = async (req, res) => {
 
   let query = Product.find(filter).sort({ createdAt: -1 });
   if (req.user?.role === 'cashier') {
-    query = query.select('name image category directPrice availableQuantity status showInTodayMenu');
+    query = query.select('name image category kitchenSection directPrice availableQuantity status showInTodayMenu');
   } else {
     query = query.populate('ingredients.ingredientId', 'name unitType currentStock averageCostPerUnit');
   }
@@ -187,7 +187,7 @@ exports.create = async (req, res) => {
   }
 
   const {
-    name, image, imagePublicId, description, category, ingredients, packagingCost, extraCost,
+    name, image, imagePublicId, description, category, kitchenSection, ingredients, packagingCost, extraCost,
     nutrition, directPrice, regularCenterPrice, specializedCenterDefaultCommissionPercent,
     availableQuantity, status, showInTodayMenu, allergyNotes, notes,
   } = req.body;
@@ -198,6 +198,7 @@ exports.create = async (req, res) => {
     imagePublicId: imagePublicId || null,
     description,
     category,
+    kitchenSection: kitchenSection || '',
     ingredients: ingredients || [],
     packagingCost: packagingCost || 0,
     extraCost: extraCost || 0,
@@ -231,7 +232,7 @@ exports.update = async (req, res) => {
   }
 
   const allowedFields = [
-    'name', 'image', 'imagePublicId', 'description', 'category', 'ingredients', 'packagingCost',
+    'name', 'image', 'imagePublicId', 'description', 'category', 'kitchenSection', 'ingredients', 'packagingCost',
     'extraCost', 'nutrition', 'directPrice', 'regularCenterPrice',
     'specializedCenterDefaultCommissionPercent', 'availableQuantity',
     'status', 'showInTodayMenu', 'allergyNotes', 'notes',
