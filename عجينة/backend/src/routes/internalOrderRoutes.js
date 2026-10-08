@@ -374,17 +374,9 @@ router.post('/', requirePos, async (req, res) => {
   const orderNumber = await InternalOrder.nextOrderNumber();
   const qrPayload   = orderNumber;
 
-  let qrDataUrl = '';
-  try {
-    qrDataUrl = await QRCode.toDataURL(qrPayload, {
-      width: 320, margin: 1,
-      color: { dark: '#352017', light: '#FFFFFF' },
-    });
-  } catch { /* a missing QR must not block the sale */ }
-
   const order = await InternalOrder.create({
     centerId: mongoose.isValidObjectId(centerId) ? centerId : null,
-    orderNumber, qrPayload, qrDataUrl,
+    orderNumber, qrPayload, qrDataUrl: '',
     items: lines,
     subtotal, discount: disc, total, totalCost, profit,
     discountType: byPercent && disc > 0 ? 'percent' : 'amount',
@@ -415,6 +407,21 @@ router.post('/', requirePos, async (req, res) => {
   setImmediate(async () => {
     try {
       const current = await InternalOrder.findById(order._id).select('status centerId');
+      // QR is presentation metadata, not part of accepting the sale. Generate
+      // it after the cashier already got the successful response.
+      try {
+        const qrDataUrl = await QRCode.toDataURL(qrPayload, {
+          width: 320,
+          margin: 1,
+          color: { dark: '#352017', light: '#FFFFFF' },
+        });
+        await InternalOrder.updateOne(
+          { _id: order._id },
+          { $set: { qrDataUrl } }
+        );
+      } catch {}
+
+
       if (!current || current.status === 'cancelled') return;
 
       const stockTask = (async () => {
