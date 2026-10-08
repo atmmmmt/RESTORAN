@@ -1,6 +1,6 @@
 import axios from 'axios'
 import toast from 'react-hot-toast'
-import { cacheResponse, readCache, enqueue, flushQueue, isNetworkError, REPLAY_HEADER } from './offline'
+import { cacheResponse, readCache, enqueue, flushQueue, isNetworkError, REPLAY_HEADER, removeQueuedWhere } from './offline'
 
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:3002/api')
 
@@ -26,7 +26,7 @@ api.interceptors.request.use(config => {
 
 /* Requests that must never be cached or replayed — auth and live device
    commands are meaningless once the moment has passed. */
-const NO_OFFLINE = [/\/auth\//, /\/attendance\/device\//, /\/attendance\/stream/, /\/upload(?:\/|$)/]
+const NO_OFFLINE = [/\/auth\//, /\/attendance\/device\//, /\/attendance\/stream/, /\/printer(?:\/|$)/, /\/upload(?:\/|$)/]
 const skipOffline = url => NO_OFFLINE.some(re => re.test(url || ''))
 
 /* A stray 401 from an unrelated background request (e.g. a list refresh
@@ -94,6 +94,10 @@ api.interceptors.response.use(
 
 /* Drain the queue as soon as the browser reports it's back online. */
 if (typeof window !== 'undefined') {
+  // Printer commands are live device actions. Old failed print/test requests
+  // must never sit in the offline queue and replay later as duplicate tickets.
+  removeQueuedWhere(item => String(item.url || '').startsWith('/printer')).catch(() => {})
+
   const drain = async () => {
     const { sent, failed } = await flushQueue(api)
     if (sent)   toast.success(`تمت مزامنة ${sent} عملية محفوظة`)
