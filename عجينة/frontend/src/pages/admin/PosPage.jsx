@@ -283,18 +283,21 @@ export default function PosPage() {
     setTimeout(() => { w.print(); w.close() }, 350)
   }
 
+  const normalizeCategoryName = value => String(value || 'غير مصنّف').trim().replace(/\s+/g, ' ')
+
   /* Sections to show on the first screen: the ones with a row of their own,
      plus any name that only exists on the products (nothing is hidden just
      because the category list is out of step with the menu). */
   const sections = useMemo(() => {
     const counts = new Map()
     for (const p of products) {
-      const name = p.category || 'غير مصنّف'
+      const name = normalizeCategoryName(p.category)
       counts.set(name, (counts.get(name) || 0) + 1)
     }
     const known = categories
-      .filter(c => counts.has(c.name))
-      .map(c => ({ name: c.name, image: c.image, count: counts.get(c.name) }))
+      .map(c => ({ ...c, normalizedName: normalizeCategoryName(c.name) }))
+      .filter(c => counts.has(c.normalizedName))
+      .map(c => ({ name: c.normalizedName, image: c.image, count: counts.get(c.normalizedName) }))
     const knownNames = new Set(known.map(c => c.name))
     const extra = [...counts.keys()]
       .filter(name => !knownNames.has(name))
@@ -306,9 +309,12 @@ export default function PosPage() {
      you opened. */
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (q) return products.filter(p => p.name?.toLowerCase().includes(q))
+    if (q) return products.filter(p =>
+      p.name?.toLowerCase().includes(q) ||
+      normalizeCategoryName(p.category).toLowerCase().includes(q)
+    )
     if (!activeCategory) return []
-    return products.filter(p => (p.category || 'غير مصنّف') === activeCategory)
+    return products.filter(p => normalizeCategoryName(p.category) === activeCategory)
   }, [products, query, activeCategory])
 
   return (
