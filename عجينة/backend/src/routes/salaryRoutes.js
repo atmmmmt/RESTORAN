@@ -15,11 +15,18 @@ function calcHourlyRate(emp) {
 
 router.use(protect, requireAdmin);   // payroll is admin-only
 
+const selectedCenterId = req => {
+  const raw = req.body?.centerId ?? req.query?.centerId ?? req.query?.center;
+  return raw && raw !== 'all' && raw !== 'hq' ? raw : null;
+};
+
 /* ── GET all records for a month ── */
 router.get('/', async (req, res) => {
   const { month } = req.query; // YYYY-MM
   const filter = {};
   if (month) filter.month = month;
+  const centerId = selectedCenterId(req);
+  if (centerId) filter.centerId = centerId;
   const records = await SalaryRecord.find(filter)
     .populate('employeeId', 'name role monthlySalary dailyHours workingDays isActive')
     .sort({ employeeName: 1 });
@@ -40,16 +47,25 @@ router.post('/init', async (req, res) => {
 
   const emp = await Employee.findById(employeeId);
   if (!emp) return res.status(404).json({ success: false, message: 'الموظف غير موجود' });
+  const requestedCenterId = selectedCenterId(req);
+  if (requestedCenterId && String(emp.centerId || '') !== String(requestedCenterId)) {
+    return res.status(400).json({ success: false, message: 'الموظف تابع لفرع آخر' });
+  }
 
   const hourlyRate = calcHourlyRate(emp);
 
   // Auto-include pending advances
-  const pendingAdvances = await EmployeeAdvance.find({ employeeId: emp._id, isDeducted: false });
+  const pendingAdvances = await EmployeeAdvance.find({
+    employeeId: emp._id,
+    centerId: emp.centerId || null,
+    isDeducted: false,
+  });
   const totalAdvances   = pendingAdvances.reduce((s, a) => s + a.amount, 0);
 
   let record = await SalaryRecord.findOne({ employeeId, month });
   if (!record) {
     record = await SalaryRecord.create({
+      centerId: emp.centerId || null,
       employeeId,
       employeeName: emp.name,
       month,
@@ -207,7 +223,8 @@ router.post('/:id/pay', async (req, res) => {
     'out',
     `راتب ${record.employeeName} — ${record.month}`,
     'SalaryRecord',
-    record._id
+    record._id,
+    record.centerId || null
   );
 
   res.json({ success: true, record, message: `تم صرف راتب ${record.employeeName} بنجاح` });
@@ -219,6 +236,8 @@ router.post('/init-month', async (req, res) => {
   if (!month) return res.status(400).json({ success: false, message: 'month مطلوب' });
 
   const empFilter = { isActive: true };
+  const centerId = selectedCenterId(req);
+  if (centerId) empFilter.centerId = centerId;
   if (periodType && periodType !== 'all') empFilter.payPeriod = periodType;
 
   const employees = await Employee.find(empFilter);
@@ -228,9 +247,14 @@ router.post('/init-month', async (req, res) => {
     const exists = await SalaryRecord.findOne({ employeeId: emp._id, month });
     if (!exists) {
       const hourlyRate     = calcHourlyRate(emp);
-      const pendingAdv     = await EmployeeAdvance.find({ employeeId: emp._id, isDeducted: false });
+      const pendingAdv     = await EmployeeAdvance.find({
+        employeeId: emp._id,
+        centerId: emp.centerId || null,
+        isDeducted: false,
+      });
       const totalAdvances  = pendingAdv.reduce((s, a) => s + a.amount, 0);
       const rec = await SalaryRecord.create({
+        centerId:     emp.centerId || null,
         employeeId:   emp._id,
         employeeName: emp.name,
         month,
