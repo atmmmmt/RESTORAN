@@ -4,6 +4,8 @@ const http = require('http');
 const net = require('net');
 const os = require('os');
 const { execFile } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
 const VERSION = '3.0.3';
 const PORT = 9123;
@@ -63,6 +65,81 @@ function runPowerShell(command, timeout = 8000) {
       (error, stdout) => resolve(error ? '' : String(stdout || ''))
     );
   });
+}
+
+async function windowsPrinterNames() {
+  if (process.platform !== 'win32') return [];
+
+  const out = await runPowerShell(
+    "$ErrorActionPreference='SilentlyContinue'; Get-Printer | ForEach-Object { Write-Output ([string]$_.Name) }",
+    10000
+  );
+
+  return [...new Set(out.split(/\r?\n/).map(x => x.trim()).filter(Boolean))];
+}
+
+function likelyThermalPrinters(names) {
+  const virtual = /(pdf|xps|onenote|fax|microsoft print|document writer)/i;
+  const preferred = /(xp[- _]?80|pos|thermal|receipt|80mm|58mm|printer)/i;
+  const physical = names.filter(name => !virtual.test(name));
+
+  const strong = physical.filter(name => preferred.test(name));
+  if (strong.length === 1) return strong;
+  if (strong.length > 1) return strong;
+  if (physical.length === 1) return physical;
+  return [];
+}
+
+async function printViaWindowsSpooler(payload) {
+  if (process.platform !== 'win32') {
+    throw new Error('Windows spooler fallback غير متاح على هذا النظام');
+  }
+
+  const printers = await windowsPrinterNames();
+  console.log(new Date().toLocaleTimeString(), 'Windows printers:', printers.join(' | ') || '(none)');
+
+  const candidates = likelyThermalPrinters(printers);
+  if (!candidates.length) {
+    throw new Error(
+      printers.length
+        ? `Windows شايف طابعات لكن ما قدرنا نحدد طابعة لوليز تلقائياً: ${printers.join(' | ')}`
+        : 'Windows لا يرى أي طابعة مثبتة'
+    );
+  }
+
+  const printerName = candidates[0];
+  const tmp = path.join(os.tmpdir(), `luliz-${process.pid}-${Date.now()}.bin`);
+  fs.writeFileSync(tmp, payload);
+
+  try {
+    const script = path.join(__dirname, 'raw-print.ps1');
+    if (!fs.existsSync(script)) throw new Error('raw-print.ps1 مفقود من مجلد البرنامج');
+
+    const exe = process.env.SystemRoot
+      ? process.env.SystemRoot + '\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+      : 'powershell.exe';
+
+    await new Promise((resolve, reject) => {
+      execFile(
+        exe,
+        ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, '-PrinterName', printerName, '-FilePath', tmp],
+        { timeout: 20000, windowsHide: true, encoding: 'utf8' },
+        (error, stdout, stderr) => {
+          const out = String(stdout || '').trim();
+          if (error || !/^OK\s*$/i.test(out)) {
+            reject(new Error(out.replace(/^ERROR:\s*/i, '') || String(stderr || '').trim() || error?.message || 'فشل Windows spooler'));
+          } else {
+            resolve();
+          }
+        }
+      );
+    });
+
+    console.log(new Date().toLocaleTimeString(), `✓ طباعة عبر Windows: ${printerName}`);
+    return { printerName };
+  } finally {
+    try { fs.unlinkSync(tmp); } catch {}
+  }
 }
 
 async function windowsPrinterCandidates(port = 9100) {
@@ -240,7 +317,7 @@ async function probePrinter(ip, port = 9100) {
   }
 }
 
-function printRaster(ip, port, width, height, bits) {
+function buildEscPosPayload(width, height, bits) {
   const bytesPerRow = Math.ceil(width / 8);
   const chunks = [Buffer.from([0x1b, 0x40])];
   const BAND = 200;
@@ -257,8 +334,11 @@ function printRaster(ip, port, width, height, bits) {
 
   chunks.push(Buffer.from([0x1b, 0x64, 0x04]));
   chunks.push(Buffer.from([0x1d, 0x56, 0x42, 0x00]));
+  return Buffer.concat(chunks);
+}
 
-  const payload = Buffer.concat(chunks);
+function printRaster(ip, port, width, height, bits) {
+  const payload = buildEscPosPayload(width, height, bits);
 
   return new Promise((resolve, reject) => {
     const socket = new net.Socket();
@@ -332,15 +412,29 @@ async function executeJob(payload) {
   }
 
   console.log(new Date().toLocaleTimeString(), `→ printer target ${ip}:${port}`);
-  const target = await resolvePrinterTarget(ip, port);
-  await printWithRetry(target.ip, target.port, width, height, bits);
-  return {
-    message: target.changed
-      ? `تمت الطباعة ✓ — تم تصحيح IP تلقائياً إلى ${target.ip}:${target.port}`
-      : `تمت الطباعة على ${target.ip}:${target.port} ✓`,
-    resolvedIp: target.ip,
-    resolvedPort: target.port,
-  };
+
+  try {
+    const target = await resolvePrinterTarget(ip, port);
+    await printWithRetry(target.ip, target.port, width, height, bits);
+    return {
+      message: target.changed
+        ? `تمت الطباعة ✓ — تم تصحيح IP تلقائياً إلى ${target.ip}:${target.port}`
+        : `تمت الطباعة على ${target.ip}:${target.port} ✓`,
+      resolvedIp: target.ip,
+      resolvedPort: target.port,
+    };
+  } catch (networkError) {
+    console.log(new Date().toLocaleTimeString(), `⚠ فشل مسار الشبكة: ${networkError.message}`);
+    console.log(new Date().toLocaleTimeString(), '→ جاري تجربة Windows Print Spooler...');
+
+    const payload = buildEscPosPayload(width, height, bits);
+    const spool = await printViaWindowsSpooler(payload);
+
+    return {
+      message: `تمت الطباعة عبر Windows ✓ — ${spool.printerName}`,
+      windowsPrinterName: spool.printerName,
+    };
+  }
 }
 
 let polling = false;
