@@ -26,7 +26,7 @@ api.interceptors.request.use(config => {
 
 /* Requests that must never be cached or replayed — auth and live device
    commands are meaningless once the moment has passed. */
-const NO_OFFLINE = [/\/auth\//, /\/attendance\/device\//, /\/attendance\/stream/, /\/printer(?:\/|$)/, /\/upload(?:\/|$)/]
+const NO_OFFLINE = [/\/auth\//, /\/attendance\/device\//, /\/attendance\/stream/, /\/printer(?:\/|$)/, /\/print-jobs(?:\/|$)/, /\/upload(?:\/|$)/]
 const skipOffline = url => NO_OFFLINE.some(re => re.test(url || ''))
 
 /* A stray 401 from an unrelated background request (e.g. a list refresh
@@ -149,8 +149,9 @@ export const printerAPI = {
   probe:        (ip, port)       => api.post('/printer/device/probe', { ip, port }),
   test:         (station)        => api.post(`/printer/device/test/${station}`),
   scan:         (baseIp, port)   => api.post('/printer/device/scan', { baseIp, port }),
-  /* raster = { width, height, data } from utils/ticketRenderer */
   print:        (station, raster) => api.post(`/printer/print/${station}`, raster),
+  queuePrintJob:(data)           => api.post('/print-jobs', data),
+  getPrintJob:  (id)             => api.get(`/print-jobs/${id}`),
 }
 
 export const attendanceAPI = {
