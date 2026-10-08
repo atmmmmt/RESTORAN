@@ -7,7 +7,7 @@ const os = require('os');
 const path = require('path');
 const { execFile } = require('child_process');
 
-const AGENT_VERSION = '1.2.3';
+const AGENT_VERSION = '1.3.0';
 
 const configPath = path.join(__dirname, 'config.json');
 const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
@@ -89,6 +89,98 @@ async function sendToUsbPrinter(printerName, buffer) {
   }
 }
 
+async function printPayload(body) {
+  const data = Buffer.from(String(body?.dataBase64 || ''), 'base64');
+  if (!data.length || data.length > 2_500_000) throw new Error('بيانات الطباعة غير صالحة');
+  const copies = Math.max(1, Math.min(5, Number(body?.copies) || 1));
+
+  const usb = body?.connection === 'usb' || (!body?.host && body?.printerName);
+  let label;
+
+  if (usb) {
+    const printerName = String(body?.printerName || '').trim();
+    if (!printerName || printerName.length > 200) throw new Error('اسم طابعة USB غير صالح');
+    for (let i = 0; i < copies; i++) await sendToUsbPrinter(printerName, data);
+    label = printerName;
+  } else {
+    const host = String(body?.host || '');
+    const port = Number(body?.port || 9100);
+    if (!isPrivateHost(host) || port < 1 || port > 65535) throw new Error('عنوان طابعة LAN غير صالح');
+    for (let i = 0; i < copies; i++) await sendToPrinter(host, port, data);
+    label = `${host}:${port}`;
+  }
+
+  return { success: true, copies, printer: label };
+}
+
+const cloudQueue = config.serverQueue || {};
+let cloudPrinters = [];
+let cloudRunning = false;
+
+async function cloudHeartbeat() {
+  if (!cloudQueue.enabled || !cloudQueue.baseUrl || !cloudQueue.agentKey) return;
+  try {
+    cloudPrinters = await listPrinters();
+    await fetch(`${cloudQueue.baseUrl}/agent/heartbeat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Print-Agent-Key': cloudQueue.agentKey,
+      },
+      body: JSON.stringify({
+        deviceId: cloudQueue.deviceId || 'ajineh-main',
+        version: AGENT_VERSION,
+        printers: cloudPrinters,
+      }),
+    });
+  } catch (error) {
+    console.error('Cloud heartbeat failed:', error.message);
+  }
+}
+
+async function pollCloudQueue() {
+  if (!cloudQueue.enabled || cloudRunning || !cloudQueue.baseUrl || !cloudQueue.agentKey) return;
+  cloudRunning = true;
+  try {
+    const response = await fetch(
+      `${cloudQueue.baseUrl}/agent/next?deviceId=${encodeURIComponent(cloudQueue.deviceId || 'ajineh-main')}`,
+      { headers: { 'X-Print-Agent-Key': cloudQueue.agentKey } }
+    );
+
+    if (response.status === 204) return;
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const body = await response.json();
+    const job = body?.job;
+    if (!job?.id || !job?.payload) return;
+
+    console.log(`Cloud print job ${job.id} received`);
+
+    let result;
+    try {
+      const printed = await printPayload(job.payload);
+      result = { success: true, message: `Printed on ${printed.printer}` };
+      console.log(`Cloud print job ${job.id} done: ${printed.printer}`);
+    } catch (error) {
+      result = { success: false, message: error.message };
+      console.error(`Cloud print job ${job.id} failed: ${error.message}`);
+    }
+
+    await fetch(`${cloudQueue.baseUrl}/agent/${job.id}/result`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Print-Agent-Key': cloudQueue.agentKey,
+      },
+      body: JSON.stringify(result),
+    });
+  } catch (error) {
+    console.error('Cloud queue poll failed:', error.message);
+  } finally {
+    cloudRunning = false;
+  }
+}
+
 const server = http.createServer((req, res) => {
   const origin = req.headers.origin || '';
   if (origin && !allowedOrigins.has(origin)) {
@@ -144,30 +236,8 @@ const server = http.createServer((req, res) => {
   req.on('end', async () => {
     try {
       const body = JSON.parse(raw || '{}');
-      const data = Buffer.from(String(body.dataBase64 || ''), 'base64');
-      if (!data.length || data.length > 2_500_000) throw new Error('بيانات الطباعة غير صالحة');
-      const copies = Math.max(1, Math.min(5, Number(body.copies) || 1));
-
-      /* Either a LAN printer at an address, or a USB one by name. The caller
-         says which; a printerName with no host is taken as USB so an older
-         dashboard build keeps working unchanged. */
-      const usb = body.connection === 'usb' || (!body.host && body.printerName);
-      let label;
-
-      if (usb) {
-        const printerName = String(body.printerName || '').trim();
-        if (!printerName || printerName.length > 200) throw new Error('اسم طابعة USB غير صالح');
-        for (let i = 0; i < copies; i++) await sendToUsbPrinter(printerName, data);
-        label = printerName;
-      } else {
-        const host = String(body.host || '');
-        const port = Number(body.port || 9100);
-        if (!isPrivateHost(host) || port < 1 || port > 65535) throw new Error('عنوان طابعة LAN غير صالح');
-        for (let i = 0; i < copies; i++) await sendToPrinter(host, port, data);
-        label = `${host}:${port}`;
-      }
-
-      reply(res, 200, { success: true, copies, printer: label }, origin);
+      const result = await printPayload(body);
+      reply(res, 200, result, origin);
     } catch (error) {
       reply(res, 502, { success: false, message: error.message }, origin);
     }
@@ -175,12 +245,17 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(listenPort, listenHost, () => {
-  /* Copying one file out of three and restarting looks exactly like a
-     successful update from the outside. Say plainly, at startup, what this
-     copy actually has — the window is open anyway. */
   console.log(`Print Agent ${AGENT_VERSION}: http://${listenHost}:${listenPort}`);
   console.log(`  العناوين المسموحة: ${[...allowedOrigins].join(' , ') || '(لا يوجد)'}`);
   if (!fs.existsSync(path.join(__dirname, 'raw-print.ps1'))) {
     console.error('  ✖ raw-print.ps1 مفقود — طباعة USB لن تعمل. انسخ المجلد كاملاً.');
+  }
+
+  if (cloudQueue.enabled) {
+    console.log(`  Cloud print queue: ${cloudQueue.baseUrl}`);
+    console.log(`  Device ID: ${cloudQueue.deviceId || 'ajineh-main'}`);
+    cloudHeartbeat();
+    setInterval(cloudHeartbeat, Math.max(3000, Number(cloudQueue.heartbeatMs) || 5000));
+    setInterval(pollCloudQueue, Math.max(250, Number(cloudQueue.pollMs) || 500));
   }
 });
