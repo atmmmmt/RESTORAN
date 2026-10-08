@@ -6,14 +6,16 @@ const BranchInventory = require('../models/BranchInventory');
 
 async function adoptLegacyProductStock(centerId, productId) {
   /* Legacy installs kept product stock only on Product.availableQuantity.
-     Adopt it exactly once, and only when the product has no branch stock row
-     anywhere. No Mongo transaction is required, so this also works on
-     standalone Mongo deployments. */
-  const existingBranchRows = await BranchInventory.countDocuments({
+     If all branch rows for this product are still zero, move that legacy
+     balance into the currently selected branch exactly once. This also
+     handles rows that were auto-created earlier with quantity 0. */
+  const branchRows = await BranchInventory.find({
     itemType: 'product',
     productId,
-  });
-  if (existingBranchRows > 0) return null;
+  }).select('_id centerId quantity');
+
+  const branchQty = branchRows.reduce((sum, row) => sum + Number(row.quantity || 0), 0);
+  if (branchQty > 0) return null;
 
   const legacy = await Product.findOneAndUpdate(
     { _id: productId, availableQuantity: { $gt: 0 } },
@@ -23,22 +25,34 @@ async function adoptLegacyProductStock(centerId, productId) {
 
   if (!legacy || Number(legacy.availableQuantity || 0) <= 0) return null;
 
+  const legacyQty = Number(legacy.availableQuantity || 0);
   try {
+    const current = branchRows.find(row => String(row.centerId) === String(centerId));
+    if (current) {
+      return await BranchInventory.findByIdAndUpdate(
+        current._id,
+        {
+          $inc: { quantity: legacyQty },
+          $set: {
+            itemNameSnapshot: legacy.name,
+            averageCostPerUnit: Number(legacy.calculatedCost || 0),
+          },
+        },
+        { new: true }
+      );
+    }
+
     return await BranchInventory.create({
       centerId,
       itemType: 'product',
       productId,
       itemNameSnapshot: legacy.name,
-      quantity: Number(legacy.availableQuantity || 0),
+      quantity: legacyQty,
       averageCostPerUnit: Number(legacy.calculatedCost || 0),
     });
   } catch (err) {
-    // If another request created a branch row first, restore the legacy stock
-    // instead of ever losing it, then use the existing row.
-    await Product.updateOne(
-      { _id: productId },
-      { $inc: { availableQuantity: Number(legacy.availableQuantity || 0) } }
-    );
+    // Never lose stock if a competing write wins the race.
+    await Product.updateOne({ _id: productId }, { $inc: { availableQuantity: legacyQty } });
     const existing = await BranchInventory.findOne({ centerId, itemType: 'product', productId });
     if (existing) return existing;
     throw err;
@@ -143,7 +157,12 @@ const inventoryService = {
       let row = await branchItem(centerId, 'product', productId, false);
 
       // Backward-compatible migration for stock that existed before branches.
-      if (!row) row = await adoptLegacyProductStock(centerId, productId);
+      // Also repairs a zero branch row when all real stock still lives in the
+      // legacy Product.availableQuantity field.
+      if (!row || Number(row.quantity || 0) < quantity) {
+        const adopted = await adoptLegacyProductStock(centerId, productId);
+        if (adopted) row = adopted;
+      }
 
       if (!row || Number(row.quantity || 0) < quantity) {
         const product = await Product.findById(productId).select('name');
