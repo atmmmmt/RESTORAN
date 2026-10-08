@@ -66,7 +66,7 @@ export default function ThermalPrinterSettings() {
       setAgent({ state: 'down', message: e.message })
       if (announce) toast.error(e.message)
     }
-  }, [form.agentUrl]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { probe() }, [probe])
 
@@ -141,9 +141,9 @@ export default function ThermalPrinterSettings() {
         </p>
         <p className="text-xs text-brand-gray truncate">
           {agent.state === 'ok'
-            ? `النسخة ${agent.version || '—'} · ${agent.count} طابعة متاحة`
+            ? `Cloud Agent ${agent.version || '—'} · ${agent.count} طابعة متاحة`
             : agent.state === 'down'
-              ? `${agent.message} — شغّل start-print-agent.bat على هذا الجهاز`
+              ? `${agent.message}`
               : ' '}
         </p>
       </div>
@@ -247,15 +247,12 @@ export default function ThermalPrinterSettings() {
             <option value="1">نعم</option><option value="0">لا</option>
           </select>
         </Field>
-        <Field label="عنوان برنامج الطباعة" hint="لا تغيّره إلا بطلب من الدعم">
-          <input className={input} dir="ltr" value={form.agentUrl || ''} onChange={e => field('agentUrl', e.target.value)} />
-        </Field>
       </div>}
     </div>
 
     <div className="flex items-center gap-3">
       <Button onClick={save} icon={<Save size={16} />}>حفظ الإعدادات</Button>
-      <p className="text-xs text-brand-gray">الإعدادات محفوظة على هذا الجهاز فقط — لكل كاشير إعداده.</p>
+      <p className="text-xs text-brand-gray">اختيار الطابعة محفوظ على هذا الجهاز، والاتصال يتم تلقائياً عبر السيرفر.</p>
     </div>
   </div>
 }
