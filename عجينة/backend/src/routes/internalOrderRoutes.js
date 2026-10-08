@@ -7,6 +7,7 @@ const mongoose = require('mongoose');
 const { protect, requirePos, requireKitchen, requireRole } = require('../middleware/auth');
 const InternalOrder = require('../models/InternalOrder');
 const Product       = require('../models/Product');
+const SalesCenter   = require('../models/SalesCenter');
 const cashService   = require('../services/cashService');
 const inventoryService = require('../services/inventoryService');
 const CustomerOrder = require('../models/CustomerOrder');
@@ -67,6 +68,29 @@ function businessDayCenter(req) {
     : null;
 }
 
+
+/* Orders created before the branch switcher existed may have centerId=null.
+   Those legacy counter orders belong to the Americans branch. Adopt only the
+   requested day's unassigned orders, and only when the active branch is the
+   Americans branch. */
+async function adoptLegacyAmericansOrders(req, start, end) {
+  const centerId = boundCenterId(req.user);
+  if (!centerId || !mongoose.isValidObjectId(centerId) || !start || !end) return 0;
+
+  const center = await SalesCenter.findById(centerId).select('name');
+  const name = String(center?.name || '');
+  if (!/(الأميركان|اميركان|american)/i.test(name)) return 0;
+
+  const result = await InternalOrder.updateMany(
+    {
+      centerId: null,
+      createdAt: { $gte: start, $lt: end },
+    },
+    { $set: { centerId } }
+  );
+  return Number(result.modifiedCount || 0);
+}
+
 function presentOrder(order, role) {
   const value = order?.toObject ? order.toObject({ virtuals: true }) : { ...order };
   if (['cashier', 'kitchen'].includes(role)) {
@@ -104,6 +128,10 @@ router.get('/', requireRole('admin', 'supervisor', 'cashier', 'kitchen', 'viewer
   }
   if (req.query.shift && mongoose.isValidObjectId(req.query.shift)) filter.shiftId = req.query.shift;
 
+  if (filter.createdAt?.$gte && filter.createdAt?.$lt) {
+    await adoptLegacyAmericansOrders(req, filter.createdAt.$gte, filter.createdAt.$lt);
+  }
+
   const orders = await InternalOrder.find(filter)
     .sort({ createdAt: -1 })
     .limit(Math.min(Number(limit) || 100, 500));
@@ -119,6 +147,8 @@ router.get('/', requireRole('admin', 'supervisor', 'cashier', 'kitchen', 'viewer
    sit above /:key so "daily-report" isn't read as an id. */
 router.get('/daily-report', requireRole('admin', 'supervisor', 'cashier', 'viewer'), async (req, res) => {
   const { day, start, end } = await businessDay.range(req.query.date, businessDayCenter(req));
+
+  await adoptLegacyAmericansOrders(req, start, end);
 
   const posFilter = { createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } };
   applyCenterScope(req, posFilter);
