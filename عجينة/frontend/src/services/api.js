@@ -87,10 +87,24 @@ api.interceptors.response.use(
     const config = err.config || {}
 
     if (err.response?.status === 401) {
-      localStorage.removeItem('luliz_admin_token')
-      localStorage.removeItem('luliz_admin_user')
-      const isAmericansPortal = window.location.pathname.startsWith('/americans')
-      window.location.href = isAmericansPortal ? '/americans/login' : '/admin/login'
+      const url = String(config.url || '')
+      const authMessage = String(err.response?.data?.message || '')
+      const trulyInvalidSession =
+        url.includes('/auth/me') ||
+        /انتهت صلاحية الجلسة|رمز المصادقة غير صالح|المستخدم غير موجود/.test(authMessage)
+
+      /* Do not destroy the whole admin session because one feature endpoint
+         rejected a request. Session validation belongs to /auth/me (or an
+         explicit expired/invalid-token response). This prevents a branch,
+         device or legacy endpoint from kicking the manager out immediately
+         after a successful login. */
+      if (trulyInvalidSession) {
+        localStorage.removeItem('luliz_admin_token')
+        localStorage.removeItem('luliz_admin_user')
+        localStorage.removeItem(ACTIVE_CENTER_KEY)
+        const isAmericansPortal = window.location.pathname.startsWith('/americans')
+        window.location.href = isAmericansPortal ? '/americans/login' : '/admin/login'
+      }
       return Promise.reject({ ...err, message })
     }
 
