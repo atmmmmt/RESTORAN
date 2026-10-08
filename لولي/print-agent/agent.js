@@ -5,7 +5,7 @@ const net = require('net');
 const os = require('os');
 const { execFile } = require('child_process');
 
-const VERSION = '3.0.2';
+const VERSION = '3.0.3';
 const PORT = 9123;
 const SERVER_BASE = 'https://loliz-taste.com/api/print-jobs';
 const DEVICE_ID = 'luliz-main';
@@ -116,8 +116,8 @@ async function firstReachable(candidates, port) {
   return null;
 }
 
-async function scanForPrinters(port = 9100) {
-  const prefixes = localSubnetPrefixes();
+async function scanForPrinters(port = 9100, extraPrefixes = []) {
+  const prefixes = [...new Set([...localSubnetPrefixes(), ...extraPrefixes.filter(Boolean)])];
   const candidates = [];
 
   for (const prefix of prefixes) {
@@ -135,6 +135,36 @@ async function scanForPrinters(port = 9100) {
   return [...new Set(candidates)];
 }
 
+async function diagnoseTarget(ip, preferredPort = 9100) {
+  const localIps = [];
+  for (const rows of Object.values(os.networkInterfaces())) {
+    for (const row of rows || []) {
+      if (row && !row.internal && row.family === 'IPv4') localIps.push(row.address);
+    }
+  }
+
+  console.log(new Date().toLocaleTimeString(), 'Laptop IPv4:', localIps.join(', ') || '(none)');
+
+  let pingOk = false;
+  if (process.platform === 'win32') {
+    const ping = await runPowerShell(
+      `Test-Connection -ComputerName '${ip}' -Count 1 -Quiet -ErrorAction SilentlyContinue`,
+      5000
+    );
+    pingOk = String(ping).trim().toLowerCase() === 'true';
+  }
+  console.log(new Date().toLocaleTimeString(), `Ping ${ip}: ${pingOk ? 'OK' : 'NO RESPONSE'}`);
+
+  const commonPorts = [...new Set([Number(preferredPort) || 9100, 9100, 9101, 9102, 515, 631, 80])];
+  const openPorts = [];
+  for (const p of commonPorts) {
+    if (await probePort(ip, p, 700)) openPorts.push(p);
+  }
+  console.log(new Date().toLocaleTimeString(), `Open ports on ${ip}: ${openPorts.length ? openPorts.join(', ') : 'none'}`);
+
+  return { localIps, pingOk, openPorts };
+}
+
 const resolvedTargets = new Map();
 
 async function resolvePrinterTarget(ip, port = 9100) {
@@ -149,7 +179,12 @@ async function resolvePrinterTarget(ip, port = 9100) {
     return { ip, port, changed: false };
   }
 
-  console.log(new Date().toLocaleTimeString(), `⚠ ${ip}:${port} لا يرد — جاري البحث عن عنوان الطابعة الحقيقي...`);
+  console.log(new Date().toLocaleTimeString(), `⚠ ${ip}:${port} لا يرد — جاري التشخيص والبحث عن عنوان الطابعة الحقيقي...`);
+  const diag = await diagnoseTarget(ip, port);
+
+  if (diag.pingOk && diag.openPorts.length && !diag.openPorts.includes(Number(port))) {
+    throw new Error(`الطابعة ${ip} موجودة على الشبكة لكن المنفذ ${port} مغلق. المنافذ المفتوحة: ${diag.openPorts.join(', ')}`);
+  }
 
   const windowsCandidates = await windowsPrinterCandidates(port);
   if (windowsCandidates.length) {
@@ -173,7 +208,8 @@ async function resolvePrinterTarget(ip, port = 9100) {
   }
 
   console.log(new Date().toLocaleTimeString(), 'لم نجدها ضمن منافذ Windows — جاري فحص الشبكة المحلية...');
-  const candidates = await scanForPrinters(port);
+  const targetPrefix = String(ip).split('.').slice(0, 3).join('.');
+  const candidates = await scanForPrinters(port, [targetPrefix]);
 
   if (candidates.length === 1) {
     resolvedTargets.set(key, candidates[0]);
