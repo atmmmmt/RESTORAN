@@ -155,9 +155,12 @@ async function close(centerId, user, { countedCash, notes = '' } = {}) {
     err.statusCode = 404;
     throw err;
   }
-  const counted = Number(countedCash);
-  if (!Number.isFinite(counted) || counted < 0) {
-    const err = new Error('أدخل المبلغ الموجود في الدرج');
+  // A cash count is optional: closing a shift must not claim the actual
+  // drawer balance was verified when the user only wants the sales report.
+  const hasCount = countedCash !== undefined && countedCash !== null && countedCash !== '';
+  const counted = hasCount ? Number(countedCash) : null;
+  if (hasCount && (!Number.isFinite(counted) || counted < 0)) {
+    const err = new Error('المبلغ المعدود غير صالح');
     err.statusCode = 400;
     throw err;
   }
@@ -167,7 +170,7 @@ async function close(centerId, user, { countedCash, notes = '' } = {}) {
   shift.summary = summary;
   shift.expectedCash = expectedCash;
   shift.countedCash = counted;
-  shift.difference = counted - expectedCash;
+  shift.difference = hasCount ? counted - expectedCash : null;
   shift.notes = String(notes || '').trim();
   shift.closedBy = user?._id;
   shift.closedByName = user?.name || '';
