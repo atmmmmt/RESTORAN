@@ -406,6 +406,8 @@ router.get('/report', visibleToFinance, async (req, res) => {
       consumptionTax: 0,
       localAdministration: 0,
       taxTotal: 0,
+      investorInternalBase: 0,
+      investorExternalBase: 0,
       investorInternal: 0,
       investorExternal: 0,
       investorShare: 0,
@@ -431,8 +433,13 @@ router.get('/report', visibleToFinance, async (req, res) => {
     row.localAdministration += local;
     row.taxTotal += consumption + local;
     row.investorShare += share;
-    if (orderType === 'dine_in') row.investorInternal += share;
-    else row.investorExternal += share;
+    if (orderType === 'dine_in') {
+      row.investorInternalBase += grandTotal;
+      row.investorInternal += share;
+    } else {
+      row.investorExternalBase += grandTotal;
+      row.investorExternal += share;
+    }
     row.obligationsTotal += consumption + local + share;
     row.grandTotal += grandTotal;
   };
@@ -442,6 +449,7 @@ router.get('/report', visibleToFinance, async (req, res) => {
 
   const moneyFields = [
     'foodAndBeverageValue', 'consumptionTax', 'localAdministration', 'taxTotal',
+    'investorInternalBase', 'investorExternalBase',
     'investorInternal', 'investorExternal', 'investorShare', 'obligationsTotal', 'grandTotal',
   ];
   const resultRows = [...rows.values()]
@@ -479,6 +487,8 @@ router.get('/report', visibleToFinance, async (req, res) => {
       consumptionTax: total('consumptionTax'),
       localAdministration: total('localAdministration'),
       taxTotal: total('taxTotal'),
+      investorInternalBase: total('investorInternalBase'),
+      investorExternalBase: total('investorExternalBase'),
       investorInternal: total('investorInternal'),
       investorExternal: total('investorExternal'),
       investorShare: total('investorShare'),
