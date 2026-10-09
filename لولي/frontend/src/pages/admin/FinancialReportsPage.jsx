@@ -236,8 +236,8 @@ export default function FinancialReportsPage(){
         <div className="bg-white border border-brand-border rounded-2xl p-5">
           <h3 className="font-black text-brand-dark mb-4">نسبة {report?.investor?.name||'الأميركان'} — مستقلة</h3>
           <div className="space-y-3 text-sm">
-            <div className="flex justify-between"><span className="font-bold text-brand-gray">بالمحل ({report?.investor?.internalPercent??20}%)</span><b>{money(totals.investorInternal,currency)}</b></div>
-            <div className="flex justify-between"><span className="font-bold text-brand-gray">سفري / توصيل ({report?.investor?.deliveryPercent??15}%)</span><b>{money(totals.investorExternal,currency)}</b></div>
+            <div className="flex justify-between"><span className="font-bold text-brand-gray">بالمحل ({report?.investor?.internalPercent??20.5}%)</span><b>{money(totals.investorInternal,currency)}</b></div>
+            <div className="flex justify-between"><span className="font-bold text-brand-gray">سفري / توصيل ({report?.investor?.deliveryPercent??15.5}%)</span><b>{money(totals.investorExternal,currency)}</b></div>
             <div className="flex justify-between border-t border-brand-border pt-3"><span className="font-black">إجمالي النسبة</span><b className="text-fuchsia">{money(totals.investorShare,currency)}</b></div>
           </div>
         </div>
