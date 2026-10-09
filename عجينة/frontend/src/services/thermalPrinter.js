@@ -749,15 +749,60 @@ function drawDailyReport(report, settings, logo) {
 
   const byType = report.byType || []
   if (inv.enabled !== false && (t.investorShare || byType.some(l => l.investorShare))) {
-    p.space(4)
-    p.line(`نسبة ${inv.name}`, { size: 24, bold: true, gap: 10 })
-    if (t.internal?.count) {
-      p.pair(`بالمحل 20% من ${money(t.internal.base)}`, money(t.internal.investorShare), { size: 21, bold: true })
+    p.space(6)
+    p.line(`نسبة ${inv.name} — محسوبة على الإجمالي شامل الضريبة`, { size: 22, bold: true, gap: 10 })
+
+    const drawShareBox = (x, y, w, title, total, cash, percent, share) => {
+      const h = 156
+      ctx.strokeStyle = '#000'
+      ctx.lineWidth = 3
+      ctx.strokeRect(x, y, w, h)
+
+      p.font(21, true)
+      ctx.fillStyle = '#000'
+      ctx.textAlign = 'center'
+      ctx.fillText(title, x + w / 2, y + 12, w - 18)
+
+      p.font(20, true)
+      ctx.fillText(`Total: ${money(total)}`, x + w / 2, y + 46, w - 18)
+
+      p.font(17, false)
+      ctx.fillText(`منها كاش: ${money(cash)}`, x + w / 2, y + 78, w - 18)
+
+      p.font(18, true)
+      ctx.fillText(`حصة ${inv.name} ${percent}%`, x + w / 2, y + 108, w - 18)
+
+      p.font(21, true)
+      ctx.fillText(money(share), x + w / 2, y + 132, w - 18)
+      return h
     }
-    if (t.external?.count) {
-      p.pair(`سفري / توصيل 15% من ${money(t.external.base)}`, money(t.external.investorShare), { size: 21, bold: true })
-    }
-    p.banner('المستحق', money(t.investorShare), { size: 28 })
+
+    const outerPad = 20
+    const gap = 12
+    const boxW = Math.floor((width - outerPad * 2 - gap) / 2)
+    const top = p.y
+    const rightX = width - outerPad - boxW
+    const leftX = outerPad
+
+    const h1 = drawShareBox(
+      rightX, top, boxW,
+      'Total بالمحل',
+      t.internal?.total ?? t.internal?.base ?? 0,
+      t.internal?.cash ?? 0,
+      t.internal?.percent ?? 20,
+      t.internal?.investorShare ?? 0
+    )
+    const h2 = drawShareBox(
+      leftX, top, boxW,
+      'Total سفري / توصيل',
+      t.external?.total ?? t.external?.base ?? 0,
+      t.external?.cash ?? 0,
+      t.external?.percent ?? 15,
+      t.external?.investorShare ?? 0
+    )
+    p.y = top + Math.max(h1, h2) + 18
+
+    p.banner(`إجمالي مستحق ${inv.name}`, money(t.investorShare), { size: 27 })
     p.space(4)
     p.pair('الباقي للمحل', money((t.netSales ?? t.sales ?? 0) - (t.investorShare || 0)), { size: 23, bold: true })
   }
