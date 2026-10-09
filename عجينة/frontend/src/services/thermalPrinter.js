@@ -794,7 +794,7 @@ function drawDailyReport(report, settings, logo) {
     )
     const h2 = drawShareBox(
       leftX, top, boxW,
-      'Total سفري / توصيل',
+      'Total سفري / توصيل / موقع',
       t.external?.total ?? t.external?.base ?? 0,
       t.external?.cash ?? 0,
       t.external?.percent ?? 15,
