@@ -146,7 +146,13 @@ router.get('/', requireRole('admin', 'supervisor', 'cashier', 'kitchen', 'viewer
    hours (Damascus time), so a night past midnight is still one report. Must
    sit above /:key so "daily-report" isn't read as an id. */
 router.get('/daily-report', requireRole('admin', 'supervisor', 'cashier', 'viewer'), async (req, res) => {
-  const { day, start, end } = await businessDay.range(req.query.date, businessDayCenter(req));
+  // Daily print is a calendar-day document, independent of cashier shifts.
+  // This intentionally includes orders rung before the first shift opened.
+  const day = CALENDAR_DAY_KEY.test(String(req.query.date || ''))
+    ? String(req.query.date)
+    : new Date(Date.now() + businessDay.SHOP_OFFSET_MS).toISOString().slice(0, 10);
+  const start = calendarStart(day);
+  const end = calendarEndExclusive(day);
 
   await adoptLegacyAmericansOrders(req, start, end);
 
@@ -175,9 +181,10 @@ router.get('/daily-report', requireRole('admin', 'supervisor', 'cashier', 'viewe
         items: (o.items || []).map(i => ({ name: i.name, quantity: i.quantity })),
         discount: o.discount || 0,
         total: o.total || 0,
-        investorBase: Number(o.netAmount ?? Math.max((Number(o.total) || 0) - (Number(o.invoiceTaxAmount) || 0), 0)),
+        paymentMethod: o.paymentMethod || '',
+        investorBase: Number(o.total || 0),
         investorPercent: pct,
-        investorShare: cut(Number(o.netAmount ?? Math.max((Number(o.total) || 0) - (Number(o.invoiceTaxAmount) || 0), 0)), pct),
+        investorShare: cut(Number(o.total || 0), pct),
       };
     }),
     ...site.map(o => {
@@ -186,9 +193,10 @@ router.get('/daily-report', requireRole('admin', 'supervisor', 'cashier', 'viewe
         kind: 'site', number: 'موقع', at: o.createdAt, orderType: 'site',
         items: [{ name: o.productNameSnapshot, quantity: o.quantity }],
         total: o.totalPrice || 0,
-        investorBase: Number(o.netAmount ?? Math.max((Number(o.totalPrice) || 0) - (Number(o.invoiceTaxAmount) || 0), 0)),
+        paymentMethod: o.paymentMethod || '',
+        investorBase: Number(o.totalPrice || 0),
         investorPercent: pct,
-        investorShare: cut(Number(o.netAmount ?? Math.max((Number(o.totalPrice) || 0) - (Number(o.invoiceTaxAmount) || 0), 0)), pct),
+        investorShare: cut(Number(o.totalPrice || 0), pct),
       };
     }),
   ].sort((a, b) => new Date(a.at) - new Date(b.at));
@@ -240,6 +248,10 @@ router.get('/daily-report', requireRole('admin', 'supervisor', 'cashier', 'viewe
   const netSales      = grossSales - refundedTotal;
   const internalOrders = orders.filter(o => o.kind === 'pos' && o.orderType === 'dine_in');
   const externalOrders = orders.filter(o => o.kind === 'site' || o.orderType === 'takeaway' || o.orderType === 'delivery');
+  const internalReturns = returns.filter(r => r.orderType === 'dine_in');
+  const externalReturns = returns.filter(r => r.orderType === 'takeaway' || r.orderType === 'delivery' || r.orderType === 'site');
+  const internalCash = internalOrders.filter(o => o.paymentMethod === 'cash');
+  const externalCash = externalOrders.filter(o => o.paymentMethod === 'cash');
 
   res.json({
     success: true,
@@ -259,18 +271,24 @@ router.get('/daily-report', requireRole('admin', 'supervisor', 'cashier', 'viewe
       refunded: refundedTotal,
       netSales,
       internal: {
-        percent: 20,
+        percent: settings.percentFor('dine_in'),
         count: internalOrders.length,
         sales: sum(internalOrders, 'total'),
-        base: sum(internalOrders, 'investorBase'),
-        investorShare: sum(internalOrders, 'investorShare'),
+        refunded: sum(internalReturns, 'amount'),
+        total: sum(internalOrders, 'total') - sum(internalReturns, 'amount'),
+        cash: sum(internalCash, 'total'),
+        base: sum(internalOrders, 'investorBase') - sum(internalReturns, 'amount'),
+        investorShare: sum(internalOrders, 'investorShare') - sum(internalReturns, 'investorShare'),
       },
       external: {
-        percent: 15,
+        percent: settings.percentFor('takeaway'),
         count: externalOrders.length,
         sales: sum(externalOrders, 'total'),
-        base: sum(externalOrders, 'investorBase'),
-        investorShare: sum(externalOrders, 'investorShare'),
+        refunded: sum(externalReturns, 'amount'),
+        total: sum(externalOrders, 'total') - sum(externalReturns, 'amount'),
+        cash: sum(externalCash, 'total'),
+        base: sum(externalOrders, 'investorBase') - sum(externalReturns, 'amount'),
+        investorShare: sum(externalOrders, 'investorShare') - sum(externalReturns, 'investorShare'),
       },
       investorShare: sum(orders, 'investorShare') - sum(returns, 'investorShare'),
     },
