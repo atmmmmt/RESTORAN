@@ -15,7 +15,7 @@ import Modal        from '../../components/common/Modal'
 import LoadingState from '../../components/common/LoadingState'
 import toast from 'react-hot-toast'
 import {
-  getPrinterSettings, printThermalReceipt, printThermalDailyReport, printKitchenTicket, discountLabel,
+  getPrinterSettings, printThermalReceipt, printThermalDailyReport, printThermalShiftReport, printKitchenTicket, discountLabel,
 } from '../../services/thermalPrinter'
 import ShiftPanel from '../../components/pos/ShiftPanel'
 import OrderDetailsModal from './OrderDetailsModal'
@@ -233,6 +233,7 @@ export default function PosPage() {
   /* End-of-day printout: every order of today with the investor's share. */
   const [printingDay, setPrintingDay] = useState(false)
   const [reportDate, setReportDate] = useState(syriaDayKey())
+  const [printingYesterday, setPrintingYesterday] = useState('')
   const printDailyReport = async () => {
     setPrintingDay(true)
     try {
@@ -242,6 +243,41 @@ export default function PosPage() {
     } catch (e) {
       toast.error(e.message || 'تعذّرت طباعة طلبات اليوم')
     } finally { setPrintingDay(false) }
+  }
+
+  // Two direct archive shortcuts; neither one closes/changes the current shift.
+  const printYesterdaySales = async () => {
+    setPrintingYesterday('sales')
+    try {
+      const date = syriaDayKey(-1)
+      const res = await internalOrdersAPI.dailyReport(date)
+      await printThermalDailyReport(res.data)
+      toast.success(`تمت طباعة مبيعات أمس ${date}`)
+    } catch (e) {
+      toast.error(e.message || 'تعذّرت طباعة مبيعات أمس')
+    } finally { setPrintingYesterday('') }
+  }
+
+  const printYesterdayShift = async () => {
+    setPrintingYesterday('shift')
+    try {
+      const yesterday = syriaDayKey(-1)
+      const res = await shiftsAPI.list({ limit: 100 })
+      const candidates = (res.data.shifts || []).filter(shift =>
+        shift.status === 'closed' &&
+        shift.openedAt &&
+        new Date(new Date(shift.openedAt).getTime() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10) === yesterday
+      )
+      if (!candidates.length) {
+        toast.error('ما في وردية مغلقة انفتحت أمس — افتح أرشيف الورديات لاختيار وردية أخرى')
+        return
+      }
+      const latest = candidates.sort((a, b) => new Date(b.closedAt || b.openedAt) - new Date(a.closedAt || a.openedAt))[0]
+      await printThermalShiftReport(latest)
+      toast.success(`تمت طباعة وردية أمس رقم ${latest.number}`)
+    } catch (e) {
+      toast.error(e.message || 'تعذّرت طباعة وردية أمس')
+    } finally { setPrintingYesterday('') }
   }
 
   const printTicket = async () => {
@@ -667,6 +703,12 @@ export default function PosPage() {
               </button>
               <Button onClick={printDailyReport} loading={printingDay} icon={<Printer size={16} />}>
                 طباعة كل طلبات التاريخ
+              </Button>
+              <Button variant="outline" onClick={printYesterdaySales} loading={printingYesterday === 'sales'} disabled={!!printingYesterday} icon={<Printer size={16} />}>
+                طباعة مبيعات أمس
+              </Button>
+              <Button variant="outline" onClick={printYesterdayShift} loading={printingYesterday === 'shift'} disabled={!!printingYesterday} icon={<Printer size={16} />}>
+                طباعة وردية أمس
               </Button>
               <div className="text-xs font-bold text-brand-gray">
                 يشمل 00:00–23:59 حتى الطلبات التي تمت قبل فتح الوردية.
