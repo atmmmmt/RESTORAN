@@ -2,7 +2,7 @@
 setlocal
 chcp 65001 >nul
 cd /d "%~dp0"
-title Ajineh Cloud Print Agent Installer 1.3.1
+title Ajineh Cloud Print Agent Installer 1.3.2
 
 net session >nul 2>&1
 if errorlevel 1 (
@@ -11,7 +11,7 @@ if errorlevel 1 (
 )
 
 echo ==========================================
-echo   Ajineh Cloud Print Agent 1.3.1
+echo   Ajineh Cloud Print Agent 1.3.2
 echo ==========================================
 echo.
 
