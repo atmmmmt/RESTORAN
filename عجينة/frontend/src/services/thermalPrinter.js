@@ -276,7 +276,7 @@ function painter(ctx, width) {
   }
 
   const api = {
-    y: 16,
+    y: 2,
     font(size, bold) { ctx.font = `${bold ? '700' : '400'} ${size}px Tajawal, Cairo, Arial, Tahoma, sans-serif` },
 
     /** One line of text. */
@@ -387,15 +387,48 @@ function toLineArt(image, w, h) {
   const fctx = flat.getContext('2d', { willReadFrequently: true })
   fctx.fillStyle = '#fff'; fctx.fillRect(0, 0, w, h)
   fctx.drawImage(image, 0, 0, w, h)
+
   const data = fctx.getImageData(0, 0, w, h)
   const d = data.data
-  for (let i = 0; i < d.length; i += 4) {
-    const lum = d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114
-    const on = d[i + 3] > 32 && lum < 150
-    d[i] = d[i + 1] = d[i + 2] = on ? 0 : 255
-    d[i + 3] = 255
+  let minX = w, minY = h, maxX = -1, maxY = -1
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4
+      const lum = d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114
+      const on = d[i + 3] > 32 && lum < 150
+      d[i] = d[i + 1] = d[i + 2] = on ? 0 : 255
+      d[i + 3] = 255
+      if (on) {
+        if (x < minX) minX = x
+        if (x > maxX) maxX = x
+        if (y < minY) minY = y
+        if (y > maxY) maxY = y
+      }
+    }
   }
+
   fctx.putImageData(data, 0, 0)
+
+  // Remove transparent/white padding baked into the source logo so the
+  // thermal receipt starts almost immediately with visible artwork.
+  if (maxX >= minX && maxY >= minY) {
+    const pad = 2
+    const sx = Math.max(0, minX - pad)
+    const sy = Math.max(0, minY - pad)
+    const sw = Math.min(w - sx, maxX - minX + 1 + pad * 2)
+    const sh = Math.min(h - sy, maxY - minY + 1 + pad * 2)
+    const cropped = document.createElement('canvas')
+    cropped.width = sw
+    cropped.height = sh
+    const cctx = cropped.getContext('2d')
+    cctx.fillStyle = '#fff'
+    cctx.fillRect(0, 0, sw, sh)
+    cctx.drawImage(flat, sx, sy, sw, sh, 0, 0, sw, sh)
+    lineArtCache.set(key, cropped)
+    return cropped
+  }
+
   lineArtCache.set(key, flat)
   return flat
 }
@@ -403,14 +436,15 @@ function toLineArt(image, w, h) {
 /** The shop's masthead — logo and name — shared by both printouts. */
 function drawHeader(ctx, p, width, settings, logo) {
   if (logo && settings.showLogo !== false) {
-    const maxHeight = 240
+    const maxHeight = 220
     const scale = Math.min((width - 40) / logo.width, maxHeight / logo.height)
     const w = Math.round(logo.width * scale)
     const h = Math.round(logo.height * scale)
-    ctx.drawImage(toLineArt(logo, w, h), Math.round((width - w) / 2), p.y, w, h)
-    p.y += h + 14
+    const art = toLineArt(logo, w, h)
+    ctx.drawImage(art, Math.round((width - art.width) / 2), p.y)
+    p.y += art.height + 6
   }
-  p.line(settings.header, { size: 36, bold: true, gap: 10 })
+  p.line(settings.header, { size: 36, bold: true, gap: 8 })
 }
 
 const ORDER_TYPE_LABEL = { takeaway: 'سفري', dine_in: 'بالمحل', delivery: 'توصيل', site: 'موقع' }
