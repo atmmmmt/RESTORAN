@@ -363,10 +363,13 @@ export async function renderFinancialReport(r, { logoUrl = '/brand/luliz-logo-ro
 
     if (validMode === 'combined') {
       p.gap(4)
-      p.row('إجمالي الضريبة', formatCurrency(taxOf(row)), { size: 20, weight: 800 })
-      p.row(`إجمالي ${investorName}`, formatCurrency(row.investorShare), { size: 20, weight: 800 })
-      p.band(`إجمالي الالتزامات  ${formatCurrency(obligationsOf(row))}`, { size: 25 })
-      p.row('الإجمالي مع الضريبة', formatCurrency(row.grandTotal), { size: 20, weight: 800 })
+      p.row('إنفاق استهلاكي (5%)', formatCurrency(row.consumptionTax), { size: 20, weight: 700 })
+      p.row('إدارة محلية (5%)', formatCurrency(row.localAdministration), { size: 20, weight: 700 })
+      p.row('إجمالي الضرائب', formatCurrency(taxOf(row)), { size: 21, weight: 800 })
+      p.band(`الإجمالي شامل الضريبة  ${formatCurrency(row.grandTotal)}`, { size: 24 })
+      p.row(`الأميركان بالمحل (${internalPercent}%)`, formatCurrency(row.investorInternal), { size: 20, weight: 700 })
+      p.row(`الأميركان سفري / توصيل (${deliveryPercent}%)`, formatCurrency(row.investorExternal), { size: 20, weight: 700 })
+      p.row(`مستحقات ${investorName}`, formatCurrency(row.investorShare), { size: 21, weight: 900 })
       continue
     }
 
@@ -389,7 +392,7 @@ export async function renderFinancialReport(r, { logoUrl = '/brand/luliz-logo-ro
   }
 
   p.line({ dashed: false, width: 4 })
-  p.text('الإجمالي العام', { size: 28, weight: 900 })
+  p.text('ملخص التقرير العام', { size: 28, weight: 900 })
   p.row('المبيعات قبل الضريبة', formatCurrency(t.foodAndBeverageValue), { size: 22, weight: 800 })
 
   if (validMode !== 'americans') {
@@ -411,7 +414,11 @@ export async function renderFinancialReport(r, { logoUrl = '/brand/luliz-logo-ro
 
   if (validMode === 'combined') {
     p.gap(8)
-    p.band(`إجمالي الالتزامات  ${formatCurrency(obligationsOf(t))}`, { size: 29 })
+    p.box(() => {
+      p.row('مجموع الضرائب', formatCurrency(taxOf(t)), { size: 21, weight: 800 })
+      p.row(`مجموع مستحقات ${investorName}`, formatCurrency(t.investorShare), { size: 21, weight: 800 })
+      p.band(`إجمالي الالتزامات  ${formatCurrency(obligationsOf(t))}`, { size: 26 })
+    }, { width: 3 })
   }
 
   p.gap(8)
