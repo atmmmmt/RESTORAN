@@ -368,14 +368,18 @@ export default function FinancialReportsPage(){
     {!!rows.length&&<section className="space-y-3">
       <div className="bg-white border-2 border-brand-border rounded-2xl p-5">
         <div className="text-sm font-black text-brand-dark mb-4">حسبة المبيعات أولاً</div>
-        <div className="grid sm:grid-cols-3 gap-3">
+        <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
           <div className="rounded-2xl bg-brand-bg p-4">
             <div className="text-xs font-black text-brand-gray mb-1">المبيعات</div>
             <div className="text-xl font-black text-brand-dark">{money(totals.foodAndBeverageValue,currency)}</div>
           </div>
           <div className="rounded-2xl bg-amber-50 p-4">
-            <div className="text-xs font-black text-amber-700 mb-1">+ الضرائب</div>
-            <div className="text-xl font-black text-amber-700">{money(totals.taxTotal,currency)}</div>
+            <div className="text-xs font-black text-amber-700 mb-1">+ الإنفاق الاستهلاكي 5%</div>
+            <div className="text-xl font-black text-amber-700">{money(totals.consumptionTax,currency)}</div>
+          </div>
+          <div className="rounded-2xl bg-orange-50 p-4">
+            <div className="text-xs font-black text-orange-700 mb-1">+ الإدارة المحلية 5% من ضريبة الإنفاق</div>
+            <div className="text-xl font-black text-orange-700">{money(totals.localAdministration,currency)}</div>
           </div>
           <div className="rounded-2xl bg-brand-dark text-white p-4">
             <div className="text-xs font-black text-white/70 mb-1">= الإجمالي شامل الضريبة</div>
