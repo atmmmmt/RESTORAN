@@ -46,9 +46,10 @@ export function exportFinancialReportPdf(report, {
     ],
     americans:[
       ['pointOfSale','اسم نقطة البيع'],
-      ['foodAndBeverageValue','المبيعات قبل الضريبة'],
-      ['investorInternal',`بالمحل ${internalPercent}%`],
-      ['investorExternal',`سفري / توصيل ${deliveryPercent}%`],
+      ['investorInternalBase','Total بالمحل شامل الضريبة'],
+      ['investorInternal',`حصة ${investorName} ${internalPercent}%`],
+      ['investorExternalBase','Total سفري / توصيل / موقع شامل الضريبة'],
+      ['investorExternal',`حصة ${investorName} ${deliveryPercent}%`],
       ['investorShare',`إجمالي ${investorName}`],
     ],
     combined:[
@@ -79,9 +80,10 @@ export function exportFinancialReportPdf(report, {
       ]
     : validMode==='americans'
       ? [
-          ['المبيعات قبل الضريبة',money(t.foodAndBeverageValue,currency)],
-          [`بالمحل ${internalPercent}%`,money(t.investorInternal,currency)],
-          [`سفري / توصيل ${deliveryPercent}%`,money(t.investorExternal,currency)],
+          ['Total بالمحل شامل الضريبة',money(t.investorInternalBase,currency)],
+          [`حصة ${investorName} ${internalPercent}%`,money(t.investorInternal,currency)],
+          ['Total سفري / توصيل / موقع شامل الضريبة',money(t.investorExternalBase,currency)],
+          [`حصة ${investorName} ${deliveryPercent}%`,money(t.investorExternal,currency)],
           [`إجمالي ${investorName}`,money(t.investorShare,currency)],
         ]
       : [
@@ -101,7 +103,7 @@ export function exportFinancialReportPdf(report, {
       ? {
           label:`إجمالي مستحق ${investorName}`,
           amount:Number(t.investorShare||0),
-          details:`بالمحل ${internalPercent}%: ${money(t.investorInternal,currency)}<br>سفري / توصيل ${deliveryPercent}%: ${money(t.investorExternal,currency)}<br>المبيعات قبل الضريبة: ${money(t.foodAndBeverageValue,currency)}`,
+          details:`Total بالمحل شامل الضريبة: ${money(t.investorInternalBase,currency)}<br>حصة ${investorName} ${internalPercent}%: ${money(t.investorInternal,currency)}<br>Total سفري / توصيل / موقع شامل الضريبة: ${money(t.investorExternalBase,currency)}<br>حصة ${investorName} ${deliveryPercent}%: ${money(t.investorExternal,currency)}<br>الإجمالي شامل الضريبة: ${money(t.grandTotal,currency)}`,
         }
       : {
           label:'إجمالي الالتزامات',
