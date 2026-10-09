@@ -324,8 +324,8 @@ export async function renderFinancialReport(r, { logoUrl = '/brand/luliz-logo-ro
   const period = r.period || {}
   const investor = r.investor || {}
   const investorName = investor.name || 'الأميركان'
-  const internalPercent = investor.internalPercent ?? 20
-  const deliveryPercent = investor.deliveryPercent ?? 15
+  const internalPercent = investor.internalPercent ?? 20.5
+  const deliveryPercent = investor.deliveryPercent ?? 15.5
   const taxOf = x => Number(x?.taxTotal ?? (Number(x?.consumptionTax || 0) + Number(x?.localAdministration || 0)))
   const obligationsOf = x => Number(x?.obligationsTotal ?? (taxOf(x) + Number(x?.investorShare || 0)))
 
