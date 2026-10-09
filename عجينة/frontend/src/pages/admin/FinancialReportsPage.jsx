@@ -21,8 +21,8 @@ const money = (value,currency='SYP') =>
   new Intl.NumberFormat('ar-SY',{maximumFractionDigits:2}).format(Number(value||0)) + (currency==='SYP'?' ل.س':' '+currency)
 
 export default function FinancialReportsPage(){
-  const [start,setStart]=useState(monthStart())
-  const [end,setEnd]=useState(today())
+  const [start,setStart]=useState(yesterday())
+  const [end,setEnd]=useState(yesterday())
   const [center,setCenter]=useState('all')
   const [branches,setBranches]=useState([])
   const [report,setReport]=useState(null)
@@ -84,7 +84,7 @@ export default function FinancialReportsPage(){
     }
   }
 
-  useEffect(()=>{load()},[])
+  useEffect(()=>{loadYesterdayThroughClose()},[])
 
   useEffect(()=>{
     if (branches.length && !branches.some(b => String(b._id) === String(legacyCenter))) {
