@@ -2,7 +2,9 @@
 
 const FinanceSettings = require('../models/FinanceSettings');
 
-const money = value => Math.round((Number(value) || 0) * 100) / 100;
+// SYP amounts are whole liras in the restaurant reports/invoices.
+const money = value => Math.round(Number(value) || 0);
+const percent = value => Math.round((Number(value) || 0) * 100) / 100;
 
 async function resolvedSettings(centerId = null) {
   const settings = await FinanceSettings.getSingleton();
@@ -24,7 +26,7 @@ async function quote(baseAmount, centerId = null) {
     consumptionTaxAmount,
     localAdminPercent: LOCAL_ADMIN_PERCENT,
     localAdminAmount,
-    invoiceTaxPercent: money(invoiceTaxAmount && base ? invoiceTaxAmount / base * 100 : 0),
+    invoiceTaxPercent: percent(invoiceTaxAmount && base ? invoiceTaxAmount / base * 100 : 0),
     invoiceTaxAmount,
     customerTotal: money(base + invoiceTaxAmount),
     currency: settings.currency,
@@ -63,7 +65,7 @@ function profitTaxEstimate(profitBeforeTax, settings) {
 }
 
 module.exports = {
-  money, resolvedSettings, quote, revenueOf, invoiceTaxOf,
+  money, percent, resolvedSettings, quote, revenueOf, invoiceTaxOf,
   consumptionTaxOf, localAdminTaxOf, profitTaxEstimate,
   CONSUMPTION_TAX_PERCENT, LOCAL_ADMIN_PERCENT,
 };
