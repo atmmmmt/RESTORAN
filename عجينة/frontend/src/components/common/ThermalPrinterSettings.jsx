@@ -198,12 +198,19 @@ export default function ThermalPrinterSettings() {
       </div>
 
       {kitchen.enabled && <>
-        <Target
+        <div className="mb-4 rounded-xl border-2 border-brand-border bg-brand-mint-bg p-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-black text-brand-dark">طباعة المطبخ على طابعة الكاشير (وضع الطوارئ)</p>
+            <p className="text-xs text-brand-gray">تطبع فاتورة الزبون وتذاكر المطبخ على XP-80C، كل ورقة لحال، بدون أسعار على تذاكر المطبخ.</p>
+          </div>
+          <Toggle checked={!!kitchen.useCashierPrinter} onChange={v => kField('useCashierPrinter', v)} label={kitchen.useCashierPrinter ? 'مفعّل' : 'معطّل'} />
+        </div>
+        {!kitchen.useCashierPrinter && <Target
           conn={kitchen.connection} onConn={v => kField('connection', v)}
           name={kitchen.printerName} onName={v => kField('printerName', v)}
           ip={kitchen.printerIp} onIp={v => kField('printerIp', v)}
           port={kitchen.printerPort} onPort={v => kField('printerPort', v)}
-        />
+        />}
         <div className="mt-4">
           <Button variant="outline" size="sm" loading={busy === 'kitchen'}
             onClick={() => runTest('kitchen')} icon={<ChefHat size={15} />}>طباعة تذكرة تجربة</Button>
