@@ -907,9 +907,11 @@ function drawFinancialReport(report, settings, logo, mode = 'combined') {
 
     if (validMode === 'americans') {
       p.space(5)
-      p.line(`نسبة ${investorName}`, { size: 23, bold: true, gap: 6 })
-      p.pair(`بالمحل ${internalPercent}%`, money(row.investorInternal), { size: 20 })
-      p.pair(`سفري / توصيل ${deliveryPercent}%`, money(row.investorExternal), { size: 20 })
+      p.line(`نسبة ${investorName} — بعد إضافة الضريبة`, { size: 22, bold: true, gap: 6 })
+      p.pair('Total بالمحل شامل الضريبة', money(row.investorInternalBase || 0), { size: 19, bold: true })
+      p.pair(`حصة ${investorName} ${internalPercent}%`, money(row.investorInternal), { size: 20, bold: true })
+      p.pair('Total سفري / توصيل / موقع شامل الضريبة', money(row.investorExternalBase || 0), { size: 19, bold: true })
+      p.pair(`حصة ${investorName} ${deliveryPercent}%`, money(row.investorExternal), { size: 20, bold: true })
       p.banner(`إجمالي ${investorName}`, money(row.investorShare), { size: 25 })
     }
   }
@@ -928,11 +930,47 @@ function drawFinancialReport(report, settings, logo, mode = 'combined') {
   }
 
   if (validMode !== 'finance') {
-    p.space(6)
-    p.line(`نسبة ${investorName}`, { size: 25, bold: true, gap: 6 })
-    p.pair(`بالمحل ${internalPercent}%`, money(totals.investorInternal), { size: 21 })
-    p.pair(`سفري / توصيل ${deliveryPercent}%`, money(totals.investorExternal), { size: 21 })
-    p.banner(`إجمالي ${investorName}`, money(totals.investorShare), { size: 27 })
+    p.space(8)
+    p.line(`نسبة ${investorName} — من الإجمالي شامل الضريبة`, { size: 23, bold: true, gap: 8 })
+
+    const drawInvestorBox = (x, y, w, title, total, percent, share) => {
+      const h = 138
+      ctx.strokeStyle = '#000'
+      ctx.lineWidth = 3
+      ctx.strokeRect(x, y, w, h)
+      p.font(19, true)
+      ctx.textAlign = 'center'
+      ctx.fillText(title, x + w / 2, y + 14, w - 16)
+      p.font(19, true)
+      ctx.fillText(`Total: ${money(total)}`, x + w / 2, y + 48, w - 16)
+      p.font(17, false)
+      ctx.fillText(`${percent}% من الـ Total`, x + w / 2, y + 80, w - 16)
+      p.font(21, true)
+      ctx.fillText(money(share), x + w / 2, y + 108, w - 16)
+      return h
+    }
+
+    const sidePad = 18
+    const boxGap = 10
+    const boxW = Math.floor((width - sidePad * 2 - boxGap) / 2)
+    const top = p.y
+    drawInvestorBox(
+      width - sidePad - boxW, top, boxW,
+      'بالمحل',
+      totals.investorInternalBase || 0,
+      internalPercent,
+      totals.investorInternal || 0
+    )
+    drawInvestorBox(
+      sidePad, top, boxW,
+      'سفري / توصيل',
+      totals.investorExternalBase || 0,
+      deliveryPercent,
+      totals.investorExternal || 0
+    )
+    p.y = top + 156
+
+    p.banner(`إجمالي مستحق ${investorName}`, money(totals.investorShare), { size: 27 })
   }
 
   if (validMode === 'combined') {
