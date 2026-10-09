@@ -7,7 +7,7 @@ const os = require('os');
 const path = require('path');
 const { execFile } = require('child_process');
 
-const AGENT_VERSION = '1.3.1';
+const AGENT_VERSION = '1.3.2';
 
 const configPath = path.join(__dirname, 'config.json');
 const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
@@ -32,6 +32,70 @@ function sendToPrinter(host, port, buffer) {
     socket.on('timeout', () => socket.destroy(new Error('انتهت مهلة اتصال الطابعة')));
     socket.on('error', reject);
   });
+}
+
+const discoveredNetworkPrinters = new Map();
+
+function subnetPrefixes(preferredHost = '') {
+  const out = new Set();
+  const preferred = String(preferredHost).split('.');
+  if (preferred.length === 4) out.add(preferred.slice(0, 3).join('.'));
+
+  for (const rows of Object.values(os.networkInterfaces())) {
+    for (const row of rows || []) {
+      if (!row || row.internal || row.family !== 'IPv4') continue;
+      const parts = String(row.address).split('.');
+      if (parts.length === 4) out.add(parts.slice(0, 3).join('.'));
+    }
+  }
+  return [...out];
+}
+
+function portOpen(host, port, timeout = 350) {
+  return new Promise(resolve => {
+    const socket = new net.Socket();
+    let settled = false;
+    const done = open => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve(open);
+    };
+    socket.setTimeout(timeout);
+    socket.once('connect', () => done(true));
+    socket.once('timeout', () => done(false));
+    socket.once('error', () => done(false));
+    socket.connect(port, host);
+  });
+}
+
+async function discoverLanPrinter(preferredHost, port) {
+  const key = `${preferredHost}:${port}`;
+  const cached = discoveredNetworkPrinters.get(key);
+  if (cached && await portOpen(cached, port, 900)) return cached;
+
+  const found = [];
+  for (const prefix of subnetPrefixes(preferredHost)) {
+    const ips = Array.from({ length: 254 }, (_, i) => `${prefix}.${i + 1}`);
+    for (let i = 0; i < ips.length; i += 48) {
+      const batch = ips.slice(i, i + 48);
+      const results = await Promise.all(
+        batch.map(async ip => ({ ip, open: await portOpen(ip, port, 300) }))
+      );
+      for (const hit of results) if (hit.open) found.push(hit.ip);
+    }
+  }
+
+  const unique = [...new Set(found)];
+  if (unique.length === 1) {
+    discoveredNetworkPrinters.set(key, unique[0]);
+    console.log(`  ✓ تم العثور على طابعة LAN تلقائياً: ${unique[0]}:${port}`);
+    return unique[0];
+  }
+  if (unique.length > 1) {
+    throw new Error(`تعذّر تحديد طابعة المطبخ تلقائياً؛ وُجد أكثر من جهاز على المنفذ ${port}: ${unique.join(', ')}`);
+  }
+  throw new Error(`تعذّر الوصول إلى طابعة الشبكة ${preferredHost}:${port} ولم يُعثر على طابعة أخرى على المنفذ نفسه`);
 }
 
 /* ── USB printers ─────────────────────────────────────────────────────
@@ -106,8 +170,16 @@ async function printPayload(body) {
     const host = String(body?.host || '');
     const port = Number(body?.port || 9100);
     if (!isPrivateHost(host) || port < 1 || port > 65535) throw new Error('عنوان طابعة LAN غير صالح');
-    for (let i = 0; i < copies; i++) await sendToPrinter(host, port, data);
-    label = `${host}:${port}`;
+
+    let targetHost = host;
+    try {
+      for (let i = 0; i < copies; i++) await sendToPrinter(targetHost, port, data);
+    } catch (firstError) {
+      console.error(`  ✖ طابعة LAN لا ترد على ${host}:${port}: ${firstError.message}`);
+      targetHost = await discoverLanPrinter(host, port);
+      for (let i = 0; i < copies; i++) await sendToPrinter(targetHost, port, data);
+    }
+    label = `${targetHost}:${port}`;
   }
 
   return { success: true, copies, printer: label };
