@@ -102,7 +102,7 @@ async function sendPrintJob(payload) {
   throw new Error('برنامج الطباعة لم يستلم المهمة خلال 12 ثانية — تأكد أن Print Agent مفتوح على لابتوب الكاشير')
 }
 
-const money = value => `${Number(value || 0).toLocaleString('ar-SY')} ل.س`
+const money = value => `${Math.round(Number(value || 0)).toLocaleString('ar-SY', { maximumFractionDigits: 0 })} ل.س`
 
 /* The canvas has to be painted in a font the browser has actually got. Drawing
    before the webfont resolves silently falls back to Arial, whose Arabic is
