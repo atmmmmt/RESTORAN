@@ -70,16 +70,25 @@ function centerKey(value) {
 }
 
 async function adoptLegacyOrdersForAmericans(selector, start, end) {
-  if (selector.mode !== 'one' || !selector.centerId || !mongoose.isValidObjectId(selector.centerId)) return 0;
+  let center = null;
 
-  const center = await SalesCenter.findById(selector.centerId).select('name');
-  const name = String(center?.name || '');
-  if (!/(الأميركان|اميركان|american)/i.test(name)) return 0;
+  if (selector.mode === 'one' && selector.centerId && mongoose.isValidObjectId(selector.centerId)) {
+    const selected = await SalesCenter.findById(selector.centerId).select('name');
+    if (/(الأميركان|اميركان|american)/i.test(String(selected?.name || ''))) center = selected;
+  }
+
+  if (!center) {
+    center = await SalesCenter.findOne({
+      name: { $regex: /(الأميركان|اميركان|american)/i },
+    }).select('name');
+  }
+
+  if (!center) return 0;
 
   const range = { createdAt: { $gte: start, $lt: end }, centerId: null };
   const [internal, site] = await Promise.all([
-    InternalOrder.updateMany(range, { $set: { centerId: selector.centerId } }),
-    CustomerOrder.updateMany(range, { $set: { centerId: selector.centerId, centerNameSnapshot: center.name } }),
+    InternalOrder.updateMany(range, { $set: { centerId: center._id } }),
+    CustomerOrder.updateMany(range, { $set: { centerId: center._id, centerNameSnapshot: center.name } }),
   ]);
 
   return Number(internal.modifiedCount || 0) + Number(site.modifiedCount || 0);
