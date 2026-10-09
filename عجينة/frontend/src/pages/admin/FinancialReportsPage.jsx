@@ -6,7 +6,11 @@ import toast from 'react-hot-toast'
 import { getThermalFinancialReportPreview, printThermalFinancialReport } from '../../services/thermalPrinter'
 import { exportFinancialReportPdf } from '../../utils/financialPdf'
 
-const today = () => new Date().toISOString().slice(0,10)
+const syriaDay = (offsetDays = 0) =>
+  new Date(Date.now() + (3 * 60 * 60 * 1000) + (offsetDays * 24 * 60 * 60 * 1000))
+    .toISOString().slice(0,10)
+const today = () => syriaDay(0)
+const yesterday = () => syriaDay(-1)
 const monthStart = () => today().slice(0,8) + '01'
 const nextDay = value => {
   const d = new Date(value + 'T00:00:00')
@@ -310,10 +314,16 @@ export default function FinancialReportsPage(){
             {branches.map(b=><option key={b._id} value={b._id}>{b.name}</option>)}
           </select>
         </div>
-        <button onClick={load} disabled={loading}
-          className="px-5 py-2.5 rounded-xl bg-brand-dark text-white font-black flex items-center justify-center gap-2 disabled:opacity-50">
-          <RefreshCw size={16}/>{loading?'جاري التحميل…':'عرض التقرير'}
-        </button>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => { const d = yesterday(); setStart(d); setEnd(d) }}
+            className="px-4 py-2.5 rounded-xl bg-brand-bg text-brand-dark font-black border border-brand-border">
+            أمس
+          </button>
+          <button onClick={load} disabled={loading}
+            className="flex-1 px-5 py-2.5 rounded-xl bg-brand-dark text-white font-black flex items-center justify-center gap-2 disabled:opacity-50">
+            <RefreshCw size={16}/>{loading?'جاري التحميل…':'عرض التقرير'}
+          </button>
+        </div>
       </div>
     </section>
 
