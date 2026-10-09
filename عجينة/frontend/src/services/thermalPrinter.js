@@ -649,6 +649,30 @@ function drawKitchenTicket(order, settings, sectionLabel = 'المطبخ') {
  * One physical printer, many independent slips. The requests are deliberately
  * awaited in sequence so cheap USB/LAN print buffers are not flooded.
  */
+async function sendKitchenPrintDirect(payload, agentUrl) {
+  const base = String(agentUrl || 'http://127.0.0.1:18181').replace(/\/$/, '')
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), 10000)
+  try {
+    const response = await fetch(`${base}/print`, {
+      method: 'POST',
+      mode: 'cors',
+      targetAddressSpace: 'loopback',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: ctrl.signal,
+    })
+    const result = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(result.message || 'تعذّرت طباعة تذكرة المطبخ')
+    return result
+  } catch (error) {
+    if (error?.name === 'AbortError') throw new Error('انتهت مهلة الاتصال ببرنامج الطباعة المحلي')
+    throw error
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 export async function printKitchenTicket(order) {
   const settings = getPrinterSettings()
   const kitchen = settings.kitchen
@@ -662,11 +686,22 @@ export async function printKitchenTicket(order) {
   const printed = []
   for (const group of groups) {
     const { canvas, height } = drawKitchenTicket({ ...order, items: group.items }, settings, group.label)
-    await sendPrintJob({
+    const payload = {
       ...printerTarget(kitchen),
       copies: Math.max(1, Math.min(5, Number(kitchen.copies) || 1)),
       dataBase64: toEscPosBanded(canvas, height, kitchen),
-    })
+    }
+
+    try {
+      // Kitchen printer used this local path reliably before the cloud-queue
+      // migration. Keep it as the primary path so LAN/USB kitchen printing
+      // does not depend on an extra server round-trip.
+      await sendKitchenPrintDirect(payload, settings.agentUrl)
+    } catch (localError) {
+      // If Chrome blocks local loopback on this machine, preserve continuity
+      // by falling back to the cloud queue used by the receipt printer.
+      await sendPrintJob(payload)
+    }
     printed.push(group.label)
   }
 
