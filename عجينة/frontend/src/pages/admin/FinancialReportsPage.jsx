@@ -59,6 +59,31 @@ export default function FinancialReportsPage(){
     }
   }
 
+  const loadYesterdayThroughClose=async()=>{
+    const day=yesterday()
+    setLoading(true)
+    try{
+      const s=await api.get('/finance/settings')
+      const branchList=s.data.branches||[]
+      setBranches(branchList)
+
+      const americans=branchList.find(b=>/(الأميركان|اميركان|american)/i.test(String(b.name||'')))
+      const targetCenter=americans?String(americans._id):center
+
+      if(americans) setCenter(targetCenter)
+      setStart(day)
+      setEnd(day)
+
+      const r=await api.get('/finance/report',{params:{businessDay:day,center:targetCenter}})
+      setReport(r.data)
+      toast.success('تم عزل مبيعات أمس حتى إغلاق الوردية الفعلي')
+    }catch(e){
+      toast.error(e.message||'تعذّر تحميل مبيعات وردية أمس')
+    }finally{
+      setLoading(false)
+    }
+  }
+
   useEffect(()=>{load()},[])
 
   useEffect(()=>{
@@ -295,6 +320,18 @@ export default function FinancialReportsPage(){
         <h2 className="font-black text-brand-dark">تقرير المبيعات المسجلة على النظام</h2>
         <p className="text-xs text-brand-gray font-bold mt-1">للاطلاع على المبيعات الموجودة فعلياً داخل عجينة وطحينة.</p>
       </div>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <button type="button" onClick={loadYesterdayThroughClose} disabled={loading}
+          className="px-4 py-2.5 rounded-xl bg-fuchsia text-white font-black text-sm disabled:opacity-50">
+          مبيعات أمس حتى إغلاق الوردية
+        </button>
+        {report?.period?.operationalDay&&<div className="px-3 py-2 rounded-xl bg-brand-bg text-brand-gray text-xs font-black">
+          يوم التشغيل: {report.period.operationalDay}
+          {report.period.closingShift?.closedAt
+            ? ' · الإغلاق الفعلي: '+new Date(report.period.closingShift.closedAt).toLocaleString('ar-SY')
+            : ' · لم توجد وردية مغلقة، استُخدمت نهاية اليوم'}
+        </div>}
+      </div>
       <div className="grid md:grid-cols-4 gap-3 items-end">
         <div>
           <label className="text-xs font-black text-brand-gray block mb-1">من تاريخ</label>
@@ -329,6 +366,11 @@ export default function FinancialReportsPage(){
 
 
     {!!rows.length&&<section className="space-y-3">
+      <div className="bg-fuchsia/10 border-2 border-fuchsia/20 rounded-2xl p-4">
+        <div className="text-xs font-black text-fuchsia mb-1">إجمالي البيع شامل الضريبة ضمن الفترة المعزولة</div>
+        <div className="text-2xl font-black text-fuchsia">{money(totals.grandTotal,currency)}</div>
+        <div className="text-[11px] font-bold text-brand-gray mt-1">نسبة الأميركان تُحسب من هذا الإجمالي بعد إضافة الضرائب.</div>
+      </div>
       <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
         <div className="bg-white border border-brand-border rounded-2xl p-4">
           <div className="text-xs font-black text-brand-gray mb-2">قيمة المبيعات قبل الضريبة</div>
