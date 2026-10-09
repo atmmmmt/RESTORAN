@@ -31,6 +31,7 @@ export const defaultPrinterSettings = {
      from the customer's receipt, with no money on it at all. */
   kitchen: {
     enabled: false,
+    useCashierPrinter: true,
     connection: 'network',
     printerIp: '192.168.1.60',
     printerPort: 9100,
@@ -677,7 +678,9 @@ export async function printKitchenTicket(order) {
   const settings = getPrinterSettings()
   const kitchen = settings.kitchen
   if (!kitchen.enabled) throw new Error('طابعة المطبخ غير مفعّلة')
-  if (kitchen.connection === 'usb' && !kitchen.printerName) throw new Error('اختر طابعة المطبخ من الإعدادات')
+  const useCashier = kitchen.useCashierPrinter === true
+  if (useCashier && !settings.enabled) throw new Error('فعّل طابعة الكاشير أولاً')
+  if (!useCashier && kitchen.connection === 'usb' && !kitchen.printerName) throw new Error('اختر طابعة المطبخ من الإعدادات')
   await readyFont()
 
   const groups = splitKitchenItems(order.items || [])
@@ -686,10 +689,19 @@ export async function printKitchenTicket(order) {
   const printed = []
   for (const group of groups) {
     const { canvas, height } = drawKitchenTicket({ ...order, items: group.items }, settings, group.label)
+    const target = useCashier ? settings : kitchen
     const payload = {
-      ...printerTarget(kitchen),
-      copies: Math.max(1, Math.min(5, Number(kitchen.copies) || 1)),
-      dataBase64: toEscPosBanded(canvas, height, kitchen),
+      ...printerTarget(target),
+      copies: useCashier ? 1 : Math.max(1, Math.min(5, Number(kitchen.copies) || 1)),
+      dataBase64: toEscPosBanded(canvas, height, { ...kitchen, autoCut: target.autoCut }),
+    }
+
+    if (useCashier) {
+      // The customer's receipt and the kitchen slips share one agent queue.
+      // Do not attempt LAN discovery or local printing on the broken printer.
+      await sendPrintJob(payload)
+      printed.push(group.label)
+      continue
     }
 
     try {
@@ -722,7 +734,7 @@ export async function printKitchenTicket(order) {
   return {
     success: true,
     printedSections: printed,
-    printerId: printerLabel(kitchen),
+    printerId: printerLabel(useCashier ? settings : kitchen),
   }
 }
 
