@@ -18,7 +18,7 @@ const nextDay = value => {
   return d.toISOString().slice(0,10)
 }
 const money = (value,currency='SYP') =>
-  new Intl.NumberFormat('ar-SY',{maximumFractionDigits:2}).format(Number(value||0)) + (currency==='SYP'?' ل.س':' '+currency)
+  new Intl.NumberFormat('ar-SY',{maximumFractionDigits:0}).format(Math.round(Number(value||0))) + (currency==='SYP'?' ل.س':' '+currency)
 
 export default function FinancialReportsPage(){
   const [start,setStart]=useState(yesterday())
@@ -100,9 +100,9 @@ export default function FinancialReportsPage(){
 
     const branch=branches.find(b=>String(b._id)===String(legacyCenter))
     const pointOfSale=branch?.name||'الفرع الرئيسي'
-    const consumptionTax=Math.round(amount*0.05*100)/100
-    const localAdministration=Math.round(consumptionTax*0.05*100)/100
-    const grandTotal=Math.round((amount+consumptionTax+localAdministration)*100)/100
+    const consumptionTax=Math.round(amount*0.05)
+    const localAdministration=Math.round(consumptionTax*0.05)
+    const grandTotal=Math.round(amount+consumptionTax+localAdministration)
 
     setStart(legacyStart)
     setEnd(legacyEnd)
