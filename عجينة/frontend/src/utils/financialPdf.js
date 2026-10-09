@@ -1,5 +1,5 @@
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))
-const money = (v, currency='SYP') => `${new Intl.NumberFormat('ar-SY',{maximumFractionDigits:2}).format(Number(v||0))}${currency==='SYP'?' ل.س':` ${currency}`}`
+const money = (v, currency='SYP') => `${new Intl.NumberFormat('ar-SY',{maximumFractionDigits:0}).format(Math.round(Number(v||0)))}${currency==='SYP'?' ل.س':` ${currency}`}`
 const day = v => v ? new Date(v).toLocaleDateString('ar-SY',{year:'numeric',month:'2-digit',day:'2-digit'}) : '—'
 const period = report => {
   const p=report?.period||{}
