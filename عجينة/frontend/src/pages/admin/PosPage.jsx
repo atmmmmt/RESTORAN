@@ -47,6 +47,9 @@ const PAYMENTS = [
 const PERCENT_PRESETS = [10, 15, 20, 25]
 
 const hhmm = iso => iso ? new Date(iso).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : '—'
+const syriaDayKey = (offsetDays = 0) =>
+  new Date(Date.now() + (3 * 60 * 60 * 1000) + (offsetDays * 24 * 60 * 60 * 1000))
+    .toISOString().slice(0, 10)
 
 /* ══════════════════════════════════════════════════════════ */
 export default function PosPage() {
@@ -149,7 +152,7 @@ export default function PosPage() {
     const active = orders.filter(o => o.status !== 'cancelled')
     const internal = active.filter(o => o.orderType === 'dine_in')
     const external = active.filter(o => o.orderType === 'takeaway' || o.orderType === 'delivery')
-    const baseOf = o => Number(o.netAmount ?? Math.max((Number(o.total) || 0) - (Number(o.invoiceTaxAmount) || 0), 0))
+    const baseOf = o => Number(o.total || 0)
     const sum = list => list.reduce((s, o) => s + baseOf(o), 0)
     const internalBase = sum(internal)
     const externalBase = sum(external)
@@ -229,12 +232,13 @@ export default function PosPage() {
 
   /* End-of-day printout: every order of today with the investor's share. */
   const [printingDay, setPrintingDay] = useState(false)
+  const [reportDate, setReportDate] = useState(syriaDayKey())
   const printDailyReport = async () => {
     setPrintingDay(true)
     try {
-      const r = await internalOrdersAPI.dailyReport()
+      const r = await internalOrdersAPI.dailyReport(reportDate)
       await printThermalDailyReport(r.data)
-      toast.success('تمت طباعة طلبات اليوم')
+      toast.success(`تمت طباعة كل طلبات ${reportDate} من 00:00 حتى 23:59`)
     } catch (e) {
       toast.error(e.message || 'تعذّرت طباعة طلبات اليوم')
     } finally { setPrintingDay(false) }
@@ -642,21 +646,44 @@ export default function PosPage() {
       {/* ══ LOG ══ */}
       {tab === 'log' && (
         <div className="space-y-3 pb-24">
-          {/* Floating end-of-day print button */}
-          <button type="button" onClick={printDailyReport} disabled={printingDay}
-            className="fixed bottom-6 left-6 z-40 flex items-center gap-2 px-5 py-3.5 rounded-2xl font-black text-sm text-white shadow-2xl bg-fuchsia hover:bg-fuchsia-dark transition-transform hover:-translate-y-0.5 disabled:opacity-60">
-            <Printer size={18} /> {printingDay ? 'جاري الطباعة…' : 'طباعة طلبات اليوم'}
-          </button>
+          <div className="bg-white rounded-2xl shadow-card p-4 border border-brand-border">
+            <div className="flex flex-wrap items-end gap-3">
+              <div>
+                <div className="text-xs font-black text-brand-gray mb-1.5">تاريخ تقرير الطلبات</div>
+                <input
+                  type="date"
+                  value={reportDate}
+                  onChange={e => setReportDate(e.target.value)}
+                  className="px-3 py-2 border-2 border-brand-border rounded-xl font-bold text-sm focus:border-fuchsia focus:outline-none"
+                />
+              </div>
+              <button type="button" onClick={() => setReportDate(syriaDayKey())}
+                className="px-3 py-2 rounded-xl text-xs font-black bg-brand-bg text-brand-gray hover:text-brand-dark">
+                اليوم
+              </button>
+              <button type="button" onClick={() => setReportDate(syriaDayKey(-1))}
+                className="px-3 py-2 rounded-xl text-xs font-black bg-brand-bg text-brand-gray hover:text-brand-dark">
+                أمس
+              </button>
+              <Button onClick={printDailyReport} loading={printingDay} icon={<Printer size={16} />}>
+                طباعة كل طلبات التاريخ
+              </Button>
+              <div className="text-xs font-bold text-brand-gray">
+                يشمل 00:00–23:59 حتى الطلبات التي تمت قبل فتح الوردية.
+              </div>
+            </div>
+          </div>
+
           <div className="grid sm:grid-cols-2 gap-3">
             <div className="bg-white rounded-2xl shadow-card p-4 border border-brand-border">
-              <div className="text-xs font-black text-brand-gray">بالمحل — 20%</div>
+              <div className="text-xs font-black text-brand-gray">Total بالمحل — شامل الضريبة · 20%</div>
               <div className="mt-2 flex items-end justify-between gap-3">
                 <div><div className="text-xl font-black text-brand-dark">{formatCurrency(investorDay.internal.base)}</div><div className="text-xs text-brand-gray">{investorDay.internal.count} طلب</div></div>
                 <div className="text-left"><div className="text-xs text-brand-gray font-bold">حصة الأميركان</div><div className="font-black text-fuchsia">{formatCurrency(investorDay.internal.share)}</div></div>
               </div>
             </div>
             <div className="bg-white rounded-2xl shadow-card p-4 border border-brand-border">
-              <div className="text-xs font-black text-brand-gray">سفري / توصيل — 15%</div>
+              <div className="text-xs font-black text-brand-gray">Total سفري / توصيل — شامل الضريبة · 15%</div>
               <div className="mt-2 flex items-end justify-between gap-3">
                 <div><div className="text-xl font-black text-brand-dark">{formatCurrency(investorDay.external.base)}</div><div className="text-xs text-brand-gray">{investorDay.external.count} طلب</div></div>
                 <div className="text-left"><div className="text-xs text-brand-gray font-bold">حصة الأميركان</div><div className="font-black text-fuchsia">{formatCurrency(investorDay.external.share)}</div></div>
