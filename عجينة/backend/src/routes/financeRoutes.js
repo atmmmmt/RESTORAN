@@ -9,6 +9,7 @@ const SalesCenter = require('../models/SalesCenter');
 const InternalOrder = require('../models/InternalOrder');
 const CustomerOrder = require('../models/CustomerOrder');
 const CashTransaction = require('../models/CashTransaction');
+const CashierShift = require('../models/CashierShift');
 const financeService = require('../services/financeService');
 const InvestorSettings = require('../models/InvestorSettings');
 
@@ -67,6 +68,37 @@ function applyCenter(filter, selector) {
 
 function centerKey(value) {
   return value ? String(value) : 'hq';
+}
+
+const calendarStartDamascus = day => new Date(`${day}T00:00:00+03:00`);
+const calendarNextStartDamascus = day => {
+  const [y,m,d] = String(day).split('-').map(Number);
+  const next = new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0,10);
+  return new Date(`${next}T00:00:00+03:00`);
+};
+
+async function resolveOperationalReportRange(req, selector) {
+  const day = String(req.query.businessDay || '');
+  if (!DATE_ONLY.test(day)) {
+    const defaults = defaultRange();
+    const start = parseDate(req.query.start, defaults.start);
+    const end = parseDate(req.query.end, defaults.end);
+    return { start, end, operationalDay: null, closingShift: null };
+  }
+
+  const start = calendarStartDamascus(day);
+  const shiftFilter = { businessDay: day, status: 'closed', closedAt: { $ne: null } };
+
+  if (selector.mode === 'one') {
+    shiftFilter.centerId = selector.centerId ? selector.centerId : null;
+  }
+
+  const closingShift = await CashierShift.findOne(shiftFilter)
+    .sort({ closedAt: -1 })
+    .select('number centerId openedAt closedAt businessDay');
+
+  const end = closingShift?.closedAt || calendarNextStartDamascus(day);
+  return { start, end, operationalDay: day, closingShift };
 }
 
 async function adoptLegacyOrdersForAmericans(selector, start, end) {
@@ -332,12 +364,10 @@ router.get('/summary', visibleToFinance, async (req, res) => {
 /* GET /api/finance/report
    Printable sales statement matching the finance form used by the restaurant. */
 router.get('/report', visibleToFinance, async (req, res) => {
-  const defaults = defaultRange();
-  const start = parseDate(req.query.start, defaults.start);
-  const end = parseDate(req.query.end, defaults.end);
+  const selector = normalizeCenterSelector(req.query.center);
+  const { start, end, operationalDay, closingShift } = await resolveOperationalReportRange(req, selector);
   if (end <= start) return res.status(400).json({ success: false, message: 'نهاية الفترة يجب أن تكون بعد بدايتها' });
 
-  const selector = normalizeCenterSelector(req.query.center);
   await adoptLegacyOrdersForAmericans(selector, start, end);
   const internalFilter = { createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } };
   const siteFilter = { createdAt: { $gte: start, $lt: end }, status: 'delivered' };
@@ -427,7 +457,12 @@ router.get('/report', visibleToFinance, async (req, res) => {
   res.json({
     success: true,
     title: 'إجمالي المبيعات',
-    period: { start, end },
+    period: { start, end, operationalDay, closingShift: closingShift ? {
+      number: closingShift.number,
+      openedAt: closingShift.openedAt,
+      closedAt: closingShift.closedAt,
+      centerId: closingShift.centerId,
+    } : null },
     rates: { consumptionTaxPercent: 5, localAdminPercent: 5, localAdminBase: 'consumption_tax' },
     currency: settings.currency || 'SYP',
     investor: {
