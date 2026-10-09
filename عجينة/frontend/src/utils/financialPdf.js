@@ -47,7 +47,8 @@ export function exportFinancialReportPdf(report, {
     americans:[
       ['pointOfSale','اسم نقطة البيع'],
       ['foodAndBeverageValue','المبيعات'],
-      ['taxTotal','الضرائب'],
+      ['consumptionTax','الإنفاق الاستهلاكي 5%'],
+      ['localAdministration','الإدارة المحلية 5% من ضريبة الإنفاق'],
       ['grandTotal','الإجمالي شامل الضريبة'],
       ['investorInternalBase','Total بالمحل شامل الضريبة'],
       ['investorInternal',`حصة ${investorName} ${internalPercent}%`],
@@ -84,7 +85,8 @@ export function exportFinancialReportPdf(report, {
     : validMode==='americans'
       ? [
           ['المبيعات',money(t.foodAndBeverageValue,currency)],
-          ['+ الضرائب',money(tax(t),currency)],
+          ['+ الإنفاق الاستهلاكي 5%',money(t.consumptionTax,currency)],
+          ['+ الإدارة المحلية 5% من ضريبة الإنفاق',money(t.localAdministration,currency)],
           ['= الإجمالي شامل الضريبة',money(t.grandTotal,currency)],
           [`إجمالي مستحق ${investorName}`,money(t.investorShare,currency)],
         ]
@@ -105,7 +107,7 @@ export function exportFinancialReportPdf(report, {
       ? {
           label:`إجمالي مستحق ${investorName}`,
           amount:Number(t.investorShare||0),
-          details:`المبيعات: ${money(t.foodAndBeverageValue,currency)}<br>الضرائب: ${money(tax(t),currency)}<br>الإجمالي شامل الضريبة: ${money(t.grandTotal,currency)}<hr style="border:0;border-top:1px solid rgba(255,255,255,.25);margin:6px 0">Total بالمحل شامل الضريبة: ${money(t.investorInternalBase,currency)}<br>حصة ${investorName} ${internalPercent}%: ${money(t.investorInternal,currency)}<br>Total سفري / توصيل / موقع شامل الضريبة: ${money(t.investorExternalBase,currency)}<br>حصة ${investorName} ${deliveryPercent}%: ${money(t.investorExternal,currency)}`,
+          details:`المبيعات: ${money(t.foodAndBeverageValue,currency)}<br>الإنفاق الاستهلاكي 5%: ${money(t.consumptionTax,currency)}<br>الإدارة المحلية 5% من ضريبة الإنفاق: ${money(t.localAdministration,currency)}<br>الإجمالي شامل الضريبة: ${money(t.grandTotal,currency)}<hr style="border:0;border-top:1px solid rgba(255,255,255,.25);margin:6px 0">Total بالمحل شامل الضريبة: ${money(t.investorInternalBase,currency)}<br>حصة ${investorName} ${internalPercent}%: ${money(t.investorInternal,currency)}<br>Total سفري / توصيل / موقع شامل الضريبة: ${money(t.investorExternalBase,currency)}<br>حصة ${investorName} ${deliveryPercent}%: ${money(t.investorExternal,currency)}`,
         }
       : {
           label:'إجمالي الالتزامات',
