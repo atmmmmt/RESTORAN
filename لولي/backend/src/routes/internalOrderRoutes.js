@@ -142,8 +142,8 @@ router.get('/daily-report', async (req, res) => {
 
   const inv = settings.investor || {};
   const invOn = inv.enabled !== false;
-  const deliveryPct = invOn ? Number(inv.deliveryPercent ?? 15) : 0;
-  const internalPct = invOn ? Number(inv.internalPercent ?? 20) : 0;
+  const deliveryPct = invOn ? Number(inv.deliveryPercent ?? 15.5) : 0;
+  const internalPct = invOn ? Number(inv.internalPercent ?? 20.5) : 0;
   const rateForPos = orderType => orderType === 'dine_in' ? internalPct : deliveryPct;
   const share = (amount, pct) => Math.round((amount || 0) * pct / 100);
   const grossOf = order => Number(order.total || 0) || 0;
