@@ -888,7 +888,8 @@ function drawFinancialReport(report, settings, logo, mode = 'combined') {
     p.pair('المبيعات', money(row.foodAndBeverageValue), { size: 21, bold: true })
 
     if (validMode === 'americans') {
-      p.pair('+ الضرائب', money(taxOf(row)), { size: 20, bold: true })
+      p.pair('+ الإنفاق الاستهلاكي 5%', money(row.consumptionTax), { size: 20, bold: true })
+      p.pair('+ الإدارة المحلية 5% من ضريبة الإنفاق', money(row.localAdministration), { size: 19, bold: true })
       p.banner('= الإجمالي شامل الضريبة', money(row.grandTotal), { size: 24 })
     }
 
@@ -926,7 +927,8 @@ function drawFinancialReport(report, settings, logo, mode = 'combined') {
   p.pair('المبيعات', money(totals.foodAndBeverageValue), { size: 22, bold: true })
 
   if (validMode === 'americans') {
-    p.pair('+ الضرائب', money(taxOf(totals)), { size: 22, bold: true })
+    p.pair('+ الإنفاق الاستهلاكي 5%', money(totals.consumptionTax), { size: 21, bold: true })
+    p.pair('+ الإدارة المحلية 5% من ضريبة الإنفاق', money(totals.localAdministration), { size: 20, bold: true })
     p.banner('= الإجمالي شامل الضريبة', money(totals.grandTotal), { size: 27 })
   }
 
