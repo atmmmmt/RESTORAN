@@ -221,6 +221,7 @@ router.get('/daily-report', requireRole('admin', 'supervisor', 'cashier', 'viewe
       orderType: source?.orderType || '',
       items: (r.items || []).map(i => ({ name: i.name, quantity: i.quantity })),
       amount: r.refundAmount || 0,
+      refundMethod: r.refundMethod || '',
       investorShare: cut(r.refundAmount, pct),
     };
   });
@@ -252,6 +253,8 @@ router.get('/daily-report', requireRole('admin', 'supervisor', 'cashier', 'viewe
   const externalReturns = returns.filter(r => r.orderType === 'takeaway' || r.orderType === 'delivery' || r.orderType === 'site');
   const internalCash = internalOrders.filter(o => o.paymentMethod === 'cash');
   const externalCash = externalOrders.filter(o => o.paymentMethod === 'cash');
+  const internalCashRefunds = internalReturns.filter(r => r.refundMethod === 'cash');
+  const externalCashRefunds = externalReturns.filter(r => r.refundMethod === 'cash');
 
   res.json({
     success: true,
@@ -276,7 +279,7 @@ router.get('/daily-report', requireRole('admin', 'supervisor', 'cashier', 'viewe
         sales: sum(internalOrders, 'total'),
         refunded: sum(internalReturns, 'amount'),
         total: sum(internalOrders, 'total') - sum(internalReturns, 'amount'),
-        cash: sum(internalCash, 'total'),
+        cash: sum(internalCash, 'total') - sum(internalCashRefunds, 'amount'),
         base: sum(internalOrders, 'investorBase') - sum(internalReturns, 'amount'),
         investorShare: sum(internalOrders, 'investorShare') - sum(internalReturns, 'investorShare'),
       },
@@ -286,7 +289,7 @@ router.get('/daily-report', requireRole('admin', 'supervisor', 'cashier', 'viewe
         sales: sum(externalOrders, 'total'),
         refunded: sum(externalReturns, 'amount'),
         total: sum(externalOrders, 'total') - sum(externalReturns, 'amount'),
-        cash: sum(externalCash, 'total'),
+        cash: sum(externalCash, 'total') - sum(externalCashRefunds, 'amount'),
         base: sum(externalOrders, 'investorBase') - sum(externalReturns, 'amount'),
         investorShare: sum(externalOrders, 'investorShare') - sum(externalReturns, 'investorShare'),
       },
