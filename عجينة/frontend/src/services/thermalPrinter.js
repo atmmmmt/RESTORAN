@@ -885,7 +885,12 @@ function drawFinancialReport(report, settings, logo, mode = 'combined') {
     p.rule(2)
     p.line(row.pointOfSale || 'نقطة بيع', { size: 25, bold: true, align: 'right', gap: 7 })
     if (!row.manual) p.pair('عدد الفواتير', String(row.ordersCount || 0), { size: 20 })
-    p.pair('المبيعات قبل الضريبة', money(row.foodAndBeverageValue), { size: 21, bold: true })
+    p.pair('المبيعات', money(row.foodAndBeverageValue), { size: 21, bold: true })
+
+    if (validMode === 'americans') {
+      p.pair('+ الضرائب', money(taxOf(row)), { size: 20, bold: true })
+      p.banner('= الإجمالي شامل الضريبة', money(row.grandTotal), { size: 24 })
+    }
 
     if (validMode === 'combined') {
       p.space(4)
@@ -918,7 +923,12 @@ function drawFinancialReport(report, settings, logo, mode = 'combined') {
 
   p.rule(4)
   p.line('الإجمالي العام', { size: 28, bold: true, gap: 10 })
-  p.pair('المبيعات قبل الضريبة', money(totals.foodAndBeverageValue), { size: 22, bold: true })
+  p.pair('المبيعات', money(totals.foodAndBeverageValue), { size: 22, bold: true })
+
+  if (validMode === 'americans') {
+    p.pair('+ الضرائب', money(taxOf(totals)), { size: 22, bold: true })
+    p.banner('= الإجمالي شامل الضريبة', money(totals.grandTotal), { size: 27 })
+  }
 
   if (validMode !== 'americans') {
     p.space(6)
