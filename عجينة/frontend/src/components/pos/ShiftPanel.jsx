@@ -115,16 +115,13 @@ export default function ShiftPanel({ tick = 0, onChanged }) {
 
   const startClose = async () => {
     await load()   // count against the latest figures, not the ones on screen
-    setCloseForm({ countedCash: '', notes: '' })
+    setCloseForm({ notes: '' })
   }
 
   const closeShift = async () => {
-    if (closeForm.countedCash === '' || Number(closeForm.countedCash) < 0) {
-      return toast.error('أدخل المبلغ الموجود في الدرج')
-    }
     setBusy(true)
     try {
-      const r = await shiftsAPI.close({ countedCash: Number(closeForm.countedCash), notes: closeForm.notes })
+      const r = await shiftsAPI.close({ notes: closeForm.notes })
       if (r.data.queuedOffline) {
         toast.error('لا يوجد اتصال — أعد التصفير عند عودة الاتصال')
         return
@@ -164,8 +161,6 @@ export default function ShiftPanel({ tick = 0, onChanged }) {
 
   const s = shift?.summary || {}
   const expected = shift?.expectedCash ?? 0
-  const counted = closeForm && closeForm.countedCash !== '' ? Number(closeForm.countedCash) : null
-  const diff = counted === null ? null : counted - expected
 
   return (
     <>
@@ -261,15 +256,9 @@ export default function ShiftPanel({ tick = 0, onChanged }) {
               </div>
             </div>
 
-            <label className="text-xs font-bold text-brand-dark mt-4 mb-2 block">المبلغ المعدود فعلياً بالدرج</label>
-            <input type="number" min="0" autoFocus value={closeForm.countedCash}
-              onChange={e => setCloseForm(f => ({ ...f, countedCash: e.target.value }))}
-              className="w-full px-4 py-3 border-2 border-brand-border rounded-xl focus:border-fuchsia focus:outline-none font-black" />
-            {diff !== null && (
-              <div className={`mt-2 text-sm font-black ${diff === 0 ? 'text-green-600' : diff > 0 ? 'text-blue-600' : 'text-red-500'}`}>
-                {diff === 0 ? 'الدرج مطابق' : diff > 0 ? `زيادة ${formatCurrency(diff)}` : `نقص ${formatCurrency(Math.abs(diff))}`}
-              </div>
-            )}
+            <p className="text-[11px] text-brand-gray-light font-bold mt-3">
+              التقرير يعتمد تلقائياً على المبيعات المسجلة، دون إدخال أو تأكيد مبلغ الصندوق الفعلي.
+            </p>
 
             <input value={closeForm.notes} onChange={e => setCloseForm(f => ({ ...f, notes: e.target.value }))}
               placeholder="ملاحظات (اختياري)"
