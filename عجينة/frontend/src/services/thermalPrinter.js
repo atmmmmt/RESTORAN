@@ -911,15 +911,7 @@ function drawFinancialReport(report, settings, logo, mode = 'combined') {
       p.pair('الإجمالي مع الضريبة', money(row.grandTotal), { size: 21, bold: true })
     }
 
-    if (validMode === 'americans') {
-      p.space(5)
-      p.line(`نسبة ${investorName} — بعد إضافة الضريبة`, { size: 22, bold: true, gap: 6 })
-      p.pair('Total بالمحل شامل الضريبة', money(row.investorInternalBase || 0), { size: 19, bold: true })
-      p.pair(`حصة ${investorName} ${internalPercent}%`, money(row.investorInternal), { size: 20, bold: true })
-      p.pair('Total سفري / توصيل / موقع شامل الضريبة', money(row.investorExternalBase || 0), { size: 19, bold: true })
-      p.pair(`حصة ${investorName} ${deliveryPercent}%`, money(row.investorExternal), { size: 20, bold: true })
-      p.banner(`إجمالي ${investorName}`, money(row.investorShare), { size: 25 })
-    }
+    // Partner share is intentionally shown only once in the final summary boxes below.
   }
 
   p.rule(4)
