@@ -366,28 +366,24 @@ export default function FinancialReportsPage(){
 
 
     {!!rows.length&&<section className="space-y-3">
-      <div className="bg-fuchsia/10 border-2 border-fuchsia/20 rounded-2xl p-4">
-        <div className="text-xs font-black text-fuchsia mb-1">إجمالي البيع شامل الضريبة ضمن الفترة المعزولة</div>
-        <div className="text-2xl font-black text-fuchsia">{money(totals.grandTotal,currency)}</div>
-        <div className="text-[11px] font-bold text-brand-gray mt-1">نسبة الأميركان تُحسب من هذا الإجمالي بعد إضافة الضرائب.</div>
-      </div>
-      <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
-        <div className="bg-white border border-brand-border rounded-2xl p-4">
-          <div className="text-xs font-black text-brand-gray mb-2">قيمة المبيعات قبل الضريبة</div>
-          <div className="text-xl font-black text-brand-dark">{money(totals.foodAndBeverageValue,currency)}</div>
+      <div className="bg-white border-2 border-brand-border rounded-2xl p-5">
+        <div className="text-sm font-black text-brand-dark mb-4">حسبة المبيعات أولاً</div>
+        <div className="grid sm:grid-cols-3 gap-3">
+          <div className="rounded-2xl bg-brand-bg p-4">
+            <div className="text-xs font-black text-brand-gray mb-1">المبيعات</div>
+            <div className="text-xl font-black text-brand-dark">{money(totals.foodAndBeverageValue,currency)}</div>
+          </div>
+          <div className="rounded-2xl bg-amber-50 p-4">
+            <div className="text-xs font-black text-amber-700 mb-1">+ الضرائب</div>
+            <div className="text-xl font-black text-amber-700">{money(totals.taxTotal,currency)}</div>
+          </div>
+          <div className="rounded-2xl bg-brand-dark text-white p-4">
+            <div className="text-xs font-black text-white/70 mb-1">= الإجمالي شامل الضريبة</div>
+            <div className="text-2xl font-black">{money(totals.grandTotal,currency)}</div>
+          </div>
         </div>
-        <div className="bg-white border border-brand-border rounded-2xl p-4">
-          <div className="text-xs font-black text-brand-gray mb-2">إجمالي الضرائب</div>
-          <div className="text-xl font-black text-amber-700">{money(totals.taxTotal,currency)}</div>
-        </div>
-        <div className="bg-white border border-brand-border rounded-2xl p-4">
-          <div className="text-xs font-black text-brand-gray mb-2">إجمالي نسبة {report?.investor?.name||'الأميركان'}</div>
-          <div className="text-xl font-black text-fuchsia">{money(totals.investorShare,currency)}</div>
-        </div>
-        <div className="bg-brand-dark text-white rounded-2xl p-4 shadow-card">
-          <div className="text-xs font-black text-white/65 mb-2">إجمالي الالتزامات</div>
-          <div className="text-xl font-black">{money(totals.obligationsTotal,currency)}</div>
-          <div className="text-[11px] font-bold text-white/60 mt-1">الضرائب + نسبة الأميركان</div>
+        <div className="text-[11px] font-bold text-brand-gray mt-3">
+          نسبة الأميركان تُحسب بعد ذلك من الإجمالي شامل الضريبة، ثم تُفصل بين بالمحل والسفري / التوصيل / الموقع.
         </div>
       </div>
 
@@ -401,7 +397,8 @@ export default function FinancialReportsPage(){
           </div>
         </div>
         <div className="bg-white border border-brand-border rounded-2xl p-5">
-          <h3 className="font-black text-brand-dark mb-4">نسبة {report?.investor?.name||'الأميركان'} — بعد الضريبة</h3>
+          <h3 className="font-black text-brand-dark mb-1">تفصيل نسبة {report?.investor?.name||'الأميركان'}</h3>
+          <p className="text-xs font-bold text-brand-gray mb-4">بعد حساب المبيعات + الضرائب = الإجمالي شامل الضريبة</p>
           <div className="grid sm:grid-cols-2 gap-3 mb-4">
             <div className="rounded-2xl border-2 border-brand-border bg-brand-bg p-4">
               <div className="text-xs font-black text-brand-gray">Total بالمحل شامل الضريبة</div>
@@ -420,6 +417,11 @@ export default function FinancialReportsPage(){
             <span className="font-black">إجمالي مستحق الأميركان</span>
             <b className="text-fuchsia">{money(totals.investorShare,currency)}</b>
           </div>
+          {Math.abs(Number(totals.investorSplitDifference||0))>0.01&&(
+            <div className="mt-3 rounded-xl bg-red-50 text-red-700 p-3 text-xs font-black">
+              تنبيه: مجموع Total بالمحل + Total السفري لا يساوي الإجمالي شامل الضريبة. الفرق: {money(totals.investorSplitDifference,currency)}
+            </div>
+          )}
         </div>
       </div>
     </section>}
@@ -437,7 +439,7 @@ export default function FinancialReportsPage(){
           <table className="w-full min-w-[1050px] text-sm">
             <thead className="bg-brand-bg text-brand-gray">
               <tr>
-                {['نقطة البيع','الفواتير','المبيعات قبل الضريبة','الضريبة','نسبة الأميركان','إجمالي الالتزامات','الإجمالي مع الضريبة']
+                {['نقطة البيع','الفواتير','المبيعات','الضريبة','نسبة الأميركان','إجمالي الالتزامات','الإجمالي مع الضريبة']
                   .map(x=><th key={x} className="p-3 text-right font-black">{x}</th>)}
               </tr>
             </thead>
