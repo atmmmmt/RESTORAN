@@ -696,7 +696,21 @@ export async function printKitchenTicket(order) {
       // Kitchen printer used this local path reliably before the cloud-queue
       // migration. Keep it as the primary path so LAN/USB kitchen printing
       // does not depend on an extra server round-trip.
-      await sendKitchenPrintDirect(payload, settings.agentUrl)
+      const directResult = await sendKitchenPrintDirect(payload, settings.agentUrl)
+
+      // Agent 1.3.2 may discover a new LAN IP automatically. Persist it so
+      // future kitchen tickets go straight to the correct target.
+      if (kitchen.connection === 'network' && directResult?.printer) {
+        const m = String(directResult.printer).match(/^(\d+\.\d+\.\d+\.\d+):(\d+)$/)
+        if (m && m[1] !== String(kitchen.printerIp || '')) {
+          kitchen.printerIp = m[1]
+          kitchen.printerPort = Number(m[2]) || 9100
+          savePrinterSettings({
+            ...settings,
+            kitchen: { ...kitchen },
+          })
+        }
+      }
     } catch (localError) {
       // If Chrome blocks local loopback on this machine, preserve continuity
       // by falling back to the cloud queue used by the receipt printer.
