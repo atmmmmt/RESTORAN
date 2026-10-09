@@ -12,9 +12,11 @@
 
 /* Bump on any change to SHELL_URLS — activate() drops caches whose name no
    longer matches, which is what evicts the previous shell. */
-const VERSION     = 'v6';
+const VERSION     = 'v7';
 const SHELL_CACHE = `loliz-shell-${VERSION}`;
 const ASSET_CACHE = `loliz-assets-${VERSION}`;
+const IMAGE_CACHE = 'luliz-product-images-v1';
+const IMAGE_CACHE_LIMIT = 350;
 
 /* Customer routes plus the staff entry points. The SPA serves every route
    from index.html, so caching these mainly warms them; what actually makes
@@ -53,6 +55,22 @@ self.addEventListener('activate', event => {
   );
 });
 
+const isProductImage = (request, url) =>
+  request.destination === 'image' && (
+    url.origin === self.location.origin ||
+    (url.protocol === 'https:' && (url.hostname === 'res.cloudinary.com' || url.hostname.endsWith('.res.cloudinary.com')))
+  );
+
+async function rememberImage(request, response) {
+  if (!(response.ok || response.type === 'opaque')) return;
+  const cache = await caches.open(IMAGE_CACHE);
+  await cache.put(request, response);
+  const keys = await cache.keys();
+  if (keys.length > IMAGE_CACHE_LIMIT) {
+    await Promise.all(keys.slice(0, keys.length - IMAGE_CACHE_LIMIT).map(key => cache.delete(key)));
+  }
+}
+
 const isAsset = url =>
   /\.(js|css|woff2?|png|jpe?g|svg|webp|ico)$/i.test(url.pathname);
 
@@ -65,6 +83,19 @@ self.addEventListener('fetch', event => {
 
   // Never intercept the API or the live punch stream.
   if (url.pathname.startsWith('/api/') || url.pathname.includes('/attendance/stream')) return;
+  // Keep restaurant menu images locally across navigation and deployments.
+  if (isProductImage(request, url)) {
+    event.respondWith(caches.open(IMAGE_CACHE).then(async cache => {
+      const hit = await cache.match(request);
+      if (hit) return hit;
+      const response = await fetch(request);
+      if (response.ok || response.type === 'opaque') {
+        event.waitUntil(rememberImage(request, response.clone()));
+      }
+      return response;
+    }));
+    return;
+  }
   if (url.origin !== self.location.origin) return;
 
   /* App shell — network first so deploys land immediately. */
