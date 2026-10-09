@@ -55,8 +55,8 @@ function printShiftInBrowser(shift) {
     </table><hr><table>
       ${row('رصيد الافتتاح', formatCurrency(shift.openingCash))}
       ${row('المفروض بالدرج', formatCurrency(shift.expectedCash), true)}
-      ${row('المعدود فعلياً', formatCurrency(shift.countedCash), true)}
-      ${row(diff === 0 ? 'الفرق' : diff > 0 ? 'زيادة' : 'نقص', diff === 0 ? 'مطابق' : formatCurrency(Math.abs(diff)), true)}
+      ${shift.countedCash == null ? row('جرد النقد الفعلي', 'لم يُجرَ') : row('المعدود فعلياً', formatCurrency(shift.countedCash), true)}
+      ${shift.countedCash == null ? '' : row(diff === 0 ? 'الفرق' : diff > 0 ? 'زيادة' : 'نقص', diff === 0 ? 'مطابق' : formatCurrency(Math.abs(diff)), true)}
     </table>
     ${shift.notes ? `<p style="font-size:12px"><b>ملاحظات:</b> ${shift.notes.replace(/</g, '&lt;')}</p>` : ''}
     <p style="margin-top:28px;font-size:12px">توقيع الكاشير: ............ &nbsp; توقيع المستلم: ............</p>
@@ -85,7 +85,7 @@ export default function ShiftPanel({ tick = 0, onChanged }) {
   const [loaded, setLoaded] = useState(false)
 
   const [openForm, setOpenForm] = useState(null)       // { openingCash } while the open dialog is up
-  const [closeForm, setCloseForm] = useState(null)     // { countedCash, notes } while the close dialog is up
+  const [closeForm, setCloseForm] = useState(null)     // { notes } while the close dialog is up
   const [busy, setBusy] = useState(false)
   const [history, setHistory] = useState(null)         // list while the history dialog is up
   const [historyDetail, setHistoryDetail] = useState(null)
@@ -300,7 +300,7 @@ export default function ShiftPanel({ tick = 0, onChanged }) {
                     <div className="text-left text-xs font-bold">
                       <div className="font-black text-brand-dark">{formatCurrency(h.summary?.sales || 0)}</div>
                       <div className={d === 0 ? 'text-green-600' : d > 0 ? 'text-blue-600' : 'text-red-500'}>
-                        {d === 0 ? 'مطابق' : d > 0 ? `زيادة ${formatCurrency(d)}` : `نقص ${formatCurrency(Math.abs(d))}`}
+                        {h.countedCash == null ? 'غير مجرود' : d === 0 ? 'مطابق' : d > 0 ? `زيادة ${formatCurrency(d)}` : `نقص ${formatCurrency(Math.abs(d))}`}
                       </div>
                     </div>
                   )}
@@ -371,7 +371,7 @@ export default function ShiftPanel({ tick = 0, onChanged }) {
                   : 'bg-red-50 border-red-200 text-red-700'
               }`}>
                 <div className="font-black">
-                  {diff === 0 ? 'الدرج مطابق تماماً'
+                  {h.countedCash == null ? 'لم يتم جرد النقد فعلياً' : diff === 0 ? 'الدرج مطابق تماماً'
                     : diff > 0 ? `زيادة بالصندوق: ${formatCurrency(diff)}`
                     : `نقص بالصندوق: ${formatCurrency(Math.abs(diff))}`}
                 </div>
