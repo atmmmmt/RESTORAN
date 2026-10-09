@@ -401,11 +401,24 @@ export default function FinancialReportsPage(){
           </div>
         </div>
         <div className="bg-white border border-brand-border rounded-2xl p-5">
-          <h3 className="font-black text-brand-dark mb-4">نسبة {report?.investor?.name||'الأميركان'} — مستقلة</h3>
-          <div className="space-y-3 text-sm">
-            <div className="flex justify-between"><span className="font-bold text-brand-gray">بالمحل ({report?.investor?.internalPercent??20}%)</span><b>{money(totals.investorInternal,currency)}</b></div>
-            <div className="flex justify-between"><span className="font-bold text-brand-gray">سفري / توصيل ({report?.investor?.deliveryPercent??15}%)</span><b>{money(totals.investorExternal,currency)}</b></div>
-            <div className="flex justify-between border-t border-brand-border pt-3"><span className="font-black">إجمالي النسبة</span><b className="text-fuchsia">{money(totals.investorShare,currency)}</b></div>
+          <h3 className="font-black text-brand-dark mb-4">نسبة {report?.investor?.name||'الأميركان'} — بعد الضريبة</h3>
+          <div className="grid sm:grid-cols-2 gap-3 mb-4">
+            <div className="rounded-2xl border-2 border-brand-border bg-brand-bg p-4">
+              <div className="text-xs font-black text-brand-gray">Total بالمحل شامل الضريبة</div>
+              <div className="text-xl font-black text-brand-dark mt-1">{money(totals.investorInternalBase,currency)}</div>
+              <div className="text-xs font-bold text-brand-gray mt-2">حصة الأميركان {report?.investor?.internalPercent??20}%</div>
+              <div className="font-black text-fuchsia">{money(totals.investorInternal,currency)}</div>
+            </div>
+            <div className="rounded-2xl border-2 border-brand-border bg-brand-bg p-4">
+              <div className="text-xs font-black text-brand-gray">Total سفري / توصيل / موقع شامل الضريبة</div>
+              <div className="text-xl font-black text-brand-dark mt-1">{money(totals.investorExternalBase,currency)}</div>
+              <div className="text-xs font-bold text-brand-gray mt-2">حصة الأميركان {report?.investor?.deliveryPercent??15}%</div>
+              <div className="font-black text-fuchsia">{money(totals.investorExternal,currency)}</div>
+            </div>
+          </div>
+          <div className="flex justify-between border-t border-brand-border pt-3">
+            <span className="font-black">إجمالي مستحق الأميركان</span>
+            <b className="text-fuchsia">{money(totals.investorShare,currency)}</b>
           </div>
         </div>
       </div>
