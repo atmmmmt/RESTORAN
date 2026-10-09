@@ -38,7 +38,7 @@ export function exportFinancialReportPdf(report, {
   const columnsByMode={
     finance:[
       ['pointOfSale','اسم نقطة البيع'],
-      ['foodAndBeverageValue','المبيعات قبل الضريبة'],
+      ['foodAndBeverageValue','المبيعات'],
       ['consumptionTax','الإنفاق الاستهلاكي 5%'],
       ['localAdministration','الإدارة المحلية 5%'],
       ['taxTotal','إجمالي الضريبة'],
@@ -46,6 +46,9 @@ export function exportFinancialReportPdf(report, {
     ],
     americans:[
       ['pointOfSale','اسم نقطة البيع'],
+      ['foodAndBeverageValue','المبيعات'],
+      ['taxTotal','الضرائب'],
+      ['grandTotal','الإجمالي شامل الضريبة'],
       ['investorInternalBase','Total بالمحل شامل الضريبة'],
       ['investorInternal',`حصة ${investorName} ${internalPercent}%`],
       ['investorExternalBase','Total سفري / توصيل / موقع شامل الضريبة'],
@@ -54,7 +57,7 @@ export function exportFinancialReportPdf(report, {
     ],
     combined:[
       ['pointOfSale','اسم نقطة البيع'],
-      ['foodAndBeverageValue','المبيعات قبل الضريبة'],
+      ['foodAndBeverageValue','المبيعات'],
       ['taxTotal','إجمالي الضريبة'],
       ['investorShare',`نسبة ${investorName}`],
       ['obligationsTotal','إجمالي الالتزامات'],
@@ -73,21 +76,20 @@ export function exportFinancialReportPdf(report, {
 
   const summary=validMode==='finance'
     ? [
-        ['المبيعات قبل الضريبة',money(t.foodAndBeverageValue,currency)],
+        ['المبيعات',money(t.foodAndBeverageValue,currency)],
         ['الإنفاق الاستهلاكي',money(t.consumptionTax,currency)],
         ['الإدارة المحلية',money(t.localAdministration,currency)],
         ['إجمالي الضريبة',money(tax(t),currency)],
       ]
     : validMode==='americans'
       ? [
-          ['Total بالمحل شامل الضريبة',money(t.investorInternalBase,currency)],
-          [`حصة ${investorName} ${internalPercent}%`,money(t.investorInternal,currency)],
-          ['Total سفري / توصيل / موقع شامل الضريبة',money(t.investorExternalBase,currency)],
-          [`حصة ${investorName} ${deliveryPercent}%`,money(t.investorExternal,currency)],
-          [`إجمالي ${investorName}`,money(t.investorShare,currency)],
+          ['المبيعات',money(t.foodAndBeverageValue,currency)],
+          ['+ الضرائب',money(tax(t),currency)],
+          ['= الإجمالي شامل الضريبة',money(t.grandTotal,currency)],
+          [`إجمالي مستحق ${investorName}`,money(t.investorShare,currency)],
         ]
       : [
-          ['المبيعات قبل الضريبة',money(t.foodAndBeverageValue,currency)],
+          ['المبيعات',money(t.foodAndBeverageValue,currency)],
           ['إجمالي الضريبة',money(tax(t),currency)],
           [`إجمالي نسبة ${investorName}`,money(t.investorShare,currency)],
           ['إجمالي الالتزامات',money(obligations(t),currency)],
@@ -97,18 +99,18 @@ export function exportFinancialReportPdf(report, {
     ? {
         label:'إجمالي الضريبة',
         amount:tax(t),
-        details:`الإنفاق الاستهلاكي: ${money(t.consumptionTax,currency)}<br>الإدارة المحلية: ${money(t.localAdministration,currency)}<br>المبيعات قبل الضريبة: ${money(t.foodAndBeverageValue,currency)}<br>الإجمالي مع الضريبة: ${money(t.grandTotal,currency)}`,
+        details:`الإنفاق الاستهلاكي: ${money(t.consumptionTax,currency)}<br>الإدارة المحلية: ${money(t.localAdministration,currency)}<br>المبيعات: ${money(t.foodAndBeverageValue,currency)}<br>الإجمالي مع الضريبة: ${money(t.grandTotal,currency)}`,
       }
     : validMode==='americans'
       ? {
           label:`إجمالي مستحق ${investorName}`,
           amount:Number(t.investorShare||0),
-          details:`Total بالمحل شامل الضريبة: ${money(t.investorInternalBase,currency)}<br>حصة ${investorName} ${internalPercent}%: ${money(t.investorInternal,currency)}<br>Total سفري / توصيل / موقع شامل الضريبة: ${money(t.investorExternalBase,currency)}<br>حصة ${investorName} ${deliveryPercent}%: ${money(t.investorExternal,currency)}<br>الإجمالي شامل الضريبة: ${money(t.grandTotal,currency)}`,
+          details:`المبيعات: ${money(t.foodAndBeverageValue,currency)}<br>الضرائب: ${money(tax(t),currency)}<br>الإجمالي شامل الضريبة: ${money(t.grandTotal,currency)}<hr style="border:0;border-top:1px solid rgba(255,255,255,.25);margin:6px 0">Total بالمحل شامل الضريبة: ${money(t.investorInternalBase,currency)}<br>حصة ${investorName} ${internalPercent}%: ${money(t.investorInternal,currency)}<br>Total سفري / توصيل / موقع شامل الضريبة: ${money(t.investorExternalBase,currency)}<br>حصة ${investorName} ${deliveryPercent}%: ${money(t.investorExternal,currency)}`,
         }
       : {
           label:'إجمالي الالتزامات',
           amount:obligations(t),
-          details:`الضريبة: ${money(tax(t),currency)}<br>نسبة ${investorName}: ${money(t.investorShare,currency)}<br>المبيعات قبل الضريبة: ${money(t.foodAndBeverageValue,currency)}<br>الإجمالي مع الضريبة: ${money(t.grandTotal,currency)}`,
+          details:`الضريبة: ${money(tax(t),currency)}<br>نسبة ${investorName}: ${money(t.investorShare,currency)}<br>المبيعات: ${money(t.foodAndBeverageValue,currency)}<br>الإجمالي مع الضريبة: ${money(t.grandTotal,currency)}`,
         }
 
   const modeHint=validMode==='finance'
