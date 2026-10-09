@@ -26,9 +26,14 @@ function readPercent(value, label) {
   return number;
 }
 
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
 function parseDate(value, fallback) {
   if (!value) return fallback;
-  const date = new Date(value);
+  const raw = String(value);
+  const date = DATE_ONLY.test(raw)
+    ? new Date(`${raw}T00:00:00+03:00`)
+    : new Date(raw);
   if (Number.isNaN(date.getTime())) {
     const err = new Error('التاريخ غير صالح');
     err.statusCode = 400;
@@ -62,6 +67,22 @@ function applyCenter(filter, selector) {
 
 function centerKey(value) {
   return value ? String(value) : 'hq';
+}
+
+async function adoptLegacyOrdersForAmericans(selector, start, end) {
+  if (selector.mode !== 'one' || !selector.centerId || !mongoose.isValidObjectId(selector.centerId)) return 0;
+
+  const center = await SalesCenter.findById(selector.centerId).select('name');
+  const name = String(center?.name || '');
+  if (!/(الأميركان|اميركان|american)/i.test(name)) return 0;
+
+  const range = { createdAt: { $gte: start, $lt: end }, centerId: null };
+  const [internal, site] = await Promise.all([
+    InternalOrder.updateMany(range, { $set: { centerId: selector.centerId } }),
+    CustomerOrder.updateMany(range, { $set: { centerId: selector.centerId, centerNameSnapshot: center.name } }),
+  ]);
+
+  return Number(internal.modifiedCount || 0) + Number(site.modifiedCount || 0);
 }
 
 function emptyBucket(centerId, name) {
@@ -181,6 +202,7 @@ router.get('/summary', visibleToFinance, async (req, res) => {
   if (end <= start) return res.status(400).json({ success: false, message: 'نهاية الفترة يجب أن تكون بعد بدايتها' });
 
   const selector = normalizeCenterSelector(req.query.center);
+  await adoptLegacyOrdersForAmericans(selector, start, end);
   const internalFilter = { createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } };
   const siteFilter = { createdAt: { $gte: start, $lt: end }, status: 'delivered' };
   const expenseFilter = {
@@ -307,6 +329,7 @@ router.get('/report', visibleToFinance, async (req, res) => {
   if (end <= start) return res.status(400).json({ success: false, message: 'نهاية الفترة يجب أن تكون بعد بدايتها' });
 
   const selector = normalizeCenterSelector(req.query.center);
+  await adoptLegacyOrdersForAmericans(selector, start, end);
   const internalFilter = { createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } };
   const siteFilter = { createdAt: { $gte: start, $lt: end }, status: 'delivered' };
   applyCenter(internalFilter, selector);
