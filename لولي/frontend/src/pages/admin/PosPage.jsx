@@ -182,8 +182,8 @@ export default function PosPage() {
     const internalBase = sum(internal)
     const externalBase = sum(external)
     return {
-      internal: { count: internal.length, base: internalBase, share: Math.round(internalBase * 0.20) },
-      external: { count: external.length, base: externalBase, share: Math.round(externalBase * 0.15) },
+      internal: { count: internal.length, base: internalBase, share: Math.round(internalBase * 0.205) },
+      external: { count: external.length, base: externalBase, share: Math.round(externalBase * 0.155) },
     }
   }, [orders])
 
@@ -663,14 +663,14 @@ export default function PosPage() {
           </button>
           <div className="grid sm:grid-cols-2 gap-3">
             <div className="bg-white rounded-2xl shadow-card p-4 border border-brand-border">
-              <div className="text-xs font-black text-brand-gray">Total بالمحل — شامل الضريبة · 20%</div>
+              <div className="text-xs font-black text-brand-gray">Total بالمحل — شامل الضريبة · 20.5%</div>
               <div className="mt-2 flex items-end justify-between gap-3">
                 <div><div className="text-xl font-black text-brand-dark">{formatCurrency(investorDay.internal.base)}</div><div className="text-xs text-brand-gray">{investorDay.internal.count} طلب</div></div>
                 <div className="text-left"><div className="text-xs text-brand-gray font-bold">حصة الأميركان</div><div className="font-black text-fuchsia">{formatCurrency(investorDay.internal.share)}</div></div>
               </div>
             </div>
             <div className="bg-white rounded-2xl shadow-card p-4 border border-brand-border">
-              <div className="text-xs font-black text-brand-gray">Total سفري / توصيل — شامل الضريبة · 15%</div>
+              <div className="text-xs font-black text-brand-gray">Total سفري / توصيل — شامل الضريبة · 15.5%</div>
               <div className="mt-2 flex items-end justify-between gap-3">
                 <div><div className="text-xl font-black text-brand-dark">{formatCurrency(investorDay.external.base)}</div><div className="text-xs text-brand-gray">{investorDay.external.count} طلب</div></div>
                 <div className="text-left"><div className="text-xs text-brand-gray font-bold">حصة الأميركان</div><div className="font-black text-fuchsia">{formatCurrency(investorDay.external.share)}</div></div>
