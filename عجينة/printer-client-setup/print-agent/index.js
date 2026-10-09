@@ -7,7 +7,7 @@ const os = require('os');
 const path = require('path');
 const { execFile } = require('child_process');
 
-const AGENT_VERSION = '1.1.0';
+const AGENT_VERSION = '1.3.2';
 
 const configPath = path.join(__dirname, 'config.json');
 const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
@@ -32,6 +32,70 @@ function sendToPrinter(host, port, buffer) {
     socket.on('timeout', () => socket.destroy(new Error('انتهت مهلة اتصال الطابعة')));
     socket.on('error', reject);
   });
+}
+
+const discoveredNetworkPrinters = new Map();
+
+function subnetPrefixes(preferredHost = '') {
+  const out = new Set();
+  const preferred = String(preferredHost).split('.');
+  if (preferred.length === 4) out.add(preferred.slice(0, 3).join('.'));
+
+  for (const rows of Object.values(os.networkInterfaces())) {
+    for (const row of rows || []) {
+      if (!row || row.internal || row.family !== 'IPv4') continue;
+      const parts = String(row.address).split('.');
+      if (parts.length === 4) out.add(parts.slice(0, 3).join('.'));
+    }
+  }
+  return [...out];
+}
+
+function portOpen(host, port, timeout = 350) {
+  return new Promise(resolve => {
+    const socket = new net.Socket();
+    let settled = false;
+    const done = open => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve(open);
+    };
+    socket.setTimeout(timeout);
+    socket.once('connect', () => done(true));
+    socket.once('timeout', () => done(false));
+    socket.once('error', () => done(false));
+    socket.connect(port, host);
+  });
+}
+
+async function discoverLanPrinter(preferredHost, port) {
+  const key = `${preferredHost}:${port}`;
+  const cached = discoveredNetworkPrinters.get(key);
+  if (cached && await portOpen(cached, port, 900)) return cached;
+
+  const found = [];
+  for (const prefix of subnetPrefixes(preferredHost)) {
+    const ips = Array.from({ length: 254 }, (_, i) => `${prefix}.${i + 1}`);
+    for (let i = 0; i < ips.length; i += 48) {
+      const batch = ips.slice(i, i + 48);
+      const results = await Promise.all(
+        batch.map(async ip => ({ ip, open: await portOpen(ip, port, 300) }))
+      );
+      for (const hit of results) if (hit.open) found.push(hit.ip);
+    }
+  }
+
+  const unique = [...new Set(found)];
+  if (unique.length === 1) {
+    discoveredNetworkPrinters.set(key, unique[0]);
+    console.log(`  ✓ تم العثور على طابعة LAN تلقائياً: ${unique[0]}:${port}`);
+    return unique[0];
+  }
+  if (unique.length > 1) {
+    throw new Error(`تعذّر تحديد طابعة المطبخ تلقائياً؛ وُجد أكثر من جهاز على المنفذ ${port}: ${unique.join(', ')}`);
+  }
+  throw new Error(`تعذّر الوصول إلى طابعة الشبكة ${preferredHost}:${port} ولم يُعثر على طابعة أخرى على المنفذ نفسه`);
 }
 
 /* ── USB printers ─────────────────────────────────────────────────────
@@ -86,6 +150,106 @@ async function sendToUsbPrinter(printerName, buffer) {
     ]);
   } finally {
     try { fs.unlinkSync(file); } catch { /* temp sweep will get it */ }
+  }
+}
+
+async function printPayload(body) {
+  const data = Buffer.from(String(body?.dataBase64 || ''), 'base64');
+  if (!data.length || data.length > 2_500_000) throw new Error('بيانات الطباعة غير صالحة');
+  const copies = Math.max(1, Math.min(5, Number(body?.copies) || 1));
+
+  const usb = body?.connection === 'usb' || (!body?.host && body?.printerName);
+  let label;
+
+  if (usb) {
+    const printerName = String(body?.printerName || '').trim();
+    if (!printerName || printerName.length > 200) throw new Error('اسم طابعة USB غير صالح');
+    for (let i = 0; i < copies; i++) await sendToUsbPrinter(printerName, data);
+    label = printerName;
+  } else {
+    const host = String(body?.host || '');
+    const port = Number(body?.port || 9100);
+    if (!isPrivateHost(host) || port < 1 || port > 65535) throw new Error('عنوان طابعة LAN غير صالح');
+
+    let targetHost = host;
+    try {
+      for (let i = 0; i < copies; i++) await sendToPrinter(targetHost, port, data);
+    } catch (firstError) {
+      console.error(`  ✖ طابعة LAN لا ترد على ${host}:${port}: ${firstError.message}`);
+      targetHost = await discoverLanPrinter(host, port);
+      for (let i = 0; i < copies; i++) await sendToPrinter(targetHost, port, data);
+    }
+    label = `${targetHost}:${port}`;
+  }
+
+  return { success: true, copies, printer: label };
+}
+
+const cloudQueue = config.serverQueue || {};
+let cloudPrinters = [];
+let cloudRunning = false;
+
+async function cloudHeartbeat() {
+  if (!cloudQueue.enabled || !cloudQueue.baseUrl || !cloudQueue.agentKey) return;
+  try {
+    cloudPrinters = await listPrinters();
+    await fetch(`${cloudQueue.baseUrl}/agent/heartbeat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Print-Agent-Key': cloudQueue.agentKey,
+      },
+      body: JSON.stringify({
+        deviceId: cloudQueue.deviceId || 'ajineh-main',
+        version: AGENT_VERSION,
+        printers: cloudPrinters,
+      }),
+    });
+  } catch (error) {
+    console.error('Cloud heartbeat failed:', error.message);
+  }
+}
+
+async function pollCloudQueue() {
+  if (!cloudQueue.enabled || cloudRunning || !cloudQueue.baseUrl || !cloudQueue.agentKey) return;
+  cloudRunning = true;
+  try {
+    const response = await fetch(
+      `${cloudQueue.baseUrl}/agent/next?deviceId=${encodeURIComponent(cloudQueue.deviceId || 'ajineh-main')}`,
+      { headers: { 'X-Print-Agent-Key': cloudQueue.agentKey } }
+    );
+
+    if (response.status === 204) return;
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const body = await response.json();
+    const job = body?.job;
+    if (!job?.id || !job?.payload) return;
+
+    console.log(`Cloud print job ${job.id} received`);
+
+    let result;
+    try {
+      const printed = await printPayload(job.payload);
+      result = { success: true, message: `Printed on ${printed.printer}` };
+      console.log(`Cloud print job ${job.id} done: ${printed.printer}`);
+    } catch (error) {
+      result = { success: false, message: error.message };
+      console.error(`Cloud print job ${job.id} failed: ${error.message}`);
+    }
+
+    await fetch(`${cloudQueue.baseUrl}/agent/${job.id}/result`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Print-Agent-Key': cloudQueue.agentKey,
+      },
+      body: JSON.stringify(result),
+    });
+  } catch (error) {
+    console.error('Cloud queue poll failed:', error.message);
+  } finally {
+    cloudRunning = false;
   }
 }
 
@@ -144,30 +308,8 @@ const server = http.createServer((req, res) => {
   req.on('end', async () => {
     try {
       const body = JSON.parse(raw || '{}');
-      const data = Buffer.from(String(body.dataBase64 || ''), 'base64');
-      if (!data.length || data.length > 2_500_000) throw new Error('بيانات الطباعة غير صالحة');
-      const copies = Math.max(1, Math.min(5, Number(body.copies) || 1));
-
-      /* Either a LAN printer at an address, or a USB one by name. The caller
-         says which; a printerName with no host is taken as USB so an older
-         dashboard build keeps working unchanged. */
-      const usb = body.connection === 'usb' || (!body.host && body.printerName);
-      let label;
-
-      if (usb) {
-        const printerName = String(body.printerName || '').trim();
-        if (!printerName || printerName.length > 200) throw new Error('اسم طابعة USB غير صالح');
-        for (let i = 0; i < copies; i++) await sendToUsbPrinter(printerName, data);
-        label = printerName;
-      } else {
-        const host = String(body.host || '');
-        const port = Number(body.port || 9100);
-        if (!isPrivateHost(host) || port < 1 || port > 65535) throw new Error('عنوان طابعة LAN غير صالح');
-        for (let i = 0; i < copies; i++) await sendToPrinter(host, port, data);
-        label = `${host}:${port}`;
-      }
-
-      reply(res, 200, { success: true, copies, printer: label }, origin);
+      const result = await printPayload(body);
+      reply(res, 200, result, origin);
     } catch (error) {
       reply(res, 502, { success: false, message: error.message }, origin);
     }
@@ -175,12 +317,17 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(listenPort, listenHost, () => {
-  /* Copying one file out of three and restarting looks exactly like a
-     successful update from the outside. Say plainly, at startup, what this
-     copy actually has — the window is open anyway. */
   console.log(`Print Agent ${AGENT_VERSION}: http://${listenHost}:${listenPort}`);
   console.log(`  العناوين المسموحة: ${[...allowedOrigins].join(' , ') || '(لا يوجد)'}`);
   if (!fs.existsSync(path.join(__dirname, 'raw-print.ps1'))) {
     console.error('  ✖ raw-print.ps1 مفقود — طباعة USB لن تعمل. انسخ المجلد كاملاً.');
+  }
+
+  if (cloudQueue.enabled) {
+    console.log(`  Cloud print queue: ${cloudQueue.baseUrl}`);
+    console.log(`  Device ID: ${cloudQueue.deviceId || 'ajineh-main'}`);
+    cloudHeartbeat();
+    setInterval(cloudHeartbeat, Math.max(3000, Number(cloudQueue.heartbeatMs) || 5000));
+    setInterval(pollCloudQueue, Math.max(250, Number(cloudQueue.pollMs) || 500));
   }
 });
