@@ -489,6 +489,10 @@ router.get('/report', visibleToFinance, async (req, res) => {
       taxTotal: total('taxTotal'),
       investorInternalBase: total('investorInternalBase'),
       investorExternalBase: total('investorExternalBase'),
+      investorSplitTotal: financeService.money(total('investorInternalBase') + total('investorExternalBase')),
+      investorSplitDifference: financeService.money(
+        total('grandTotal') - (total('investorInternalBase') + total('investorExternalBase'))
+      ),
       investorInternal: total('investorInternal'),
       investorExternal: total('investorExternal'),
       investorShare: total('investorShare'),
