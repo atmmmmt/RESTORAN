@@ -326,8 +326,8 @@ router.get('/report', visibleToFinance, async (req, res) => {
 
   const investor = investorSettings.investor || {};
   const investorOn = investor.enabled !== false;
-  const internalPct = investorOn ? Number(investor.internalPercent ?? 20) : 0;
-  const deliveryPct = investorOn ? Number(investor.deliveryPercent ?? 15) : 0;
+  const internalPct = investorOn ? Number(investor.internalPercent ?? 20.5) : 0;
+  const deliveryPct = investorOn ? Number(investor.deliveryPercent ?? 15.5) : 0;
   const investorName = investor.name || 'الأميركان';
 
   const investorRate = orderType => orderType === 'dine_in' ? internalPct : deliveryPct;
