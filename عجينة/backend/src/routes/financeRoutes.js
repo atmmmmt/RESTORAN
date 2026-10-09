@@ -360,8 +360,9 @@ router.get('/report', visibleToFinance, async (req, res) => {
     const base = financeService.revenueOf(order, totalField);
     const consumption = financeService.consumptionTaxOf(order);
     const local = financeService.localAdminTaxOf(order);
+    const grandTotal = financeService.money(base + consumption + local);
     const rate = investorRate(orderType);
-    const share = investorOn ? financeService.money(base * rate / 100) : 0;
+    const share = investorOn ? financeService.money(grandTotal * rate / 100) : 0;
     row.ordersCount += 1;
     row.foodAndBeverageValue += base;
     row.consumptionTax += consumption;
@@ -371,7 +372,7 @@ router.get('/report', visibleToFinance, async (req, res) => {
     if (orderType === 'dine_in') row.investorInternal += share;
     else row.investorExternal += share;
     row.obligationsTotal += consumption + local + share;
-    row.grandTotal += financeService.money(base + consumption + local);
+    row.grandTotal += grandTotal;
   };
 
   internalOrders.forEach(order => addOrder(order, 'total', order.orderType));
